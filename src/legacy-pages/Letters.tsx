@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AdminLayout } from '@/components/layout/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -49,12 +49,13 @@ import {
   Mail,
   CalendarIcon,
 } from 'lucide-react';
-import { mockLetters, mockClients } from '@/data/mockData';
-import type { Letter, LetterType, LetterStatus } from '@/types';
+import type { Client, Letter, LetterType, LetterStatus } from '@/types';
 import { formatDate, generateLetterNumber } from '@/lib/numbering';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { fetchClients } from '@/lib/api/clients';
+import { createLetter, fetchLetters, updateLetter } from '@/lib/api/letters';
 
 const letterTypeLabels: Record<LetterType, string> = {
   HRGA: 'HR/GA',
@@ -64,7 +65,8 @@ const letterTypeLabels: Record<LetterType, string> = {
 
 export default function Letters() {
   const { toast } = useToast();
-  const [letters, setLetters] = useState<Letter[]>(mockLetters);
+  const [letters, setLetters] = useState<Letter[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<LetterType | 'ALL'>('ALL');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -86,6 +88,27 @@ export default function Letters() {
     return matchesSearch && matchesType;
   });
 
+  useEffect(() => {
+    let active = true;
+    const loadData = async () => {
+      try {
+        const [letterData, clientData] = await Promise.all([
+          fetchLetters(),
+          fetchClients(),
+        ]);
+        if (!active) return;
+        setLetters(letterData);
+        setClients(clientData);
+      } catch (error) {
+        console.error(error);
+      }
+    };
+    loadData();
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const resetForm = () => {
     setFormData({
       clientId: '',
@@ -106,10 +129,10 @@ export default function Letters() {
     return existingInMonth.length + 1;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const client = mockClients.find((c) => c.id === formData.clientId);
+    const client = clients.find((c) => c.id === formData.clientId);
     if (!client) {
       toast({
         title: 'Error',
@@ -126,42 +149,52 @@ export default function Letters() {
       letterDate: formData.letterDate,
     });
 
-    const newLetter: Letter = {
-      id: Date.now().toString(),
-      letterDate: formData.letterDate,
-      clientId: formData.clientId,
-      client,
-      letterType: formData.letterType,
-      subject: formData.subject,
-      seqNo,
-      letterNumber,
-      status: 'ACTIVE',
-      notes: formData.notes,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    setLetters([...letters, newLetter]);
-    setIsDialogOpen(false);
-    resetForm();
-    toast({
-      title: 'Success',
-      description: `Surat ${letterNumber} berhasil dibuat`,
-    });
+    try {
+      const created = await createLetter({
+        letterDate: formData.letterDate,
+        clientId: formData.clientId,
+        letterType: formData.letterType,
+        subject: formData.subject,
+        seqNo,
+        letterNumber,
+        status: 'ACTIVE',
+        notes: formData.notes,
+      });
+      setLetters([...letters, { ...created, client }]);
+      setIsDialogOpen(false);
+      resetForm();
+      toast({
+        title: 'Success',
+        description: `Surat ${letterNumber} berhasil dibuat`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Gagal membuat surat',
+        variant: 'destructive',
+      });
+    }
   };
 
-  const handleVoidLetter = (letter: Letter) => {
-    setLetters(
-      letters.map((l) =>
-        l.id === letter.id
-          ? { ...l, status: 'VOID' as LetterStatus, updatedAt: new Date() }
-          : l
-      )
-    );
-    toast({
-      title: 'Letter Voided',
-      description: `Surat ${letter.letterNumber} telah di-void`,
-    });
+  const handleVoidLetter = async (letter: Letter) => {
+    try {
+      const updated = await updateLetter(letter.id, { status: 'VOID' });
+      setLetters(
+        letters.map((l) =>
+          l.id === updated.id ? { ...updated, client: l.client } : l
+        )
+      );
+      toast({
+        title: 'Letter Voided',
+        description: `Surat ${letter.letterNumber} telah di-void`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Gagal void surat',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleExportExcel = () => {
@@ -348,7 +381,7 @@ export default function Letters() {
                       <SelectValue placeholder="Pilih Client" />
                     </SelectTrigger>
                     <SelectContent>
-                      {mockClients
+                      {clients
                         .filter((c) => c.isActive)
                         .map((client) => (
                           <SelectItem key={client.id} value={client.id}>

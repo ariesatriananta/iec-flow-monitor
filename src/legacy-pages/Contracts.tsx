@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AdminLayout } from '@/components/layout/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -51,8 +51,9 @@ import {
   CalendarIcon,
   Filter,
 } from 'lucide-react';
-import { mockContracts, mockClients } from '@/data/mockData';
-import type { Contract, ServiceCode, PaymentStatus, ContractStatus } from '@/types';
+import { fetchClients } from '@/lib/api/clients';
+import { createContract, fetchContracts, updateContract } from '@/lib/api/contracts';
+import type { Client, Contract, ServiceCode, PaymentStatus, ContractStatus } from '@/types';
 import { formatCurrency, formatDate, generateProposalNumber } from '@/lib/numbering';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
@@ -61,7 +62,8 @@ import { cn } from '@/lib/utils';
 export default function Contracts() {
   const router = useRouter();
   const { toast } = useToast();
-  const [contracts, setContracts] = useState<Contract[]>(mockContracts);
+  const [contracts, setContracts] = useState<Contract[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<PaymentStatus | 'ALL'>('ALL');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -84,6 +86,27 @@ export default function Contracts() {
     const matchesStatus = filterStatus === 'ALL' || contract.paymentStatus === filterStatus;
     return matchesSearch && matchesStatus;
   });
+
+  useEffect(() => {
+    let active = true;
+    const loadData = async () => {
+      try {
+        const [contractData, clientData] = await Promise.all([
+          fetchContracts(),
+          fetchClients(),
+        ]);
+        if (!active) return;
+        setContracts(contractData);
+        setClients(clientData);
+      } catch (error) {
+        console.error(error);
+      }
+    };
+    loadData();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const resetForm = () => {
     setFormData({
@@ -130,10 +153,10 @@ export default function Contracts() {
     return Math.max(...clientContracts.map((c) => c.engagementNo)) + 1;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const client = mockClients.find((c) => c.id === formData.clientId);
+    const client = clients.find((c) => c.id === formData.clientId);
     if (!client) {
       toast({
         title: 'Error',
@@ -155,23 +178,29 @@ export default function Contracts() {
 
     if (editingContract) {
       // Update existing contract
-      setContracts(
-        contracts.map((c) =>
-          c.id === editingContract.id
-            ? {
-                ...c,
-                contractTitle: formData.contractTitle,
-                contractValue,
-                notes: formData.notes,
-                updatedAt: new Date(),
-              }
-            : c
-        )
-      );
-      toast({
-        title: 'Success',
-        description: 'Contract berhasil diupdate',
-      });
+      try {
+        const updated = await updateContract(editingContract.id, {
+          contractTitle: formData.contractTitle,
+          contractValue,
+          notes: formData.notes,
+        });
+        setContracts(
+          contracts.map((c) =>
+            c.id === updated.id ? { ...updated, client: c.client } : c
+          )
+        );
+        toast({
+          title: 'Success',
+          description: 'Contract berhasil diupdate',
+        });
+      } catch (error) {
+        toast({
+          title: 'Error',
+          description: 'Gagal update contract',
+          variant: 'destructive',
+        });
+        return;
+      }
     } else {
       // Create new contract
       const seqNo = getNextSeqNo(formData.proposalDate);
@@ -184,46 +213,60 @@ export default function Contracts() {
         proposalDate: formData.proposalDate,
       });
 
-      const newContract: Contract = {
-        id: Date.now().toString(),
-        proposalDate: formData.proposalDate,
-        clientId: formData.clientId,
-        client,
-        serviceCode: formData.serviceCode,
-        engagementNo,
-        seqNo,
-        proposalNumber,
-        contractTitle: formData.contractTitle,
-        contractValue,
-        paymentStatus: 'UNPAID',
-        status: 'ACTIVE',
-        notes: formData.notes,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-      setContracts([...contracts, newContract]);
-      toast({
-        title: 'Success',
-        description: `Contract ${proposalNumber} berhasil dibuat`,
-      });
+      try {
+        const created = await createContract({
+          proposalDate: formData.proposalDate,
+          clientId: formData.clientId,
+          serviceCode: formData.serviceCode,
+          engagementNo,
+          seqNo,
+          proposalNumber,
+          contractTitle: formData.contractTitle,
+          contractValue,
+          paymentStatus: 'UNPAID',
+          status: 'ACTIVE',
+          notes: formData.notes,
+        });
+        setContracts([...contracts, { ...created, client }]);
+        toast({
+          title: 'Success',
+          description: `Contract ${proposalNumber} berhasil dibuat`,
+        });
+      } catch (error) {
+        toast({
+          title: 'Error',
+          description: 'Gagal membuat contract',
+          variant: 'destructive',
+        });
+        return;
+      }
     }
 
     setIsDialogOpen(false);
     resetForm();
   };
 
-  const handleVoidContract = (contract: Contract) => {
-    setContracts(
-      contracts.map((c) =>
-        c.id === contract.id
-          ? { ...c, status: 'VOID' as ContractStatus, updatedAt: new Date() }
-          : c
-      )
-    );
-    toast({
-      title: 'Contract Voided',
-      description: `Contract ${contract.proposalNumber} telah di-void`,
-    });
+  const handleVoidContract = async (contract: Contract) => {
+    try {
+      const updated = await updateContract(contract.id, {
+        status: 'VOID',
+      });
+      setContracts(
+        contracts.map((c) =>
+          c.id === updated.id ? { ...updated, client: c.client } : c
+        )
+      );
+      toast({
+        title: 'Contract Voided',
+        description: `Contract ${contract.proposalNumber} telah di-void`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Gagal void contract',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleExportExcel = () => {
@@ -435,7 +478,7 @@ export default function Contracts() {
                       <SelectValue placeholder="Pilih Client" />
                     </SelectTrigger>
                     <SelectContent>
-                      {mockClients
+                      {clients
                         .filter((c) => c.isActive)
                         .map((client) => (
                           <SelectItem key={client.id} value={client.id}>

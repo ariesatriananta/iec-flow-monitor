@@ -28,5 +28,20 @@ Jika suatu env dipakai di client, gunakan prefix `NEXT_PUBLIC_`.
 Placeholder untuk Neon Postgres (belum dipakai sekarang):
 
 ```env
-DATABASE_URL=postgresql://USER:PASSWORD@HOST/DB?sslmode=require
+DATABASE_URL=""
+```
+
+## Database (Neon + Drizzle)
+
+Generate dan migrate:
+
+```sh
+npm run db:generate
+npm run db:migrate
+```
+
+Seed data mock:
+
+```sh
+npm run db:seed
 ```

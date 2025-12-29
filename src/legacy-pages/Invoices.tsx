@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AdminLayout } from '@/components/layout/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -38,14 +38,16 @@ import {
   Filter,
   Receipt,
 } from 'lucide-react';
-import { mockInvoices, mockContracts } from '@/data/mockData';
-import type { Invoice, InvoiceStatus } from '@/types';
+import type { Contract, Invoice, InvoiceStatus } from '@/types';
 import { formatCurrency, formatDate } from '@/lib/numbering';
 import { useToast } from '@/hooks/use-toast';
+import { fetchInvoices, updateInvoice } from '@/lib/api/invoices';
+import { fetchContracts } from '@/lib/api/contracts';
 
 export default function Invoices() {
   const { toast } = useToast();
-  const [invoices, setInvoices] = useState<Invoice[]>(mockInvoices);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [contracts, setContracts] = useState<Contract[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<InvoiceStatus | 'ALL'>('ALL');
 
@@ -57,6 +59,27 @@ export default function Invoices() {
     return matchesSearch && matchesStatus;
   });
 
+  useEffect(() => {
+    let active = true;
+    const loadData = async () => {
+      try {
+        const [invoiceData, contractData] = await Promise.all([
+          fetchInvoices(),
+          fetchContracts(),
+        ]);
+        if (!active) return;
+        setInvoices(invoiceData);
+        setContracts(contractData);
+      } catch (error) {
+        console.error(error);
+      }
+    };
+    loadData();
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const handlePrintPdf = (invoice: Invoice) => {
     toast({
       title: 'Template Belum Tersedia',
@@ -64,46 +87,61 @@ export default function Invoices() {
     });
   };
 
-  const handleMarkAsIssued = (invoice: Invoice) => {
-    setInvoices(
-      invoices.map((i) =>
-        i.id === invoice.id
-          ? { ...i, status: 'ISSUED' as InvoiceStatus, updatedAt: new Date() }
-          : i
-      )
-    );
-    toast({
-      title: 'Status Updated',
-      description: `Invoice ${invoice.invoiceNumber} telah di-issued`,
-    });
+  const handleMarkAsIssued = async (invoice: Invoice) => {
+    try {
+      const updated = await updateInvoice(invoice.id, {
+        status: 'ISSUED',
+      });
+      setInvoices(invoices.map((i) => (i.id === updated.id ? updated : i)));
+      toast({
+        title: 'Status Updated',
+        description: `Invoice ${invoice.invoiceNumber} telah di-issued`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Gagal update status invoice',
+        variant: 'destructive',
+      });
+    }
   };
 
-  const handleMarkAsPaid = (invoice: Invoice) => {
-    setInvoices(
-      invoices.map((i) =>
-        i.id === invoice.id
-          ? { ...i, status: 'PAID' as InvoiceStatus, updatedAt: new Date() }
-          : i
-      )
-    );
-    toast({
-      title: 'Payment Received',
-      description: `Invoice ${invoice.invoiceNumber} telah lunas`,
-    });
+  const handleMarkAsPaid = async (invoice: Invoice) => {
+    try {
+      const updated = await updateInvoice(invoice.id, {
+        status: 'PAID',
+      });
+      setInvoices(invoices.map((i) => (i.id === updated.id ? updated : i)));
+      toast({
+        title: 'Payment Received',
+        description: `Invoice ${invoice.invoiceNumber} telah lunas`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Gagal update invoice',
+        variant: 'destructive',
+      });
+    }
   };
 
-  const handleVoidInvoice = (invoice: Invoice) => {
-    setInvoices(
-      invoices.map((i) =>
-        i.id === invoice.id
-          ? { ...i, status: 'VOID' as InvoiceStatus, updatedAt: new Date() }
-          : i
-      )
-    );
-    toast({
-      title: 'Invoice Voided',
-      description: `Invoice ${invoice.invoiceNumber} telah di-void`,
-    });
+  const handleVoidInvoice = async (invoice: Invoice) => {
+    try {
+      const updated = await updateInvoice(invoice.id, {
+        status: 'VOID',
+      });
+      setInvoices(invoices.map((i) => (i.id === updated.id ? updated : i)));
+      toast({
+        title: 'Invoice Voided',
+        description: `Invoice ${invoice.invoiceNumber} telah di-void`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Gagal void invoice',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleExportExcel = () => {
@@ -129,7 +167,7 @@ export default function Invoices() {
   };
 
   const getContractInfo = (contractId: string) => {
-    const contract = mockContracts.find((c) => c.id === contractId);
+    const contract = contracts.find((c) => c.id === contractId);
     return contract
       ? { number: contract.proposalNumber, client: contract.client?.name }
       : { number: '-', client: '-' };

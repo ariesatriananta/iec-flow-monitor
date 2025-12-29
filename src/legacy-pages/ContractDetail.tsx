@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { AdminLayout } from '@/components/layout/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -37,12 +37,14 @@ import {
   FileText,
   DollarSign,
 } from 'lucide-react';
-import { mockContracts, mockTermins, mockInvoices } from '@/data/mockData';
-import type { Termin, TerminStatus, Invoice } from '@/types';
-import { formatCurrency, formatDate, calculatePercentage, generateInvoiceNumber } from '@/lib/numbering';
+import type { Contract, Termin, TerminStatus, Invoice } from '@/types';
+import { formatCurrency, formatDate, calculatePercentage } from '@/lib/numbering';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { fetchContract } from '@/lib/api/contracts';
+import { fetchInvoices } from '@/lib/api/invoices';
+import { createTermin, updateTermin } from '@/lib/api/termins';
 
 export default function ContractDetail() {
   const params = useParams();
@@ -52,13 +54,10 @@ export default function ContractDetail() {
   const contractId = id ?? '';
   const { toast } = useToast();
 
-  const contract = mockContracts.find((c) => c.id === contractId);
-  const [termins, setTermins] = useState<Termin[]>(
-    mockTermins.filter((t) => t.contractId === contractId)
-  );
-  const [invoices] = useState<Invoice[]>(
-    mockInvoices.filter((i) => i.contractId === contractId)
-  );
+  const [contract, setContract] = useState<Contract | null>(null);
+  const [termins, setTermins] = useState<Termin[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   const [isTerminDialogOpen, setIsTerminDialogOpen] = useState(false);
   const [terminFormData, setTerminFormData] = useState({
@@ -66,6 +65,31 @@ export default function ContractDetail() {
     terminAmount: '',
     dueDate: undefined as Date | undefined,
   });
+
+  useEffect(() => {
+    if (!contractId) return;
+    let active = true;
+    const loadData = async () => {
+      try {
+        const [contractData, invoiceData] = await Promise.all([
+          fetchContract(contractId),
+          fetchInvoices(contractId),
+        ]);
+        if (!active) return;
+        setContract(contractData);
+        setTermins(contractData.termins ?? []);
+        setInvoices(invoiceData);
+      } catch (error) {
+        console.error(error);
+      } finally {
+        if (active) setIsLoading(false);
+      }
+    };
+    loadData();
+    return () => {
+      active = false;
+    };
+  }, [contractId]);
 
   const totalPaid = useMemo(
     () => termins.filter((t) => t.status === 'PAID').reduce((sum, t) => sum + t.terminAmount, 0),
@@ -77,7 +101,7 @@ export default function ContractDetail() {
     [totalPaid, contract]
   );
 
-  if (!contract) {
+  if (!contract && !isLoading) {
     return (
       <AdminLayout title="Contract Not Found">
         <div className="flex flex-col items-center justify-center py-12">
@@ -92,7 +116,11 @@ export default function ContractDetail() {
     );
   }
 
-  const handleAddTermin = (e: React.FormEvent) => {
+  if (!contract) {
+    return null;
+  }
+
+  const handleAddTermin = async (e: React.FormEvent) => {
     e.preventDefault();
 
     const amount = parseFloat(terminFormData.terminAmount.replace(/[^0-9]/g, ''));
@@ -105,62 +133,86 @@ export default function ContractDetail() {
       return;
     }
 
-    const newTermin: Termin = {
-      id: Date.now().toString(),
-      contractId: contract.id,
-      terminName: terminFormData.terminName,
-      terminAmount: amount,
-      dueDate: terminFormData.dueDate,
-      status: 'PENDING',
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    setTermins([...termins, newTermin]);
-    setIsTerminDialogOpen(false);
-    setTerminFormData({ terminName: '', terminAmount: '', dueDate: undefined });
-    toast({
-      title: 'Termin Ditambahkan',
-      description: `${terminFormData.terminName} berhasil ditambahkan`,
-    });
+    try {
+      const created = await createTermin({
+        contractId: contract.id,
+        terminName: terminFormData.terminName,
+        terminAmount: amount,
+        dueDate: terminFormData.dueDate,
+        status: 'PENDING',
+      });
+      setTermins([...termins, created]);
+      setIsTerminDialogOpen(false);
+      setTerminFormData({ terminName: '', terminAmount: '', dueDate: undefined });
+      toast({
+        title: 'Termin Ditambahkan',
+        description: `${terminFormData.terminName} berhasil ditambahkan`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Gagal menambahkan termin',
+        variant: 'destructive',
+      });
+    }
   };
 
-  const handleMarkAsPaid = (termin: Termin) => {
-    setTermins(
-      termins.map((t) =>
-        t.id === termin.id
-          ? { ...t, status: 'PAID' as TerminStatus, paymentReceivedDate: new Date() }
-          : t
-      )
-    );
-    toast({
-      title: 'Payment Received',
-      description: `${termin.terminName} telah ditandai sebagai PAID`,
-    });
+  const handleMarkAsPaid = async (termin: Termin) => {
+    try {
+      const updated = await updateTermin(termin.id, {
+        status: 'PAID',
+        paymentReceivedDate: new Date(),
+      });
+      setTermins(termins.map((t) => (t.id === updated.id ? updated : t)));
+      toast({
+        title: 'Payment Received',
+        description: `${termin.terminName} telah ditandai sebagai PAID`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Gagal update termin',
+        variant: 'destructive',
+      });
+    }
   };
 
-  const handleCreateInvoice = (termin: Termin) => {
-    toast({
-      title: 'Invoice Created',
-      description: `Invoice untuk ${termin.terminName} berhasil dibuat`,
-    });
-    setTermins(
-      termins.map((t) =>
-        t.id === termin.id ? { ...t, status: 'INVOICED' as TerminStatus } : t
-      )
-    );
+  const handleCreateInvoice = async (termin: Termin) => {
+    try {
+      const updated = await updateTermin(termin.id, {
+        status: 'INVOICED',
+      });
+      setTermins(termins.map((t) => (t.id === updated.id ? updated : t)));
+      toast({
+        title: 'Invoice Created',
+        description: `Invoice untuk ${termin.terminName} berhasil dibuat`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Gagal membuat invoice',
+        variant: 'destructive',
+      });
+    }
   };
 
-  const handleVoidTermin = (termin: Termin) => {
-    setTermins(
-      termins.map((t) =>
-        t.id === termin.id ? { ...t, status: 'VOID' as TerminStatus } : t
-      )
-    );
-    toast({
-      title: 'Termin Voided',
-      description: `${termin.terminName} telah di-void`,
-    });
+  const handleVoidTermin = async (termin: Termin) => {
+    try {
+      const updated = await updateTermin(termin.id, {
+        status: 'VOID',
+      });
+      setTermins(termins.map((t) => (t.id === updated.id ? updated : t)));
+      toast({
+        title: 'Termin Voided',
+        description: `${termin.terminName} telah di-void`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Gagal void termin',
+        variant: 'destructive',
+      });
+    }
   };
 
   const getTerminStatusColor = (status: TerminStatus) => {

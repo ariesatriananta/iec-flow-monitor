@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { AdminLayout } from '@/components/layout/AdminLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -11,8 +12,11 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { FileText, Receipt, TrendingUp, Clock, ArrowRight, Plus } from 'lucide-react';
-import { formatCurrency, formatDate } from '@/lib/numbering';
-import { getDashboardKPI, mockContracts, mockInvoices, mockLetters } from '@/data/mockData';
+import { formatCurrency } from '@/lib/numbering';
+import { fetchDashboardKPI } from '@/lib/api/dashboard';
+import { fetchContracts } from '@/lib/api/contracts';
+import { fetchInvoices } from '@/lib/api/invoices';
+import type { Contract, DashboardKPI, Invoice } from '@/types';
 import { useRouter } from 'next/navigation';
 import {
   BarChart,
@@ -37,33 +41,65 @@ const monthlyData = [
 
 export default function Dashboard() {
   const router = useRouter();
-  const kpi = getDashboardKPI();
+  const [kpi, setKpi] = useState<DashboardKPI | null>(null);
+  const [contracts, setContracts] = useState<Contract[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    const loadData = async () => {
+      try {
+        const [kpiData, contractData, invoiceData] = await Promise.all([
+          fetchDashboardKPI(),
+          fetchContracts(),
+          fetchInvoices(),
+        ]);
+        if (!active) return;
+        setKpi(kpiData);
+        setContracts(contractData);
+        setInvoices(invoiceData);
+      } catch (error) {
+        console.error(error);
+      }
+    };
+    loadData();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const kpiSafe: DashboardKPI = kpi ?? {
+    totalContracts: 0,
+    totalContractValue: 0,
+    totalPaymentReceived: 0,
+    pendingPayments: 0,
+  };
 
   const kpiCards = [
     {
       title: 'Total Contracts',
-      value: kpi.totalContracts.toString(),
+      value: kpiSafe.totalContracts.toString(),
       subtitle: 'Active contracts',
       icon: FileText,
       color: 'bg-primary/10 text-primary',
     },
     {
       title: 'Contract Value',
-      value: formatCurrency(kpi.totalContractValue),
+      value: formatCurrency(kpiSafe.totalContractValue),
       subtitle: 'Total nilai kontrak',
       icon: TrendingUp,
       color: 'bg-success/10 text-success',
     },
     {
       title: 'Payment Received',
-      value: formatCurrency(kpi.totalPaymentReceived),
+      value: formatCurrency(kpiSafe.totalPaymentReceived),
       subtitle: 'Total diterima',
       icon: Receipt,
       color: 'bg-chart-1/20 text-chart-1',
     },
     {
       title: 'Pending Payments',
-      value: formatCurrency(kpi.pendingPayments),
+      value: formatCurrency(kpiSafe.pendingPayments),
       subtitle: 'Menunggu pembayaran',
       icon: Clock,
       color: 'bg-warning/10 text-warning',
@@ -219,7 +255,7 @@ export default function Dashboard() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {mockContracts.slice(0, 5).map((contract) => (
+                {contracts.slice(0, 5).map((contract) => (
                   <TableRow key={contract.id} className="cursor-pointer hover:bg-muted/50">
                     <TableCell className="font-mono text-sm">
                       {contract.proposalNumber}
@@ -271,7 +307,7 @@ export default function Dashboard() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {mockInvoices.slice(0, 5).map((invoice) => (
+                {invoices.slice(0, 5).map((invoice) => (
                   <TableRow key={invoice.id} className="cursor-pointer hover:bg-muted/50">
                     <TableCell className="font-mono text-sm">
                       {invoice.invoiceNumber}

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AdminLayout } from '@/components/layout/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -29,12 +29,12 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Plus, Search, MoreHorizontal, Pencil, Trash2, Building2 } from 'lucide-react';
-import { mockClients } from '@/data/mockData';
 import type { Client } from '@/types';
 import { useToast } from '@/hooks/use-toast';
+import { createClient, fetchClients, updateClient } from '@/lib/api/clients';
 
 export default function Clients() {
-  const [clients, setClients] = useState<Client[]>(mockClients);
+  const [clients, setClients] = useState<Client[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
@@ -55,6 +55,23 @@ export default function Clients() {
       client.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       client.code.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  useEffect(() => {
+    let active = true;
+    const loadClients = async () => {
+      try {
+        const data = await fetchClients();
+        if (!active) return;
+        setClients(data);
+      } catch (error) {
+        console.error(error);
+      }
+    };
+    loadClients();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const resetForm = () => {
     setFormData({
@@ -85,7 +102,7 @@ export default function Clients() {
     setIsDialogOpen(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Validate unique code
@@ -103,49 +120,75 @@ export default function Clients() {
 
     if (editingClient) {
       // Update existing client
-      setClients(
-        clients.map((c) =>
-          c.id === editingClient.id
-            ? { ...c, ...formData, updatedAt: new Date() }
-            : c
-        )
-      );
-      toast({
-        title: 'Success',
-        description: 'Client berhasil diupdate',
-      });
+      try {
+        const updated = await updateClient(editingClient.id, {
+          ...formData,
+          code: formData.code.toUpperCase(),
+          isActive: editingClient.isActive,
+        });
+        setClients(clients.map((c) => (c.id === updated.id ? updated : c)));
+        toast({
+          title: 'Success',
+          description: 'Client berhasil diupdate',
+        });
+      } catch (error) {
+        toast({
+          title: 'Error',
+          description: 'Gagal update client',
+          variant: 'destructive',
+        });
+        return;
+      }
     } else {
       // Create new client
-      const newClient: Client = {
-        id: Date.now().toString(),
-        ...formData,
-        isActive: true,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-      setClients([...clients, newClient]);
-      toast({
-        title: 'Success',
-        description: 'Client berhasil ditambahkan',
-      });
+      try {
+        const created = await createClient({
+          ...formData,
+          code: formData.code.toUpperCase(),
+          isActive: true,
+        });
+        setClients([...clients, created]);
+        toast({
+          title: 'Success',
+          description: 'Client berhasil ditambahkan',
+        });
+      } catch (error) {
+        toast({
+          title: 'Error',
+          description: 'Gagal menambahkan client',
+          variant: 'destructive',
+        });
+        return;
+      }
     }
 
     setIsDialogOpen(false);
     resetForm();
   };
 
-  const handleToggleActive = (client: Client) => {
-    setClients(
-      clients.map((c) =>
-        c.id === client.id
-          ? { ...c, isActive: !c.isActive, updatedAt: new Date() }
-          : c
-      )
-    );
-    toast({
-      title: 'Status Updated',
-      description: `Client ${client.isActive ? 'dinonaktifkan' : 'diaktifkan'}`,
-    });
+  const handleToggleActive = async (client: Client) => {
+    try {
+      const updated = await updateClient(client.id, {
+        name: client.name,
+        code: client.code,
+        address: client.address,
+        picName: client.picName,
+        email: client.email,
+        phone: client.phone,
+        isActive: !client.isActive,
+      });
+      setClients(clients.map((c) => (c.id === updated.id ? updated : c)));
+      toast({
+        title: 'Status Updated',
+        description: `Client ${client.isActive ? 'dinonaktifkan' : 'diaktifkan'}`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Gagal update status client',
+        variant: 'destructive',
+      });
+    }
   };
 
   return (
