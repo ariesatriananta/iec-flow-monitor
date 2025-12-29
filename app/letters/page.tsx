@@ -85,13 +85,18 @@ export default function Letters() {
     notes: '',
   });
 
-  const filteredLetters = letters.filter((letter) => {
-    const matchesSearch =
-      letter.letterNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      letter.subject.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesType = filterType === 'ALL' || letter.letterType === filterType;
-    return matchesSearch && matchesType;
-  });
+  const filteredLetters = letters
+    .filter((letter) => {
+      const matchesSearch =
+        letter.letterNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        letter.subject.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesType = filterType === 'ALL' || letter.letterType === filterType;
+      return matchesSearch && matchesType;
+    })
+    .sort(
+      (a, b) =>
+        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    );
 
   useEffect(() => {
     let active = true;

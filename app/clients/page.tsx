@@ -43,6 +43,7 @@ export default function Clients() {
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [togglingClientId, setTogglingClientId] = useState<string | null>(null);
   const { toast } = useToast();
 
   // Form state
@@ -55,11 +56,16 @@ export default function Clients() {
     phone: '',
   });
 
-  const filteredClients = clients.filter(
-    (client) =>
-      client.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      client.code.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredClients = clients
+    .filter(
+      (client) =>
+        client.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        client.code.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+    .sort(
+      (a, b) =>
+        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    );
 
   useEffect(() => {
     let active = true;
@@ -167,6 +173,7 @@ export default function Clients() {
   };
 
   const handleToggleActive = async (client: Client) => {
+    setTogglingClientId(client.id);
     try {
       const updated = await updateClient(client.id, {
         name: client.name,
@@ -188,6 +195,8 @@ export default function Clients() {
         description: 'Gagal update status client',
         variant: 'destructive',
       });
+    } finally {
+      setTogglingClientId(null);
     }
   };
 
@@ -379,8 +388,16 @@ export default function Clients() {
                       <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                              <MoreHorizontal className="w-4 h-4" />
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              disabled={togglingClientId === client.id}
+                            >
+                              {togglingClientId === client.id ? (
+                                <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                              ) : (
+                                <MoreHorizontal className="w-4 h-4" />
+                              )}
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">

@@ -55,3 +55,9 @@ export async function updateTermin(
   });
   return parseTermin(data);
 }
+
+export async function deleteTermin(id: string): Promise<void> {
+  await requestJson(`/api/termins/${id}`, {
+    method: "DELETE",
+  });
+}

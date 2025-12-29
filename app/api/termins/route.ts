@@ -1,9 +1,41 @@
 export const dynamic = "force-dynamic"
 
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { termins } from "@/lib/db/schema";
+import { contracts, termins } from "@/lib/db/schema";
+
+async function updateContractPaymentStatus(db: ReturnType<typeof getDb>, contractId: string) {
+  const [contract] = await db
+    .select({ contractValue: contracts.contractValue })
+    .from(contracts)
+    .where(eq(contracts.id, contractId))
+    .limit(1);
+
+  if (!contract) return;
+
+  const [paid] = await db
+    .select({
+      totalPaid: sql<string>`coalesce(sum(${termins.terminAmount}), 0)`,
+    })
+    .from(termins)
+    .where(and(eq(termins.contractId, contractId), eq(termins.status, "PAID")));
+
+  const totalPaid = Number(paid?.totalPaid ?? 0);
+  const contractValue = Number(contract.contractValue ?? 0);
+
+  let paymentStatus: "UNPAID" | "PARTIAL" | "PAID" = "UNPAID";
+  if (totalPaid > 0 && totalPaid < contractValue) {
+    paymentStatus = "PARTIAL";
+  } else if (totalPaid >= contractValue && contractValue > 0) {
+    paymentStatus = "PAID";
+  }
+
+  await db
+    .update(contracts)
+    .set({ paymentStatus, updatedAt: new Date() })
+    .where(eq(contracts.id, contractId));
+}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -50,6 +82,8 @@ export async function POST(request: Request) {
       updatedAt: now,
     })
     .returning();
+
+  await updateContractPaymentStatus(db, created.contractId);
 
   return NextResponse.json(created, { status: 201 });
 }

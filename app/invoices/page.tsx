@@ -55,13 +55,18 @@ export default function Invoices() {
   const [filterStatus, setFilterStatus] = useState<InvoiceStatus | 'ALL'>('ALL');
   const [isLoading, setIsLoading] = useState(true);
 
-  const filteredInvoices = invoices.filter((invoice) => {
-    const matchesSearch = invoice.invoiceNumber
-      .toLowerCase()
-      .includes(searchQuery.toLowerCase());
-    const matchesStatus = filterStatus === 'ALL' || invoice.status === filterStatus;
-    return matchesSearch && matchesStatus;
-  });
+  const filteredInvoices = invoices
+    .filter((invoice) => {
+      const matchesSearch = invoice.invoiceNumber
+        .toLowerCase()
+        .includes(searchQuery.toLowerCase());
+      const matchesStatus = filterStatus === 'ALL' || invoice.status === filterStatus;
+      return matchesSearch && matchesStatus;
+    })
+    .sort(
+      (a, b) =>
+        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    );
 
   useEffect(() => {
     let active = true;

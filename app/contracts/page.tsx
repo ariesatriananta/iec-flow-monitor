@@ -49,6 +49,7 @@ import {
   Eye,
   Pencil,
   XCircle,
+  RotateCcw,
   Download,
   FileText,
   CalendarIcon,
@@ -73,6 +74,7 @@ export default function Contracts() {
   const [editingContract, setEditingContract] = useState<Contract | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -84,13 +86,18 @@ export default function Contracts() {
     notes: '',
   });
 
-  const filteredContracts = contracts.filter((contract) => {
-    const matchesSearch =
-      contract.proposalNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      contract.client?.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = filterStatus === 'ALL' || contract.paymentStatus === filterStatus;
-    return matchesSearch && matchesStatus;
-  });
+  const filteredContracts = contracts
+    .filter((contract) => {
+      const matchesSearch =
+        contract.proposalNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        contract.client?.name.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesStatus = filterStatus === 'ALL' || contract.paymentStatus === filterStatus;
+      return matchesSearch && matchesStatus;
+    })
+    .sort(
+      (a, b) =>
+        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    );
 
   useEffect(() => {
     let active = true;
@@ -129,6 +136,7 @@ export default function Contracts() {
 
   const handleOpenDialog = (contract?: Contract) => {
     if (contract) {
+      setActionLoadingId(contract.id);
       setEditingContract(contract);
       setFormData({
         clientId: contract.clientId,
@@ -140,8 +148,16 @@ export default function Contracts() {
       });
     } else {
       resetForm();
+      setActionLoadingId(null);
     }
     setIsDialogOpen(true);
+  };
+
+  const handleDialogOpenChange = (open: boolean) => {
+    setIsDialogOpen(open);
+    if (!open) {
+      setActionLoadingId(null);
+    }
   };
 
   const getNextSeqNo = (date: Date) => {
@@ -233,7 +249,7 @@ export default function Contracts() {
         });
       }
 
-      setIsDialogOpen(false);
+      handleDialogOpenChange(false);
       resetForm();
     } catch (error) {
       toast({
@@ -247,6 +263,7 @@ export default function Contracts() {
   };
 
   const handleVoidContract = async (contract: Contract) => {
+    setActionLoadingId(contract.id);
     try {
       const updated = await updateContract(contract.id, {
         status: 'VOID',
@@ -266,6 +283,34 @@ export default function Contracts() {
         description: 'Gagal void contract',
         variant: 'destructive',
       });
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleReactivateContract = async (contract: Contract) => {
+    setActionLoadingId(contract.id);
+    try {
+      const updated = await updateContract(contract.id, {
+        status: 'ACTIVE',
+      });
+      setContracts(
+        contracts.map((c) =>
+          c.id === updated.id ? { ...updated, client: c.client } : c
+        )
+      );
+      toast({
+        title: 'Contract Reactivated',
+        description: `Contract ${contract.proposalNumber} telah diaktifkan kembali`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Gagal re-activate contract',
+        variant: 'destructive',
+      });
+    } finally {
+      setActionLoadingId(null);
     }
   };
 
@@ -416,13 +461,24 @@ export default function Contracts() {
                       <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                              <MoreHorizontal className="w-4 h-4" />
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              disabled={actionLoadingId === contract.id}
+                            >
+                              {actionLoadingId === contract.id ? (
+                                <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                              ) : (
+                                <MoreHorizontal className="w-4 h-4" />
+                              )}
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem
-                              onClick={() => router.push(`/contracts/${contract.id}`)}
+                              onClick={() => {
+                                setActionLoadingId(contract.id);
+                                router.push(`/contracts/${contract.id}`);
+                              }}
                             >
                               <Eye className="w-4 h-4 mr-2" />
                               View Detail
@@ -445,6 +501,14 @@ export default function Contracts() {
                                 </DropdownMenuItem>
                               </>
                             )}
+                            {contract.status === 'VOID' && (
+                              <DropdownMenuItem
+                                onClick={() => handleReactivateContract(contract)}
+                              >
+                                <RotateCcw className="w-4 h-4 mr-2" />
+                                Reactivate
+                              </DropdownMenuItem>
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
@@ -458,7 +522,7 @@ export default function Contracts() {
       </Card>
 
       {/* Create/Edit Dialog */}
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+      <Dialog open={isDialogOpen} onOpenChange={handleDialogOpenChange}>
         <DialogContent className="sm:max-w-[600px]">
           <form onSubmit={handleSubmit}>
             <DialogHeader>
@@ -587,7 +651,7 @@ export default function Contracts() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setIsDialogOpen(false)}
+                onClick={() => handleDialogOpenChange(false)}
               >
                 Batal
               </Button>

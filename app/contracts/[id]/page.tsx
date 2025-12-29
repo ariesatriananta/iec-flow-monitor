@@ -34,7 +34,8 @@ import {
   Plus,
   Receipt,
   Check,
-  XCircle,
+  Trash2,
+  Undo2,
   CalendarIcon,
   Building2,
   FileText,
@@ -47,7 +48,17 @@ import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { fetchContract } from '@/lib/api/contracts';
 import { fetchInvoices } from '@/lib/api/invoices';
-import { createTermin, updateTermin } from '@/lib/api/termins';
+import { createTermin, deleteTermin, updateTermin } from '@/lib/api/termins';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 export default function ContractDetail() {
   const params = useParams();
@@ -62,6 +73,14 @@ export default function ContractDetail() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [actionLoading, setActionLoading] = useState<{
+    id: string;
+    type: 'invoice' | 'paid' | 'delete' | 'revert' | 'pending';
+  } | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{
+    type: 'invoice' | 'paid' | 'delete' | 'revert' | 'pending';
+    termin: Termin;
+  } | null>(null);
 
   const [isTerminDialogOpen, setIsTerminDialogOpen] = useState(false);
   const [terminFormData, setTerminFormData] = useState({
@@ -104,6 +123,23 @@ export default function ContractDetail() {
     () => (contract ? calculatePercentage(totalPaid, contract.contractValue) : 0),
     [totalPaid, contract]
   );
+
+  const derivedPaymentStatus = useMemo(() => {
+    if (!contract) return null;
+    const contractValue = contract.contractValue;
+    if (totalPaid <= 0) return 'UNPAID';
+    if (totalPaid < contractValue) return 'PARTIAL';
+    return 'PAID';
+  }, [contract, totalPaid]);
+
+  useEffect(() => {
+    if (!derivedPaymentStatus) return;
+    setContract((prev) =>
+      prev && prev.paymentStatus !== derivedPaymentStatus
+        ? { ...prev, paymentStatus: derivedPaymentStatus }
+        : prev
+    );
+  }, [derivedPaymentStatus]);
 
   if (!contract && !isLoading) {
     return (
@@ -169,12 +205,15 @@ export default function ContractDetail() {
   };
 
   const handleMarkAsPaid = async (termin: Termin) => {
+    setActionLoading({ id: termin.id, type: 'paid' });
     try {
       const updated = await updateTermin(termin.id, {
         status: 'PAID',
         paymentReceivedDate: new Date(),
       });
       setTermins(termins.map((t) => (t.id === updated.id ? updated : t)));
+      const refreshedInvoices = await fetchInvoices(contract.id);
+      setInvoices(refreshedInvoices);
       toast({
         title: 'Payment Received',
         description: `${termin.terminName} telah ditandai sebagai PAID`,
@@ -185,15 +224,20 @@ export default function ContractDetail() {
         description: 'Gagal update termin',
         variant: 'destructive',
       });
+    } finally {
+      setActionLoading(null);
     }
   };
 
   const handleCreateInvoice = async (termin: Termin) => {
+    setActionLoading({ id: termin.id, type: 'invoice' });
     try {
       const updated = await updateTermin(termin.id, {
         status: 'INVOICED',
       });
       setTermins(termins.map((t) => (t.id === updated.id ? updated : t)));
+      const refreshedInvoices = await fetchInvoices(contract.id);
+      setInvoices(refreshedInvoices);
       toast({
         title: 'Invoice Created',
         description: `Invoice untuk ${termin.terminName} berhasil dibuat`,
@@ -204,27 +248,130 @@ export default function ContractDetail() {
         description: 'Gagal membuat invoice',
         variant: 'destructive',
       });
+    } finally {
+      setActionLoading(null);
     }
   };
 
-  const handleVoidTermin = async (termin: Termin) => {
+  const handleDeleteTermin = async (termin: Termin) => {
+    setActionLoading({ id: termin.id, type: 'delete' });
     try {
-      const updated = await updateTermin(termin.id, {
-        status: 'VOID',
-      });
-      setTermins(termins.map((t) => (t.id === updated.id ? updated : t)));
+      await deleteTermin(termin.id);
+      setTermins(termins.filter((t) => t.id !== termin.id));
       toast({
-        title: 'Termin Voided',
-        description: `${termin.terminName} telah di-void`,
+        title: 'Termin Dihapus',
+        description: `${termin.terminName} telah dihapus`,
       });
     } catch (error) {
       toast({
         title: 'Error',
-        description: 'Gagal void termin',
+        description: 'Gagal menghapus termin',
         variant: 'destructive',
       });
+    } finally {
+      setActionLoading(null);
     }
   };
+
+  const handleRevertToInvoiced = async (termin: Termin) => {
+    setActionLoading({ id: termin.id, type: 'revert' });
+    try {
+      const updated = await updateTermin(termin.id, {
+        status: 'INVOICED',
+        paymentReceivedDate: null,
+      });
+      setTermins(termins.map((t) => (t.id === updated.id ? updated : t)));
+      const refreshedInvoices = await fetchInvoices(contract.id);
+      setInvoices(refreshedInvoices);
+      toast({
+        title: 'Termin Diubah',
+        description: `${termin.terminName} dikembalikan ke INVOICED`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Gagal mengubah status termin',
+        variant: 'destructive',
+      });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleRevertToPending = async (termin: Termin) => {
+    setActionLoading({ id: termin.id, type: 'pending' });
+    try {
+      const updated = await updateTermin(termin.id, {
+        status: 'PENDING',
+        invoiceId: null,
+      });
+      setTermins(termins.map((t) => (t.id === updated.id ? updated : t)));
+      const refreshedInvoices = await fetchInvoices(contract.id);
+      setInvoices(refreshedInvoices);
+      toast({
+        title: 'Termin Diubah',
+        description: `${termin.terminName} dikembalikan ke PENDING`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Gagal mengubah status termin',
+        variant: 'destructive',
+      });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleConfirmAction = async () => {
+    if (!confirmAction) return;
+    const { type, termin } = confirmAction;
+    setConfirmAction(null);
+    if (type === 'invoice') {
+      await handleCreateInvoice(termin);
+    } else if (type === 'paid') {
+      await handleMarkAsPaid(termin);
+    } else if (type === 'revert') {
+      await handleRevertToInvoiced(termin);
+    } else if (type === 'pending') {
+      await handleRevertToPending(termin);
+    } else {
+      await handleDeleteTermin(termin);
+    }
+  };
+
+  const confirmCopy =
+    confirmAction?.type === 'invoice'
+      ? {
+          title: 'Buat Invoice',
+          description: `Buat invoice untuk termin "${confirmAction.termin.terminName}"?`,
+          action: 'Ya, buat invoice',
+        }
+      : confirmAction?.type === 'paid'
+        ? {
+            title: 'Tandai Paid',
+            description: `Tandai termin "${confirmAction.termin.terminName}" sebagai PAID?`,
+            action: 'Ya, tandai paid',
+          }
+        : confirmAction?.type === 'delete'
+          ? {
+              title: 'Hapus Termin',
+              description: `Hapus termin "${confirmAction.termin.terminName}"? Tindakan ini tidak dapat dibatalkan.`,
+              action: 'Ya, hapus',
+            }
+          : confirmAction?.type === 'revert'
+            ? {
+                title: 'Kembalikan ke Invoiced',
+                description: `Ubah status "${confirmAction.termin.terminName}" kembali ke INVOICED?`,
+                action: 'Ya, kembalikan',
+              }
+            : confirmAction?.type === 'pending'
+              ? {
+                  title: 'Kembalikan ke Pending',
+                  description: `Ubah status "${confirmAction.termin.terminName}" kembali ke PENDING dan hapus invoice terkait?`,
+                  action: 'Ya, kembalikan',
+                }
+          : null;
 
   const getTerminStatusColor = (status: TerminStatus) => {
     switch (status) {
@@ -277,7 +424,7 @@ export default function ContractDetail() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -320,6 +467,29 @@ export default function ContractDetail() {
                 <p className="text-xs text-muted-foreground">
                   {100 - paymentProgress}% pending
                 </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-chart-1/20">
+                <Check className="w-5 h-5 text-chart-1" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Payment Status</p>
+                <Badge
+                  className={
+                    contract.paymentStatus === 'PAID'
+                      ? 'bg-success text-success-foreground'
+                      : contract.paymentStatus === 'PARTIAL'
+                      ? 'bg-warning text-warning-foreground'
+                      : 'bg-muted text-muted-foreground'
+                  }
+                >
+                  {contract.paymentStatus}
+                </Badge>
               </div>
             </div>
           </CardContent>
@@ -431,7 +601,15 @@ export default function ContractDetail() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    termins.map((termin) => (
+                    termins.map((termin) => {
+                      const isRowLoading = actionLoading?.id === termin.id;
+                      const isInvoiceLoading = isRowLoading && actionLoading?.type === 'invoice';
+                      const isDeleteLoading = isRowLoading && actionLoading?.type === 'delete';
+                      const isPaidLoading = isRowLoading && actionLoading?.type === 'paid';
+                      const isRevertLoading = isRowLoading && actionLoading?.type === 'revert';
+                      const isPendingLoading = isRowLoading && actionLoading?.type === 'pending';
+
+                      return (
                       <TableRow key={termin.id}>
                         <TableCell className="font-medium">{termin.terminName}</TableCell>
                         <TableCell className="text-right">
@@ -454,34 +632,94 @@ export default function ContractDetail() {
                               <>
                                 <Button
                                   size="sm"
-                                  variant="outline"
-                                  onClick={() => handleCreateInvoice(termin)}
+                                  variant="default"
+                                  onClick={() =>
+                                    setConfirmAction({ type: 'invoice', termin })
+                                  }
+                                  disabled={isRowLoading}
                                 >
-                                  <Receipt className="w-3 h-3 mr-1" />
-                                  Invoice
+                                  {isInvoiceLoading ? (
+                                    <span className="h-3 w-3 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+                                  ) : (
+                                    <>
+                                      <Receipt className="w-3 h-3 mr-1" />
+                                      Invoice
+                                    </>
+                                  )}
                                 </Button>
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  onClick={() => handleVoidTermin(termin)}
+                                  onClick={() =>
+                                    setConfirmAction({ type: 'delete', termin })
+                                  }
+                                  disabled={isRowLoading}
                                 >
-                                  <XCircle className="w-3 h-3" />
+                                  {isDeleteLoading ? (
+                                    <span className="h-3 w-3 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+                                  ) : (
+                                    <>
+                                      <Trash2 className="w-3 h-3 mr-1" />
+                                      Hapus
+                                    </>
+                                  )}
                                 </Button>
                               </>
                             )}
-                            {(termin.status === 'PENDING' || termin.status === 'INVOICED') && (
+                            {termin.status === 'INVOICED' && (
                               <Button
                                 size="sm"
-                                onClick={() => handleMarkAsPaid(termin)}
+                                onClick={() => setConfirmAction({ type: 'paid', termin })}
+                                disabled={isRowLoading}
                               >
-                                <Check className="w-3 h-3 mr-1" />
-                                Paid
+                                {isPaidLoading ? (
+                                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+                                ) : (
+                                  <>
+                                    <Check className="w-3 h-3 mr-1" />
+                                    Paid
+                                  </>
+                                )}
+                              </Button>
+                            )}
+                            {termin.status === 'INVOICED' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setConfirmAction({ type: 'pending', termin })}
+                                disabled={isRowLoading}
+                              >
+                                {isPendingLoading ? (
+                                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+                                ) : (
+                                  <>
+                                    <Undo2 className="w-3 h-3 mr-1" />
+                                    Pending
+                                  </>
+                                )}
+                              </Button>
+                            )}
+                            {termin.status === 'PAID' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setConfirmAction({ type: 'revert', termin })}
+                                disabled={isRowLoading}
+                              >
+                                {isRevertLoading ? (
+                                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+                                ) : (
+                                  <>
+                                    <Undo2 className="w-3 h-3 mr-1" />
+                                    Revert
+                                  </>
+                                )}
                               </Button>
                             )}
                           </div>
                         </TableCell>
                       </TableRow>
-                    ))
+                    )})
                   )}
                 </TableBody>
               </Table>
@@ -625,6 +863,21 @@ export default function ContractDetail() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={confirmAction !== null} onOpenChange={() => setConfirmAction(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{confirmCopy?.title}</AlertDialogTitle>
+            <AlertDialogDescription>{confirmCopy?.description}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmAction}>
+              {confirmCopy?.action}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AdminLayout>
   );
 }
@@ -679,6 +932,17 @@ function ContractDetailSkeleton() {
               {Array.from({ length: 4 }).map((_, index) => (
                 <Skeleton key={index} className="h-5 w-full" />
               ))}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <Skeleton className="h-9 w-9 rounded-lg" />
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-28" />
+                <Skeleton className="h-6 w-20" />
+              </div>
             </div>
           </CardContent>
         </Card>
