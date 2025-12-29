@@ -11,8 +11,9 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
-import { Search, Bell, User, LogOut, Settings } from 'lucide-react';
+import { Search, Sun, Moon, User, LogOut, Settings } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { useTheme } from 'next-themes';
 
 interface AdminHeaderProps {
   title?: string;
@@ -21,6 +22,8 @@ interface AdminHeaderProps {
 export function AdminHeader({ title }: AdminHeaderProps) {
   const { user, logout } = useAuth();
   const router = useRouter();
+  const { theme, setTheme } = useTheme();
+  const isDark = theme === 'dark';
 
   const handleLogout = () => {
     logout();
@@ -46,10 +49,14 @@ export function AdminHeader({ title }: AdminHeaderProps) {
           />
         </div>
 
-        {/* Notifications */}
-        <Button variant="ghost" size="icon" className="relative">
-          <Bell className="w-5 h-5" />
-          <span className="absolute top-1 right-1 w-2 h-2 bg-destructive rounded-full" />
+        {/* Theme Toggle */}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setTheme(isDark ? 'light' : 'dark')}
+          aria-label="Toggle theme"
+        >
+          {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
         </Button>
 
         {/* User Menu */}

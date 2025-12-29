@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Table,
   TableBody,
@@ -40,6 +41,7 @@ export default function Clients() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
   // Form state
@@ -67,6 +69,8 @@ export default function Clients() {
         setClients(data);
       } catch (error) {
         console.error(error);
+      } finally {
+        if (active) setIsLoading(false);
       }
     };
     loadClients();
@@ -192,6 +196,14 @@ export default function Clients() {
       });
     }
   };
+
+  if (isLoading) {
+    return (
+      <AdminLayout title="Clients">
+        <ClientsSkeleton />
+      </AdminLayout>
+    );
+  }
 
   return (
     <AdminLayout title="Clients">
@@ -398,5 +410,28 @@ export default function Clients() {
         </CardContent>
       </Card>
     </AdminLayout>
+  );
+}
+
+function ClientsSkeleton() {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+        <Skeleton className="h-6 w-40" />
+        <Skeleton className="h-9 w-36" />
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-center gap-4 mb-4">
+          <Skeleton className="h-10 w-full max-w-sm" />
+        </div>
+        <div className="rounded-md border">
+          <div className="space-y-3 p-4">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <Skeleton key={index} className="h-6 w-full" />
+            ))}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

@@ -15,6 +15,7 @@ import {
   Building2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useRouteLoading } from '@/contexts/RouteLoadingContext';
 
 const navItems = [
   {
@@ -52,6 +53,7 @@ const navItems = [
 export function AdminSidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const pathname = usePathname();
+  const { loadingHref, setRouteLoading } = useRouteLoading();
 
   return (
     <aside
@@ -67,7 +69,7 @@ export function AdminSidebar() {
           alt="IECNET Logo"
           className={cn(
             'rounded-md transition-all',
-            collapsed ? 'w-8 h-8' : 'w-10 h-10'
+            collapsed ? 'w-8 h-8' : 'w-16 h-10'
           )}
         />
         {!collapsed && (
@@ -85,6 +87,7 @@ export function AdminSidebar() {
             const isActive =
               pathname === item.href ||
               (item.href !== '/dashboard' && pathname.startsWith(item.href));
+            const isLoading = loadingHref === item.href;
             
             return (
               <li key={item.href}>
@@ -95,10 +98,18 @@ export function AdminSidebar() {
                     'hover:bg-sidebar-accent',
                     isActive && 'bg-sidebar-accent font-medium'
                   )}
+                  onClick={() => {
+                    if (!isActive) {
+                      setRouteLoading(item.href);
+                    }
+                  }}
                   title={collapsed ? item.title : undefined}
                 >
                   <item.icon className="w-5 h-5 flex-shrink-0" />
-                  {!collapsed && <span>{item.title}</span>}
+                  {!collapsed && <span className="flex-1">{item.title}</span>}
+                  {!collapsed && isLoading && (
+                    <span className="ml-auto h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  )}
                 </Link>
               </li>
             );

@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Table,
   TableBody,
@@ -52,6 +53,7 @@ export default function Invoices() {
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<InvoiceStatus | 'ALL'>('ALL');
+  const [isLoading, setIsLoading] = useState(true);
 
   const filteredInvoices = invoices.filter((invoice) => {
     const matchesSearch = invoice.invoiceNumber
@@ -74,6 +76,8 @@ export default function Invoices() {
         setContracts(contractData);
       } catch (error) {
         console.error(error);
+      } finally {
+        if (active) setIsLoading(false);
       }
     };
     loadData();
@@ -174,6 +178,14 @@ export default function Invoices() {
       ? { number: contract.proposalNumber, client: contract.client?.name }
       : { number: '-', client: '-' };
   };
+
+  if (isLoading) {
+    return (
+      <AdminLayout title="Invoices">
+        <InvoicesSkeleton />
+      </AdminLayout>
+    );
+  }
 
   return (
     <AdminLayout title="Invoices">
@@ -319,5 +331,32 @@ export default function Invoices() {
         </CardContent>
       </Card>
     </AdminLayout>
+  );
+}
+
+function InvoicesSkeleton() {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+        <Skeleton className="h-6 w-44" />
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-9 w-28" />
+          <Skeleton className="h-9 w-32" />
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-center gap-4 mb-4">
+          <Skeleton className="h-10 w-full max-w-sm" />
+          <Skeleton className="h-10 w-36" />
+        </div>
+        <div className="rounded-md border">
+          <div className="space-y-3 p-4">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <Skeleton key={index} className="h-6 w-full" />
+            ))}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

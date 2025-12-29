@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Table,
   TableBody,
@@ -72,6 +73,7 @@ export default function Letters() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<LetterType | 'ALL'>('ALL');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -103,6 +105,8 @@ export default function Letters() {
         setClients(clientData);
       } catch (error) {
         console.error(error);
+      } finally {
+        if (active) setIsLoading(false);
       }
     };
     loadData();
@@ -231,6 +235,14 @@ export default function Letters() {
         return '';
     }
   };
+
+  if (isLoading) {
+    return (
+      <AdminLayout title="Letters">
+        <LettersSkeleton />
+      </AdminLayout>
+    );
+  }
 
   return (
     <AdminLayout title="Letters">
@@ -473,5 +485,32 @@ export default function Letters() {
         </DialogContent>
       </Dialog>
     </AdminLayout>
+  );
+}
+
+function LettersSkeleton() {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+        <Skeleton className="h-6 w-40" />
+        <div className="flex items-center gap-2">
+          <Skeleton className="h-9 w-28" />
+          <Skeleton className="h-9 w-28" />
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-center gap-4 mb-4">
+          <Skeleton className="h-10 w-full max-w-sm" />
+          <Skeleton className="h-10 w-36" />
+        </div>
+        <div className="rounded-md border">
+          <div className="space-y-3 p-4">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <Skeleton key={index} className="h-6 w-full" />
+            ))}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

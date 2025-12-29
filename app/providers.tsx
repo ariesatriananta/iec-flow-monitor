@@ -6,6 +6,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { ThemeProvider } from "next-themes";
+import { RouteLoadingProvider } from "@/contexts/RouteLoadingContext";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient());
@@ -13,11 +15,15 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <AuthProvider>
-          <Toaster />
-          <Sonner />
-          {children}
-        </AuthProvider>
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
+          <RouteLoadingProvider>
+            <AuthProvider>
+              <Toaster />
+              <Sonner />
+              {children}
+            </AuthProvider>
+          </RouteLoadingProvider>
+        </ThemeProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );
