@@ -4,6 +4,9 @@ import { Providers } from "./providers";
 export const metadata = {
   title: "IECNET",
   description: "IECNET Admin System",
+  icons: {
+    icon: "/logo.png",
+  },
 };
 
 export default function RootLayout({

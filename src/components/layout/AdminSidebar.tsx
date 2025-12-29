@@ -63,7 +63,7 @@ export function AdminSidebar() {
       {/* Logo Section */}
       <div className="p-4 border-b border-sidebar-border flex items-center gap-3">
         <img
-          src="/logo.jpg"
+          src="/logo-2.jpg"
           alt="IECNET Logo"
           className={cn(
             'rounded-md transition-all',

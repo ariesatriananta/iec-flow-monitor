@@ -59,7 +59,7 @@ export default function Login() {
         {/* Logo and Title */}
         <div className="text-center mb-8">
           <img
-            src="/logo.jpg"
+            src="/logo-1.png"
             alt="IECNET Logo"
             className="w-20 h-20 mx-auto mb-4 rounded-lg shadow-md"
           />
