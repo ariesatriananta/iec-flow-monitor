@@ -20,9 +20,7 @@ export async function createContract(payload: {
   clientId: string;
   proposalDate: Date;
   serviceCode: string;
-  engagementNo: number;
   seqNo: number;
-  proposalNumber: string;
   contractTitle?: string;
   contractValue: number;
   paymentStatus: string;

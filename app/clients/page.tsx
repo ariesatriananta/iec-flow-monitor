@@ -49,7 +49,6 @@ export default function Clients() {
   // Form state
   const [formData, setFormData] = useState({
     name: '',
-    code: '',
     address: '',
     picName: '',
     email: '',
@@ -57,11 +56,7 @@ export default function Clients() {
   });
 
   const filteredClients = clients
-    .filter(
-      (client) =>
-        client.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        client.code.toLowerCase().includes(searchQuery.toLowerCase())
-    )
+    .filter((client) => client.name.toLowerCase().includes(searchQuery.toLowerCase()))
     .sort(
       (a, b) =>
         new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
@@ -89,7 +84,6 @@ export default function Clients() {
   const resetForm = () => {
     setFormData({
       name: '',
-      code: '',
       address: '',
       picName: '',
       email: '',
@@ -103,7 +97,6 @@ export default function Clients() {
       setEditingClient(client);
       setFormData({
         name: client.name,
-        code: client.code,
         address: client.address || '',
         picName: client.picName || '',
         email: client.email || '',
@@ -120,24 +113,10 @@ export default function Clients() {
     setIsSubmitting(true);
     
     try {
-      // Validate unique code
-      const existingClient = clients.find(
-        (c) => c.code === formData.code && c.id !== editingClient?.id
-      );
-      if (existingClient) {
-        toast({
-          title: 'Error',
-          description: 'Client code sudah digunakan',
-          variant: 'destructive',
-        });
-        return;
-      }
-
       if (editingClient) {
         // Update existing client
         const updated = await updateClient(editingClient.id, {
           ...formData,
-          code: formData.code.toUpperCase(),
           isActive: editingClient.isActive,
         });
         setClients(clients.map((c) => (c.id === updated.id ? updated : c)));
@@ -149,7 +128,6 @@ export default function Clients() {
         // Create new client
         const created = await createClient({
           ...formData,
-          code: formData.code.toUpperCase(),
           isActive: true,
         });
         setClients([...clients, created]);
@@ -177,7 +155,6 @@ export default function Clients() {
     try {
       const updated = await updateClient(client.id, {
         name: client.name,
-        code: client.code,
         address: client.address,
         picName: client.picName,
         email: client.email,
@@ -233,31 +210,17 @@ export default function Clients() {
                   </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="name">Nama Perusahaan *</Label>
-                      <Input
-                        id="name"
-                        value={formData.name}
-                        onChange={(e) =>
-                          setFormData({ ...formData, name: e.target.value })
-                        }
-                        placeholder="PT Nama Perusahaan"
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="code">Kode Client *</Label>
-                      <Input
-                        id="code"
-                        value={formData.code}
-                        onChange={(e) =>
-                          setFormData({ ...formData, code: e.target.value.toUpperCase() })
-                        }
-                        placeholder="AP.2137"
-                        required
-                      />
-                    </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Nama Perusahaan *</Label>
+                    <Input
+                      id="name"
+                      value={formData.name}
+                      onChange={(e) =>
+                        setFormData({ ...formData, name: e.target.value })
+                      }
+                      placeholder="PT Nama Perusahaan"
+                      required
+                    />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="address">Alamat</Label>
@@ -333,7 +296,7 @@ export default function Clients() {
             <div className="relative flex-1 max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
-                placeholder="Cari nama atau kode client..."
+                placeholder="Cari nama client..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-9"
@@ -346,7 +309,6 @@ export default function Clients() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Kode</TableHead>
                   <TableHead>Nama Perusahaan</TableHead>
                   <TableHead>PIC</TableHead>
                   <TableHead>Email</TableHead>
@@ -357,7 +319,7 @@ export default function Clients() {
               <TableBody>
                 {filteredClients.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8">
+                    <TableCell colSpan={5} className="text-center py-8">
                       <div className="flex flex-col items-center gap-2 text-muted-foreground">
                         <Building2 className="w-8 h-8" />
                         <p>Tidak ada client ditemukan</p>
@@ -367,9 +329,6 @@ export default function Clients() {
                 ) : (
                   filteredClients.map((client) => (
                     <TableRow key={client.id}>
-                      <TableCell className="font-mono font-medium">
-                        {client.code}
-                      </TableCell>
                       <TableCell>{client.name}</TableCell>
                       <TableCell>{client.picName || '-'}</TableCell>
                       <TableCell>{client.email || '-'}</TableCell>

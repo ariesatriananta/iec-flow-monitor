@@ -63,20 +63,19 @@ export function formatCurrency(amount: number): string {
 
 /**
  * Generate proposal/contract number
- * Format: P.{SEQ}/{SERVICE_CODE}/{CLIENT_CODE}-{ENGAGEMENT_NO}/{MONTH_ROMAN}/{YEAR}
+ * Format: P.{SEQ}/{SERVICE_CODE}/AP.2137-{ENGAGEMENT_NO}/{MONTH_ROMAN}/{YEAR}
  * Example: P.001/A/AP.2137-1/XII/2025
  */
 export function generateProposalNumber(params: {
   seqNo: number;
-  serviceCode: 'A' | 'NA';
-  clientCode: string;
+  serviceCode: 'A' | 'B';
   engagementNo: number;
   proposalDate: Date;
 }): string {
-  const { seqNo, serviceCode, clientCode, engagementNo, proposalDate } = params;
+  const { seqNo, serviceCode, engagementNo, proposalDate } = params;
   const { month, year } = getJakartaMonthYear(proposalDate);
   
-  return `P.${padSeq(seqNo)}/${serviceCode}/${clientCode}-${engagementNo}/${romanMonth(month)}/${year}`;
+  return `P.${padSeq(seqNo)}/${serviceCode}/AP.2137-${engagementNo}/${romanMonth(month)}/${year}`;
 }
 
 /**

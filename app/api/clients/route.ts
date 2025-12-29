@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic"
 
 import { NextResponse } from "next/server";
+import { sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { clients } from "@/lib/db/schema";
 
@@ -13,21 +14,26 @@ export async function GET() {
 export async function POST(request: Request) {
   const body = await request.json();
 
-  if (!body?.name || !body?.code) {
+  if (!body?.name) {
     return NextResponse.json(
-      { error: "name dan code wajib diisi" },
+      { error: "name wajib diisi" },
       { status: 400 }
     );
   }
 
   const now = new Date();
   const db = getDb();
+  const [maxRow] = await db
+    .select({ maxCode: sql<number>`max(${clients.code}::int)` })
+    .from(clients)
+    .where(sql`${clients.code} ~ '^[0-9]+$'`);
+  const nextCode = ((maxRow?.maxCode ?? 0) + 1).toString();
   const [created] = await db
     .insert(clients)
     .values({
       id: crypto.randomUUID(),
       name: body.name,
-      code: body.code,
+      code: nextCode,
       address: body.address ?? null,
       picName: body.picName ?? null,
       email: body.email ?? null,

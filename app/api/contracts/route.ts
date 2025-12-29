@@ -1,9 +1,10 @@
 export const dynamic = "force-dynamic"
 
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { clients, contracts } from "@/lib/db/schema";
+import { generateProposalNumber } from "@/lib/numbering";
 
 export async function GET() {
   const db = getDb();
@@ -27,9 +28,7 @@ export async function POST(request: Request) {
     !body?.clientId ||
     !body?.proposalDate ||
     !body?.serviceCode ||
-    body?.engagementNo === undefined ||
     body?.seqNo === undefined ||
-    !body?.proposalNumber ||
     body?.contractValue === undefined ||
     !body?.paymentStatus ||
     !body?.status
@@ -42,6 +41,18 @@ export async function POST(request: Request) {
 
   const now = new Date();
   const db = getDb();
+  const [{ maxEngagement }] = await db
+    .select({ maxEngagement: sql<number>`coalesce(max(${contracts.engagementNo}), 0)` })
+    .from(contracts)
+    .where(and(eq(contracts.clientId, body.clientId), eq(contracts.serviceCode, body.serviceCode)));
+  const engagementNo = Number(maxEngagement ?? 0) + 1;
+  const proposalNumber = generateProposalNumber({
+    seqNo: Number(body.seqNo),
+    serviceCode: body.serviceCode,
+    engagementNo,
+    proposalDate: new Date(body.proposalDate),
+  });
+
   const [created] = await db
     .insert(contracts)
     .values({
@@ -49,9 +60,9 @@ export async function POST(request: Request) {
       proposalDate: new Date(body.proposalDate),
       clientId: body.clientId,
       serviceCode: body.serviceCode,
-      engagementNo: Number(body.engagementNo),
+      engagementNo,
       seqNo: Number(body.seqNo),
-      proposalNumber: body.proposalNumber,
+      proposalNumber,
       contractTitle: body.contractTitle ?? null,
       contractValue: body.contractValue.toString(),
       paymentStatus: body.paymentStatus,

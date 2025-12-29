@@ -29,9 +29,9 @@ export async function PUT(
 ) {
   const body = await request.json();
 
-  if (!body?.name || !body?.code) {
+  if (!body?.name) {
     return NextResponse.json(
-      { error: "name dan code wajib diisi" },
+      { error: "name wajib diisi" },
       { status: 400 }
     );
   }
@@ -41,7 +41,6 @@ export async function PUT(
     .update(clients)
     .set({
       name: body.name,
-      code: body.code,
       address: body.address ?? null,
       picName: body.picName ?? null,
       email: body.email ?? null,

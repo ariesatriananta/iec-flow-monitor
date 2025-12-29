@@ -13,7 +13,7 @@ export interface Client {
 }
 
 // Service Code for Proposals
-export type ServiceCode = 'A' | 'NA';
+export type ServiceCode = 'A' | 'B';
 
 // Contract/Proposal Status
 export type ContractStatus = 'ACTIVE' | 'VOID' | 'CANCELLED';

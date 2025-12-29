@@ -132,6 +132,14 @@ export default function ContractDetail() {
     return 'PAID';
   }, [contract, totalPaid]);
 
+  const sortedTermins = useMemo(
+    () =>
+      [...termins].sort(
+        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      ),
+    [termins]
+  );
+
   useEffect(() => {
     if (!derivedPaymentStatus) return;
     setContract((prev) =>
@@ -434,7 +442,6 @@ export default function ContractDetail() {
               <div>
                 <p className="text-sm text-muted-foreground">Client</p>
                 <p className="font-medium">{contract.client?.name}</p>
-                <p className="text-xs text-muted-foreground">{contract.client?.code}</p>
               </div>
             </div>
           </CardContent>
@@ -601,7 +608,7 @@ export default function ContractDetail() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    termins.map((termin) => {
+                    sortedTermins.map((termin) => {
                       const isRowLoading = actionLoading?.id === termin.id;
                       const isInvoiceLoading = isRowLoading && actionLoading?.type === 'invoice';
                       const isDeleteLoading = isRowLoading && actionLoading?.type === 'delete';

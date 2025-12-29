@@ -132,13 +132,12 @@ export default function Letters() {
   };
 
   const getNextSeqNo = (date: Date) => {
-    const month = date.getMonth();
     const year = date.getFullYear();
-    const existingInMonth = letters.filter((l) => {
+    const existingInYear = letters.filter((l) => {
       const lDate = new Date(l.letterDate);
-      return lDate.getMonth() === month && lDate.getFullYear() === year;
+      return lDate.getFullYear() === year;
     });
-    return existingInMonth.length + 1;
+    return existingInYear.length + 1;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -337,7 +336,6 @@ export default function Letters() {
                       <TableCell>
                         <div>
                           <p className="font-medium">{letter.client?.name}</p>
-                          <p className="text-xs text-muted-foreground">{letter.client?.code}</p>
                         </div>
                       </TableCell>
                       <TableCell className="max-w-[200px] truncate">{letter.subject}</TableCell>
@@ -408,7 +406,7 @@ export default function Letters() {
                         .filter((c) => c.isActive)
                         .map((client) => (
                           <SelectItem key={client.id} value={client.id}>
-                            {client.code} - {client.name}
+                            {client.name}
                           </SelectItem>
                         ))}
                     </SelectContent>

@@ -161,20 +161,31 @@ export default function Contracts() {
   };
 
   const getNextSeqNo = (date: Date) => {
-    const month = date.getMonth();
     const year = date.getFullYear();
-    const existingInMonth = contracts.filter((c) => {
+    const existingInYear = contracts.filter((c) => {
       const cDate = new Date(c.proposalDate);
-      return cDate.getMonth() === month && cDate.getFullYear() === year;
+      return cDate.getFullYear() === year;
     });
-    return existingInMonth.length + 1;
+    return existingInYear.length + 1;
   };
 
-  const getNextEngagementNo = (clientId: string) => {
-    const clientContracts = contracts.filter((c) => c.clientId === clientId);
+  const getPreviewEngagementNo = (clientId: string, serviceCode: ServiceCode) => {
+    if (!clientId) return 1;
+    const clientContracts = contracts.filter(
+      (c) => c.clientId === clientId && c.serviceCode === serviceCode
+    );
     if (clientContracts.length === 0) return 1;
     return Math.max(...clientContracts.map((c) => c.engagementNo)) + 1;
   };
+
+  const previewProposalNumber = formData.clientId
+    ? generateProposalNumber({
+        seqNo: getNextSeqNo(formData.proposalDate),
+        serviceCode: formData.serviceCode,
+        engagementNo: getPreviewEngagementNo(formData.clientId, formData.serviceCode),
+        proposalDate: formData.proposalDate,
+      })
+    : '';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -220,22 +231,12 @@ export default function Contracts() {
       } else {
         // Create new contract
         const seqNo = getNextSeqNo(formData.proposalDate);
-        const engagementNo = getNextEngagementNo(formData.clientId);
-        const proposalNumber = generateProposalNumber({
-          seqNo,
-          serviceCode: formData.serviceCode,
-          clientCode: client.code,
-          engagementNo,
-          proposalDate: formData.proposalDate,
-        });
 
         const created = await createContract({
           proposalDate: formData.proposalDate,
           clientId: formData.clientId,
           serviceCode: formData.serviceCode,
-          engagementNo,
           seqNo,
-          proposalNumber,
           contractTitle: formData.contractTitle,
           contractValue,
           paymentStatus: 'UNPAID',
@@ -245,7 +246,7 @@ export default function Contracts() {
         setContracts([...contracts, { ...created, client }]);
         toast({
           title: 'Success',
-          description: `Contract ${proposalNumber} berhasil dibuat`,
+          description: `Contract ${created.proposalNumber} berhasil dibuat`,
         });
       }
 
@@ -434,9 +435,6 @@ export default function Contracts() {
                       <TableCell>
                         <div>
                           <p className="font-medium">{contract.client?.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {contract.client?.code}
-                          </p>
                         </div>
                       </TableCell>
                       <TableCell>
@@ -550,13 +548,13 @@ export default function Contracts() {
                       <SelectValue placeholder="Pilih Client" />
                     </SelectTrigger>
                     <SelectContent>
-                      {clients
-                        .filter((c) => c.isActive)
-                        .map((client) => (
-                          <SelectItem key={client.id} value={client.id}>
-                            {client.code} - {client.name}
-                          </SelectItem>
-                        ))}
+                        {clients
+                          .filter((c) => c.isActive)
+                          .map((client) => (
+                            <SelectItem key={client.id} value={client.id}>
+                              {client.name}
+                            </SelectItem>
+                          ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -607,7 +605,7 @@ export default function Contracts() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="A">A (Audit)</SelectItem>
-                      <SelectItem value="NA">NA (Non-Audit)</SelectItem>
+                      <SelectItem value="B">B (Non-Audit)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -624,6 +622,15 @@ export default function Contracts() {
                     required
                   />
                 </div>
+              </div>
+              <div className="space-y-1">
+                <Label>Preview Nomor Kontrak</Label>
+                <p className="text-sm text-muted-foreground">
+                  {previewProposalNumber || 'Pilih client untuk melihat preview'}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Nomor final ditentukan oleh server saat simpan.
+                </p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="contractTitle">Judul Kontrak</Label>

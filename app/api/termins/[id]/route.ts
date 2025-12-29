@@ -90,18 +90,18 @@ export async function PUT(
 
     if (contractRow) {
       const invoiceDate = new Date();
-      const { month, year } = getJakartaMonthYear(invoiceDate);
+      const { year } = getJakartaMonthYear(invoiceDate);
       const existingInvoices = await db
         .select({ invoiceDate: invoices.invoiceDate, seqNo: invoices.seqNo })
         .from(invoices)
         .innerJoin(contracts, eq(invoices.contractId, contracts.id))
         .where(eq(contracts.clientId, contractRow.clientId));
 
-      const sameMonthInvoices = existingInvoices.filter((invoice) => {
+      const sameYearInvoices = existingInvoices.filter((invoice) => {
         const invoiceMonthYear = getJakartaMonthYear(new Date(invoice.invoiceDate));
-        return invoiceMonthYear.month === month && invoiceMonthYear.year === year;
+        return invoiceMonthYear.year === year;
       });
-      const maxSeq = sameMonthInvoices.reduce(
+      const maxSeq = sameYearInvoices.reduce(
         (acc, invoice) => Math.max(acc, invoice.seqNo ?? 0),
         0
       );
