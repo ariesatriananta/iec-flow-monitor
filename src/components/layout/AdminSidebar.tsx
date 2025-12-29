@@ -1,5 +1,8 @@
+"use client";
+
 import { useState } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
   Users,
@@ -12,7 +15,6 @@ import {
   Building2
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import logo from '@/assets/logo.jpg';
 
 const navItems = [
   {
@@ -49,7 +51,7 @@ const navItems = [
 
 export function AdminSidebar() {
   const [collapsed, setCollapsed] = useState(false);
-  const location = useLocation();
+  const pathname = usePathname();
 
   return (
     <aside
@@ -61,7 +63,7 @@ export function AdminSidebar() {
       {/* Logo Section */}
       <div className="p-4 border-b border-sidebar-border flex items-center gap-3">
         <img
-          src={logo}
+          src="/logo.jpg"
           alt="IECNET Logo"
           className={cn(
             'rounded-md transition-all',
@@ -80,13 +82,14 @@ export function AdminSidebar() {
       <nav className="flex-1 py-4 overflow-y-auto">
         <ul className="space-y-1 px-2">
           {navItems.map((item) => {
-            const isActive = location.pathname === item.href || 
-              (item.href !== '/dashboard' && location.pathname.startsWith(item.href));
+            const isActive =
+              pathname === item.href ||
+              (item.href !== '/dashboard' && pathname.startsWith(item.href));
             
             return (
               <li key={item.href}>
-                <NavLink
-                  to={item.href}
+                <Link
+                  href={item.href}
                   className={cn(
                     'flex items-center gap-3 px-3 py-2.5 rounded-md transition-colors',
                     'hover:bg-sidebar-accent',
@@ -96,7 +99,7 @@ export function AdminSidebar() {
                 >
                   <item.icon className="w-5 h-5 flex-shrink-0" />
                   {!collapsed && <span>{item.title}</span>}
-                </NavLink>
+                </Link>
               </li>
             );
           })}

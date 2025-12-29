@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useRouter } from 'next/navigation';
 import { AdminLayout } from '@/components/layout/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -59,7 +59,7 @@ import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 
 export default function Contracts() {
-  const navigate = useNavigate();
+  const router = useRouter();
   const { toast } = useToast();
   const [contracts, setContracts] = useState<Contract[]>(mockContracts);
   const [searchQuery, setSearchQuery] = useState('');
@@ -371,7 +371,7 @@ export default function Contracts() {
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem
-                              onClick={() => navigate(`/contracts/${contract.id}`)}
+                              onClick={() => router.push(`/contracts/${contract.id}`)}
                             >
                               <Eye className="w-4 h-4 mr-2" />
                               View Detail

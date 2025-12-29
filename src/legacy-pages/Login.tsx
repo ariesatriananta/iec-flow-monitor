@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,7 +7,6 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { Eye, EyeOff, LogIn } from 'lucide-react';
-import logo from '@/assets/logo.jpg';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -15,14 +14,14 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { login, isAuthenticated } = useAuth();
-  const navigate = useNavigate();
+  const router = useRouter();
   const { toast } = useToast();
 
   useEffect(() => {
     if (isAuthenticated) {
-      navigate('/dashboard');
+      router.push('/dashboard');
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,7 +34,7 @@ export default function Login() {
           title: 'Login berhasil',
           description: 'Selamat datang di IECNET Admin System',
         });
-        navigate('/dashboard');
+        router.push('/dashboard');
       } else {
         toast({
           title: 'Login gagal',
@@ -60,7 +59,7 @@ export default function Login() {
         {/* Logo and Title */}
         <div className="text-center mb-8">
           <img
-            src={logo}
+            src="/logo.jpg"
             alt="IECNET Logo"
             className="w-20 h-20 mx-auto mb-4 rounded-lg shadow-md"
           />

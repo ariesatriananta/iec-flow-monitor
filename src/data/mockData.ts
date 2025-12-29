@@ -4,7 +4,7 @@ import type { Client, Contract, Termin, Invoice, Letter } from '@/types';
 export const mockClients: Client[] = [
   {
     id: '1',
-    name: 'PT Astra Prima Indonesia',
+    name: 'PT Astra Prima Indonesiaaaa',
     code: 'AP.2137',
     address: 'Jl. Sudirman No. 123, Jakarta Pusat',
     picName: 'Budi Santoso',

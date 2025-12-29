@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useRouter } from 'next/navigation';
 import { AdminLayout } from '@/components/layout/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -45,15 +45,20 @@ import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 
 export default function ContractDetail() {
-  const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
+  const params = useParams();
+  const router = useRouter();
+  const idParam = params?.id;
+  const id = Array.isArray(idParam) ? idParam[0] : idParam;
+  const contractId = id ?? '';
   const { toast } = useToast();
 
-  const contract = mockContracts.find((c) => c.id === id);
+  const contract = mockContracts.find((c) => c.id === contractId);
   const [termins, setTermins] = useState<Termin[]>(
-    mockTermins.filter((t) => t.contractId === id)
+    mockTermins.filter((t) => t.contractId === contractId)
   );
-  const [invoices] = useState<Invoice[]>(mockInvoices.filter((i) => i.contractId === id));
+  const [invoices] = useState<Invoice[]>(
+    mockInvoices.filter((i) => i.contractId === contractId)
+  );
 
   const [isTerminDialogOpen, setIsTerminDialogOpen] = useState(false);
   const [terminFormData, setTerminFormData] = useState({
@@ -78,7 +83,7 @@ export default function ContractDetail() {
         <div className="flex flex-col items-center justify-center py-12">
           <FileText className="w-12 h-12 text-muted-foreground mb-4" />
           <h2 className="text-xl font-semibold mb-2">Contract tidak ditemukan</h2>
-          <Button onClick={() => navigate('/contracts')}>
+          <Button onClick={() => router.push('/contracts')}>
             <ArrowLeft className="w-4 h-4 mr-2" />
             Kembali ke Contracts
           </Button>
@@ -177,7 +182,7 @@ export default function ContractDetail() {
     <AdminLayout title={contract.proposalNumber}>
       {/* Header */}
       <div className="mb-6">
-        <Button variant="ghost" onClick={() => navigate('/contracts')} className="mb-4">
+        <Button variant="ghost" onClick={() => router.push('/contracts')} className="mb-4">
           <ArrowLeft className="w-4 h-4 mr-2" />
           Kembali
         </Button>

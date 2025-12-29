@@ -13,7 +13,7 @@ import {
 import { FileText, Receipt, TrendingUp, Clock, ArrowRight, Plus } from 'lucide-react';
 import { formatCurrency, formatDate } from '@/lib/numbering';
 import { getDashboardKPI, mockContracts, mockInvoices, mockLetters } from '@/data/mockData';
-import { useNavigate } from 'react-router-dom';
+import { useRouter } from 'next/navigation';
 import {
   BarChart,
   Bar,
@@ -36,7 +36,7 @@ const monthlyData = [
 ];
 
 export default function Dashboard() {
-  const navigate = useNavigate();
+  const router = useRouter();
   const kpi = getDashboardKPI();
 
   const kpiCards = [
@@ -164,7 +164,7 @@ export default function Dashboard() {
         <Button
           variant="outline"
           className="h-auto p-4 flex items-center justify-between"
-          onClick={() => navigate('/contracts/new')}
+          onClick={() => router.push('/contracts/new')}
         >
           <div className="flex items-center gap-3">
             <Plus className="w-5 h-5 text-primary" />
@@ -175,7 +175,7 @@ export default function Dashboard() {
         <Button
           variant="outline"
           className="h-auto p-4 flex items-center justify-between"
-          onClick={() => navigate('/invoices/new')}
+          onClick={() => router.push('/invoices/new')}
         >
           <div className="flex items-center gap-3">
             <Plus className="w-5 h-5 text-primary" />
@@ -186,7 +186,7 @@ export default function Dashboard() {
         <Button
           variant="outline"
           className="h-auto p-4 flex items-center justify-between"
-          onClick={() => navigate('/clients/new')}
+          onClick={() => router.push('/clients/new')}
         >
           <div className="flex items-center gap-3">
             <Plus className="w-5 h-5 text-primary" />
@@ -205,7 +205,7 @@ export default function Dashboard() {
               <CardTitle className="text-lg">Recent Contracts</CardTitle>
               <CardDescription>Kontrak terbaru</CardDescription>
             </div>
-            <Button variant="ghost" size="sm" onClick={() => navigate('/contracts')}>
+            <Button variant="ghost" size="sm" onClick={() => router.push('/contracts')}>
               View All
             </Button>
           </CardHeader>
@@ -257,7 +257,7 @@ export default function Dashboard() {
               <CardTitle className="text-lg">Recent Invoices</CardTitle>
               <CardDescription>Invoice terbaru</CardDescription>
             </div>
-            <Button variant="ghost" size="sm" onClick={() => navigate('/invoices')}>
+            <Button variant="ghost" size="sm" onClick={() => router.push('/invoices')}>
               View All
             </Button>
           </CardHeader>
