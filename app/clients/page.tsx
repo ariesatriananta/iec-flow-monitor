@@ -42,6 +42,7 @@ export default function Clients() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
   // Form state
@@ -110,23 +111,24 @@ export default function Clients() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
     
-    // Validate unique code
-    const existingClient = clients.find(
-      (c) => c.code === formData.code && c.id !== editingClient?.id
-    );
-    if (existingClient) {
-      toast({
-        title: 'Error',
-        description: 'Client code sudah digunakan',
-        variant: 'destructive',
-      });
-      return;
-    }
+    try {
+      // Validate unique code
+      const existingClient = clients.find(
+        (c) => c.code === formData.code && c.id !== editingClient?.id
+      );
+      if (existingClient) {
+        toast({
+          title: 'Error',
+          description: 'Client code sudah digunakan',
+          variant: 'destructive',
+        });
+        return;
+      }
 
-    if (editingClient) {
-      // Update existing client
-      try {
+      if (editingClient) {
+        // Update existing client
         const updated = await updateClient(editingClient.id, {
           ...formData,
           code: formData.code.toUpperCase(),
@@ -137,17 +139,8 @@ export default function Clients() {
           title: 'Success',
           description: 'Client berhasil diupdate',
         });
-      } catch (error) {
-        toast({
-          title: 'Error',
-          description: 'Gagal update client',
-          variant: 'destructive',
-        });
-        return;
-      }
-    } else {
-      // Create new client
-      try {
+      } else {
+        // Create new client
         const created = await createClient({
           ...formData,
           code: formData.code.toUpperCase(),
@@ -158,18 +151,19 @@ export default function Clients() {
           title: 'Success',
           description: 'Client berhasil ditambahkan',
         });
-      } catch (error) {
-        toast({
-          title: 'Error',
-          description: 'Gagal menambahkan client',
-          variant: 'destructive',
-        });
-        return;
       }
-    }
 
-    setIsDialogOpen(false);
-    resetForm();
+      setIsDialogOpen(false);
+      resetForm();
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: editingClient ? 'Gagal update client' : 'Gagal menambahkan client',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleToggleActive = async (client: Client) => {
@@ -312,8 +306,12 @@ export default function Clients() {
                   >
                     Batal
                   </Button>
-                  <Button type="submit">
-                    {editingClient ? 'Update' : 'Simpan'}
+                  <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting ? (
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+                    ) : (
+                      editingClient ? 'Update' : 'Simpan'
+                    )}
                   </Button>
                 </DialogFooter>
               </form>

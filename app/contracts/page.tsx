@@ -72,6 +72,7 @@ export default function Contracts() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingContract, setEditingContract] = useState<Contract | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -161,30 +162,31 @@ export default function Contracts() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
 
-    const client = clients.find((c) => c.id === formData.clientId);
-    if (!client) {
-      toast({
-        title: 'Error',
-        description: 'Pilih client terlebih dahulu',
-        variant: 'destructive',
-      });
-      return;
-    }
+    try {
+      const client = clients.find((c) => c.id === formData.clientId);
+      if (!client) {
+        toast({
+          title: 'Error',
+          description: 'Pilih client terlebih dahulu',
+          variant: 'destructive',
+        });
+        return;
+      }
 
-    const contractValue = parseFloat(formData.contractValue.replace(/[^0-9]/g, ''));
-    if (isNaN(contractValue) || contractValue <= 0) {
-      toast({
-        title: 'Error',
-        description: 'Masukkan nilai kontrak yang valid',
-        variant: 'destructive',
-      });
-      return;
-    }
+      const contractValue = parseFloat(formData.contractValue.replace(/[^0-9]/g, ''));
+      if (isNaN(contractValue) || contractValue <= 0) {
+        toast({
+          title: 'Error',
+          description: 'Masukkan nilai kontrak yang valid',
+          variant: 'destructive',
+        });
+        return;
+      }
 
-    if (editingContract) {
-      // Update existing contract
-      try {
+      if (editingContract) {
+        // Update existing contract
         const updated = await updateContract(editingContract.id, {
           contractTitle: formData.contractTitle,
           contractValue,
@@ -199,27 +201,18 @@ export default function Contracts() {
           title: 'Success',
           description: 'Contract berhasil diupdate',
         });
-      } catch (error) {
-        toast({
-          title: 'Error',
-          description: 'Gagal update contract',
-          variant: 'destructive',
+      } else {
+        // Create new contract
+        const seqNo = getNextSeqNo(formData.proposalDate);
+        const engagementNo = getNextEngagementNo(formData.clientId);
+        const proposalNumber = generateProposalNumber({
+          seqNo,
+          serviceCode: formData.serviceCode,
+          clientCode: client.code,
+          engagementNo,
+          proposalDate: formData.proposalDate,
         });
-        return;
-      }
-    } else {
-      // Create new contract
-      const seqNo = getNextSeqNo(formData.proposalDate);
-      const engagementNo = getNextEngagementNo(formData.clientId);
-      const proposalNumber = generateProposalNumber({
-        seqNo,
-        serviceCode: formData.serviceCode,
-        clientCode: client.code,
-        engagementNo,
-        proposalDate: formData.proposalDate,
-      });
 
-      try {
         const created = await createContract({
           proposalDate: formData.proposalDate,
           clientId: formData.clientId,
@@ -238,18 +231,19 @@ export default function Contracts() {
           title: 'Success',
           description: `Contract ${proposalNumber} berhasil dibuat`,
         });
-      } catch (error) {
-        toast({
-          title: 'Error',
-          description: 'Gagal membuat contract',
-          variant: 'destructive',
-        });
-        return;
       }
-    }
 
-    setIsDialogOpen(false);
-    resetForm();
+      setIsDialogOpen(false);
+      resetForm();
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: editingContract ? 'Gagal update contract' : 'Gagal membuat contract',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleVoidContract = async (contract: Contract) => {
@@ -597,8 +591,12 @@ export default function Contracts() {
               >
                 Batal
               </Button>
-              <Button type="submit">
-                {editingContract ? 'Update' : 'Buat Contract'}
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+                ) : (
+                  editingContract ? 'Update' : 'Buat Contract'
+                )}
               </Button>
             </DialogFooter>
           </form>

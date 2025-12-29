@@ -148,19 +148,16 @@ export default function Login() {
                         </button>
                         </div>
                     </div>
-                    <Button type="submit" className="w-full" disabled={isLoading}>
-                        {isLoading ? (
-                        <span className="flex items-center gap-2">
-                            <span className="w-4 h-4 border-2 border-primary-foreground border-t-transparent rounded-full animate-spin" />
-                            Loading...
-                        </span>
-                        ) : (
-                        <span className="flex items-center gap-2">
-                            <LogIn className="w-4 h-4" />
-                            Login
-                        </span>
-                        )}
-                    </Button>
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? (
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+                ) : (
+                  <span className="flex items-center gap-2">
+                    <LogIn className="w-4 h-4" />
+                    Login
+                  </span>
+                )}
+              </Button>
                     </form>
 
             {/* Demo credentials hint */}

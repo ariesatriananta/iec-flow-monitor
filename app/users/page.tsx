@@ -69,6 +69,7 @@ export default function Users() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -103,63 +104,68 @@ export default function Users() {
     setIsDialogOpen(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
 
-    // Validate email uniqueness
-    const existingUser = users.find(
-      (u) => u.email === formData.email && u.id !== editingUser?.id
-    );
-    if (existingUser) {
-      toast({
-        title: 'Error',
-        description: 'Email sudah digunakan',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    if (editingUser) {
-      // Update existing user
-      setUsers(
-        users.map((u) =>
-          u.id === editingUser.id
-            ? { ...u, name: formData.name, email: formData.email, updatedAt: new Date() }
-            : u
-        )
+    try {
+      // Validate email uniqueness
+      const existingUser = users.find(
+        (u) => u.email === formData.email && u.id !== editingUser?.id
       );
-      toast({
-        title: 'Success',
-        description: 'User berhasil diupdate',
-      });
-    } else {
-      // Create new user
-      if (!formData.password) {
+      if (existingUser) {
         toast({
           title: 'Error',
-          description: 'Password wajib diisi untuk user baru',
+          description: 'Email sudah digunakan',
           variant: 'destructive',
         });
         return;
       }
 
-      const newUser: User = {
-        id: Date.now().toString(),
-        name: formData.name,
-        email: formData.email,
-        role: 'ADMIN',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-      setUsers([...users, newUser]);
-      toast({
-        title: 'Success',
-        description: 'User berhasil ditambahkan',
-      });
-    }
+      if (editingUser) {
+        // Update existing user
+        setUsers(
+          users.map((u) =>
+            u.id === editingUser.id
+              ? { ...u, name: formData.name, email: formData.email, updatedAt: new Date() }
+              : u
+          )
+        );
+        toast({
+          title: 'Success',
+          description: 'User berhasil diupdate',
+        });
+      } else {
+        // Create new user
+        if (!formData.password) {
+          toast({
+            title: 'Error',
+            description: 'Password wajib diisi untuk user baru',
+            variant: 'destructive',
+          });
+          return;
+        }
 
-    setIsDialogOpen(false);
-    resetForm();
+        const newUser: User = {
+          id: Date.now().toString(),
+          name: formData.name,
+          email: formData.email,
+          role: 'ADMIN',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+        setUsers([...users, newUser]);
+        toast({
+          title: 'Success',
+          description: 'User berhasil ditambahkan',
+        });
+      }
+
+      setIsDialogOpen(false);
+      resetForm();
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleDeleteUser = (user: User) => {
@@ -335,7 +341,13 @@ export default function Users() {
               <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
                 Batal
               </Button>
-              <Button type="submit">{editingUser ? 'Update' : 'Simpan'}</Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+                ) : (
+                  editingUser ? 'Update' : 'Simpan'
+                )}
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>

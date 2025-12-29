@@ -61,6 +61,7 @@ export default function ContractDetail() {
   const [termins, setTermins] = useState<Termin[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [isTerminDialogOpen, setIsTerminDialogOpen] = useState(false);
   const [terminFormData, setTerminFormData] = useState({
@@ -129,18 +130,19 @@ export default function ContractDetail() {
 
   const handleAddTermin = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    const amount = parseFloat(terminFormData.terminAmount.replace(/[^0-9]/g, ''));
-    if (isNaN(amount) || amount <= 0) {
-      toast({
-        title: 'Error',
-        description: 'Masukkan nominal yang valid',
-        variant: 'destructive',
-      });
-      return;
-    }
+    setIsSubmitting(true);
 
     try {
+      const amount = parseFloat(terminFormData.terminAmount.replace(/[^0-9]/g, ''));
+      if (isNaN(amount) || amount <= 0) {
+        toast({
+          title: 'Error',
+          description: 'Masukkan nominal yang valid',
+          variant: 'destructive',
+        });
+        return;
+      }
+
       const created = await createTermin({
         contractId: contract.id,
         terminName: terminFormData.terminName,
@@ -161,6 +163,8 @@ export default function ContractDetail() {
         description: 'Gagal menambahkan termin',
         variant: 'destructive',
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -610,7 +614,13 @@ export default function ContractDetail() {
               >
                 Batal
               </Button>
-              <Button type="submit">Tambah Termin</Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+                ) : (
+                  'Tambah Termin'
+                )}
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>

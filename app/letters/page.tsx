@@ -74,6 +74,7 @@ export default function Letters() {
   const [filterType, setFilterType] = useState<LetterType | 'ALL'>('ALL');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -137,25 +138,26 @@ export default function Letters() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    const client = clients.find((c) => c.id === formData.clientId);
-    if (!client) {
-      toast({
-        title: 'Error',
-        description: 'Pilih client terlebih dahulu',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    const seqNo = getNextSeqNo(formData.letterDate);
-    const letterNumber = generateLetterNumber({
-      seqNo,
-      clientCode: client.code,
-      letterDate: formData.letterDate,
-    });
+    setIsSubmitting(true);
 
     try {
+      const client = clients.find((c) => c.id === formData.clientId);
+      if (!client) {
+        toast({
+          title: 'Error',
+          description: 'Pilih client terlebih dahulu',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const seqNo = getNextSeqNo(formData.letterDate);
+      const letterNumber = generateLetterNumber({
+        seqNo,
+        clientCode: client.code,
+        letterDate: formData.letterDate,
+      });
+
       const created = await createLetter({
         letterDate: formData.letterDate,
         clientId: formData.clientId,
@@ -179,6 +181,8 @@ export default function Letters() {
         description: 'Gagal membuat surat',
         variant: 'destructive',
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -479,7 +483,13 @@ export default function Letters() {
               <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
                 Batal
               </Button>
-              <Button type="submit">Buat Surat</Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? (
+                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+                ) : (
+                  'Buat Surat'
+                )}
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>
