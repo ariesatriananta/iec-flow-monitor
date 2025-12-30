@@ -83,7 +83,9 @@ export function AdminHeader({ title, onOpenSidebar }: AdminHeaderProps) {
             <DropdownMenuLabel>
               <div className="flex flex-col">
                 <span>{user?.name}</span>
-                <span className="text-xs text-muted-foreground font-normal">{user?.email}</span>
+                <span className="text-xs text-muted-foreground font-normal">
+                  {user?.username ? `Username: ${user.username}` : ''}
+                </span>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />

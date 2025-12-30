@@ -11,7 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Eye, EyeOff, LogIn } from 'lucide-react';
 
 export default function Login() {
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -31,7 +31,7 @@ export default function Login() {
     setIsLoading(true);
 
     try {
-      const success = await login(email, password);
+      const success = await login(username, password);
       if (success) {
         toast({
           title: 'Login berhasil',
@@ -41,7 +41,7 @@ export default function Login() {
       } else {
         toast({
           title: 'Login gagal',
-          description: 'Email atau password salah',
+          description: 'Username atau password salah',
           variant: 'destructive',
         });
       }
@@ -112,13 +112,13 @@ export default function Login() {
                 <CardContent className="relative z-10">
                     <form onSubmit={handleSubmit} className="space-y-4">
                     <div className="space-y-2">
-                        <Label htmlFor="email">Email</Label>
+                        <Label htmlFor="username">Username</Label>
                         <Input
-                        id="email"
-                        type="email"
-                        placeholder="admin@iecnet.co.id"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
+                        id="username"
+                        type="text"
+                        placeholder="username"
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
                         required
                         disabled={isLoading}
                         />
@@ -162,11 +162,6 @@ export default function Login() {
                     </form>
 
             {/* Demo credentials hint */}
-            <div className="mt-6 rounded-md border border-border/60 bg-muted/70 p-3 backdrop-blur-sm">
-              <p className="text-sm text-muted-foreground text-center">
-                <strong>Demo:</strong> admin@iecnet.co.id / admin123
-              </p>
-            </div>
             </CardContent>
           </div>
         </Card>

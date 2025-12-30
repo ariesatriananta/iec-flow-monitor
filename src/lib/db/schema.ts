@@ -128,3 +128,19 @@ export const letters = pgTable(
     clientIdIdx: index("letters_client_id_idx").on(table.clientId),
   })
 );
+
+export const users = pgTable(
+  "users",
+  {
+    id: text("id").primaryKey(),
+    username: text("username").notNull(),
+    name: text("name").notNull(),
+    role: text("role").notNull(),
+    passwordHash: text("password_hash").notNull(),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date" }).notNull(),
+  },
+  (table) => ({
+    usernameUnique: uniqueIndex("users_username_unique").on(table.username),
+  })
+);

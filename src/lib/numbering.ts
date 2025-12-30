@@ -95,18 +95,17 @@ export function generateInvoiceNumber(params: {
 
 /**
  * Generate letter number
- * Format: L.{SEQ}/{CLIENT_CODE}/{MONTH_ROMAN}/{YEAR}
+ * Format: L.{SEQ}/AP.2137/{MONTH_ROMAN}/{YEAR}
  * Example: L.001/AP.2137/XII/2025
  */
 export function generateLetterNumber(params: {
   seqNo: number;
-  clientCode: string;
   letterDate: Date;
 }): string {
-  const { seqNo, clientCode, letterDate } = params;
+  const { seqNo, letterDate } = params;
   const { month, year } = getJakartaMonthYear(letterDate);
   
-  return `L.${padSeq(seqNo)}/${clientCode}/${romanMonth(month)}/${year}`;
+  return `L.${padSeq(seqNo)}/AP.2137/${romanMonth(month)}/${year}`;
 }
 
 /**

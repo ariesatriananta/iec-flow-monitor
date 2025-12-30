@@ -1,7 +1,8 @@
 import "dotenv/config";
 import { eq, sql } from "drizzle-orm";
+import bcrypt from "bcryptjs";
 import { getDb } from "./index";
-import { clients, contracts, termins, invoices, letters } from "./schema";
+import { clients, contracts, termins, invoices, letters, users } from "./schema";
 import {
   mockClients,
   mockContracts,
@@ -17,6 +18,32 @@ import {
 } from "../numbering";
 
 const toNumeric = (value: number) => value.toString();
+
+async function seedUsers() {
+  const db = getDb();
+  const now = new Date();
+  const passwordHash = await bcrypt.hash("iecnet123", 10);
+  await db
+    .insert(users)
+    .values({
+      id: "1",
+      username: "iecnet",
+      name: "Admin IECNET",
+      role: "ADMIN",
+      passwordHash,
+      createdAt: now,
+      updatedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: users.username,
+      set: {
+        name: "Admin IECNET",
+        role: "ADMIN",
+        passwordHash,
+        updatedAt: now,
+      },
+    });
+}
 
 async function seedClients() {
   const db = getDb();
@@ -293,18 +320,14 @@ async function migrateNumbering() {
       letterNumber: sql`'TEMP-' || ${letters.id}`,
       updatedAt: new Date(),
     });
-  const lettersByClientYear = new Map<string, typeof letterRows>();
+  const lettersByYear = new Map<number, typeof letterRows>();
   for (const letter of letterRows) {
     const { year } = getJakartaMonthYear(new Date(letter.letterDate));
-    const key = `${letter.clientId}:${year}`;
-    const group = lettersByClientYear.get(key) ?? [];
+    const group = lettersByYear.get(year) ?? [];
     group.push(letter);
-    lettersByClientYear.set(key, group);
+    lettersByYear.set(year, group);
   }
-  for (const [key, items] of lettersByClientYear.entries()) {
-    const [clientId] = key.split(":");
-    const clientCode = clientCodeById.get(clientId);
-    if (!clientCode) continue;
+  for (const items of lettersByYear.values()) {
     items.sort((a, b) => {
       const timeDiff =
         new Date(a.letterDate).getTime() - new Date(b.letterDate).getTime();
@@ -316,7 +339,6 @@ async function migrateNumbering() {
       const seqNo = index + 1;
       const letterNumber = generateLetterNumber({
         seqNo,
-        clientCode,
         letterDate: new Date(letter.letterDate),
       });
       await db
@@ -503,6 +525,7 @@ async function seedLetters() {
 }
 
 async function run() {
+  await seedUsers();
   await seedClients();
   await migrateClientCodes();
   await seedContracts();

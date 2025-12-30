@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { clients, letters } from "@/lib/db/schema";
+import { generateLetterNumber, getJakartaMonthYear } from "@/lib/numbering";
 
 export async function GET() {
   const db = getDb();
@@ -28,8 +29,6 @@ export async function POST(request: Request) {
     !body?.letterDate ||
     !body?.letterType ||
     !body?.subject ||
-    body?.seqNo === undefined ||
-    !body?.letterNumber ||
     !body?.status
   ) {
     return NextResponse.json(
@@ -39,17 +38,36 @@ export async function POST(request: Request) {
   }
 
   const now = new Date();
+  const letterDate = new Date(body.letterDate);
+  const { year } = getJakartaMonthYear(letterDate);
   const db = getDb();
+  const existingLetters = await db
+    .select({ letterDate: letters.letterDate, seqNo: letters.seqNo })
+    .from(letters);
+  const sameYearLetters = existingLetters.filter((letter) => {
+    const letterYear = getJakartaMonthYear(new Date(letter.letterDate));
+    return letterYear.year === year;
+  });
+  const maxSeq = sameYearLetters.reduce(
+    (acc, letter) => Math.max(acc, letter.seqNo ?? 0),
+    0
+  );
+  const seqNo = maxSeq + 1;
+  const letterNumber = generateLetterNumber({
+    seqNo,
+    letterDate,
+  });
+
   const [created] = await db
     .insert(letters)
     .values({
       id: crypto.randomUUID(),
-      letterDate: new Date(body.letterDate),
+      letterDate,
       clientId: body.clientId,
       letterType: body.letterType,
       subject: body.subject,
-      seqNo: Number(body.seqNo),
-      letterNumber: body.letterNumber,
+      seqNo,
+      letterNumber,
       status: body.status,
       notes: body.notes ?? null,
       createdAt: now,

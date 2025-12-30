@@ -104,7 +104,7 @@ export interface Letter {
 // User Types
 export interface User {
   id: string;
-  email: string;
+  username: string;
   name: string;
   role: 'ADMIN';
   createdAt: Date;

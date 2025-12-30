@@ -48,6 +48,7 @@ export default function Dashboard() {
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [quickActionLoading, setQuickActionLoading] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -130,7 +131,7 @@ export default function Dashboard() {
               <div className="flex items-start justify-between">
                 <div className="space-y-1">
                   <p className="text-sm text-muted-foreground">{card.title}</p>
-                  <p className="text-2xl font-bold">{card.value}</p>
+                  <p className="text-xl font-bold">{card.value}</p>
                   <p className="text-xs text-muted-foreground">{card.subtitle}</p>
                 </div>
                 <div className={`p-3 rounded-lg ${card.color}`}>
@@ -214,33 +215,54 @@ export default function Dashboard() {
         <Button
           variant="outline"
           className="h-auto p-4 flex items-center justify-between"
-          onClick={() => router.push('/contracts/new')}
+          onClick={() => {
+            setQuickActionLoading('contracts');
+            router.push('/contracts');
+          }}
         >
           <div className="flex items-center gap-3">
-            <Plus className="w-5 h-5 text-primary" />
-            <span>Tambah Contract</span>
+            {quickActionLoading === 'contracts' ? (
+              <span className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            ) : (
+              <Plus className="w-5 h-5 text-primary" />
+            )}
+            <span>Lihat Contracts</span>
           </div>
           <ArrowRight className="w-4 h-4 text-muted-foreground" />
         </Button>
         <Button
           variant="outline"
           className="h-auto p-4 flex items-center justify-between"
-          onClick={() => router.push('/invoices/new')}
+          onClick={() => {
+            setQuickActionLoading('invoices');
+            router.push('/invoices');
+          }}
         >
           <div className="flex items-center gap-3">
-            <Plus className="w-5 h-5 text-primary" />
-            <span>Buat Invoice</span>
+            {quickActionLoading === 'invoices' ? (
+              <span className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            ) : (
+              <Plus className="w-5 h-5 text-primary" />
+            )}
+            <span>Lihat Invoices</span>
           </div>
           <ArrowRight className="w-4 h-4 text-muted-foreground" />
         </Button>
         <Button
           variant="outline"
           className="h-auto p-4 flex items-center justify-between"
-          onClick={() => router.push('/clients/new')}
+          onClick={() => {
+            setQuickActionLoading('clients');
+            router.push('/clients');
+          }}
         >
           <div className="flex items-center gap-3">
-            <Plus className="w-5 h-5 text-primary" />
-            <span>Tambah Client</span>
+            {quickActionLoading === 'clients' ? (
+              <span className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            ) : (
+              <Plus className="w-5 h-5 text-primary" />
+            )}
+            <span>Lihat Clients</span>
           </div>
           <ArrowRight className="w-4 h-4 text-muted-foreground" />
         </Button>

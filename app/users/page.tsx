@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Table,
   TableBody,
@@ -33,49 +34,23 @@ import { Plus, Search, MoreHorizontal, Pencil, Trash2, UserCog, Eye, EyeOff } fr
 import type { User } from '@/types';
 import { formatDate } from '@/lib/numbering';
 import { useToast } from '@/hooks/use-toast';
-
-// Mock users data
-const mockUsers: User[] = [
-  {
-    id: '1',
-    email: 'admin@iecnet.co.id',
-    name: 'Admin IECNET',
-    role: 'ADMIN',
-    createdAt: new Date('2024-01-01'),
-    updatedAt: new Date('2024-01-01'),
-  },
-  {
-    id: '2',
-    email: 'krisnawan@iecnet.co.id',
-    name: 'Krisnawan',
-    role: 'ADMIN',
-    createdAt: new Date('2024-03-15'),
-    updatedAt: new Date('2024-03-15'),
-  },
-  {
-    id: '3',
-    email: 'nugroho@iecnet.co.id',
-    name: 'Nugroho',
-    role: 'ADMIN',
-    createdAt: new Date('2024-03-15'),
-    updatedAt: new Date('2024-03-15'),
-  },
-];
+import { createUser, deleteUser, fetchUsers, updateUser } from '@/lib/api/users';
 
 export default function Users() {
   const { toast } = useToast();
-  const [users, setUsers] = useState<User[]>(mockUsers);
+  const [users, setUsers] = useState<User[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [visibleCount, setVisibleCount] = useState(20);
 
   // Form state
   const [formData, setFormData] = useState({
     name: '',
-    email: '',
+    username: '',
     password: '',
   });
 
@@ -83,12 +58,30 @@ export default function Users() {
     .filter(
       (user) =>
         user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        user.email.toLowerCase().includes(searchQuery.toLowerCase())
+        user.username.toLowerCase().includes(searchQuery.toLowerCase())
     )
     .sort(
       (a, b) =>
         new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
     );
+
+  useEffect(() => {
+    let active = true;
+    const loadData = async () => {
+      try {
+        const data = await fetchUsers();
+        if (active) setUsers(data);
+      } catch (error) {
+        console.error(error);
+      } finally {
+        if (active) setIsLoading(false);
+      }
+    };
+    loadData();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     setVisibleCount(20);
@@ -97,7 +90,7 @@ export default function Users() {
   const visibleUsers = filteredUsers.slice(0, visibleCount);
 
   const resetForm = () => {
-    setFormData({ name: '', email: '', password: '' });
+    setFormData({ name: '', username: '', password: '' });
     setEditingUser(null);
     setShowPassword(false);
   };
@@ -107,7 +100,7 @@ export default function Users() {
       setEditingUser(user);
       setFormData({
         name: user.name,
-        email: user.email,
+        username: user.username,
         password: '',
       });
     } else {
@@ -121,14 +114,14 @@ export default function Users() {
     setIsSubmitting(true);
 
     try {
-      // Validate email uniqueness
+      // Validate username uniqueness
       const existingUser = users.find(
-        (u) => u.email === formData.email && u.id !== editingUser?.id
+        (u) => u.username === formData.username && u.id !== editingUser?.id
       );
       if (existingUser) {
         toast({
           title: 'Error',
-          description: 'Email sudah digunakan',
+          description: 'Username sudah digunakan',
           variant: 'destructive',
         });
         return;
@@ -136,13 +129,12 @@ export default function Users() {
 
       if (editingUser) {
         // Update existing user
-        setUsers(
-          users.map((u) =>
-            u.id === editingUser.id
-              ? { ...u, name: formData.name, email: formData.email, updatedAt: new Date() }
-              : u
-          )
-        );
+        const updated = await updateUser(editingUser.id, {
+          name: formData.name,
+          username: formData.username,
+          password: formData.password || undefined,
+        });
+        setUsers(users.map((u) => (u.id === updated.id ? updated : u)));
         toast({
           title: 'Success',
           description: 'User berhasil diupdate',
@@ -158,15 +150,12 @@ export default function Users() {
           return;
         }
 
-        const newUser: User = {
-          id: Date.now().toString(),
+        const created = await createUser({
           name: formData.name,
-          email: formData.email,
-          role: 'ADMIN',
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        };
-        setUsers([...users, newUser]);
+          username: formData.username,
+          password: formData.password,
+        });
+        setUsers([...users, created]);
         toast({
           title: 'Success',
           description: 'User berhasil ditambahkan',
@@ -175,12 +164,18 @@ export default function Users() {
 
       setIsDialogOpen(false);
       resetForm();
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Gagal menyimpan user',
+        variant: 'destructive',
+      });
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleDeleteUser = (user: User) => {
+  const handleDeleteUser = async (user: User) => {
     if (users.length <= 1) {
       toast({
         title: 'Error',
@@ -190,12 +185,29 @@ export default function Users() {
       return;
     }
 
-    setUsers(users.filter((u) => u.id !== user.id));
-    toast({
-      title: 'User Deleted',
-      description: `${user.name} telah dihapus`,
-    });
+    try {
+      await deleteUser(user.id);
+      setUsers(users.filter((u) => u.id !== user.id));
+      toast({
+        title: 'User Deleted',
+        description: `${user.name} telah dihapus`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description: 'Gagal menghapus user',
+        variant: 'destructive',
+      });
+    }
   };
+
+  if (isLoading) {
+    return (
+      <AdminLayout title="Users">
+        <UsersSkeleton />
+      </AdminLayout>
+    );
+  }
 
   return (
     <AdminLayout title="Users">
@@ -213,7 +225,7 @@ export default function Users() {
             <div className="relative w-full md:flex-1 md:max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
-                placeholder="Cari nama atau email..."
+                placeholder="Cari nama atau username..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-9"
@@ -228,7 +240,7 @@ export default function Users() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Name</TableHead>
-                    <TableHead>Email</TableHead>
+                    <TableHead>Username</TableHead>
                     <TableHead>Role</TableHead>
                     <TableHead>Created</TableHead>
                     <TableHead className="w-[50px]"></TableHead>
@@ -248,7 +260,7 @@ export default function Users() {
                   visibleUsers.map((user) => (
                     <TableRow key={user.id}>
                         <TableCell className="font-medium">{user.name}</TableCell>
-                        <TableCell>{user.email}</TableCell>
+                        <TableCell>{user.username}</TableCell>
                         <TableCell>
                           <Badge variant="outline" className="bg-primary/10 text-primary">
                             {user.role}
@@ -296,8 +308,8 @@ export default function Users() {
                       <div>
                         <p className="text-xs text-muted-foreground">Name</p>
                         <p className="font-medium">{user.name}</p>
-                        <p className="text-xs text-muted-foreground mt-2">Email</p>
-                        <p className="text-sm break-all">{user.email}</p>
+                        <p className="text-xs text-muted-foreground mt-2">Username</p>
+                        <p className="text-sm break-all">{user.username}</p>
                       </div>
                       <Badge variant="outline" className="bg-primary/10 text-primary">
                         {user.role}
@@ -372,13 +384,13 @@ export default function Users() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="email">Email *</Label>
+                <Label htmlFor="username">Username *</Label>
                 <Input
-                  id="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  placeholder="email@iecnet.co.id"
+                  id="username"
+                  type="text"
+                  value={formData.username}
+                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                  placeholder="admin"
                   required
                 />
               </div>
@@ -426,5 +438,28 @@ export default function Users() {
         </DialogContent>
       </Dialog>
     </AdminLayout>
+  );
+}
+
+function UsersSkeleton() {
+  return (
+    <Card>
+      <CardHeader className="flex flex-col gap-3 space-y-0 pb-4 md:flex-row md:items-center md:justify-between">
+        <Skeleton className="h-6 w-40" />
+        <Skeleton className="h-9 w-28" />
+      </CardHeader>
+      <CardContent>
+        <div className="flex flex-col gap-3 mb-4 md:flex-row md:items-center md:gap-4">
+          <Skeleton className="h-10 w-full md:max-w-sm" />
+        </div>
+        <div className="rounded-md border">
+          <div className="space-y-3 p-4">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <Skeleton key={index} className="h-6 w-full" />
+            ))}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

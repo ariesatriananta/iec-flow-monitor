@@ -254,7 +254,7 @@ export const mockLetters: Letter[] = [
     letterType: 'HRGA',
     subject: 'Surat Penugasan Tim Audit',
     seqNo: 1,
-    letterNumber: 'L.001/2/XII/2024',
+    letterNumber: 'L.001/AP.2137/XII/2024',
     status: 'ACTIVE',
     createdAt: new Date('2024-12-15'),
     updatedAt: new Date('2024-12-15')
@@ -267,7 +267,7 @@ export const mockLetters: Letter[] = [
     letterType: 'FINANCE',
     subject: 'Konfirmasi Pembayaran Termin 1',
     seqNo: 2,
-    letterNumber: 'L.002/3/XII/2024',
+    letterNumber: 'L.002/AP.2137/XII/2024',
     status: 'ACTIVE',
     createdAt: new Date('2024-12-18'),
     updatedAt: new Date('2024-12-18')
@@ -280,7 +280,7 @@ export const mockLetters: Letter[] = [
     letterType: 'SURAT_JALAN',
     subject: 'Pengiriman Dokumen Audit',
     seqNo: 3,
-    letterNumber: 'L.003/4/XII/2024',
+    letterNumber: 'L.003/AP.2137/XII/2024',
     status: 'ACTIVE',
     createdAt: new Date('2024-12-20'),
     updatedAt: new Date('2024-12-20')

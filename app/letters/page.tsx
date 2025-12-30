@@ -63,7 +63,7 @@ import {
   CalendarIcon,
 } from 'lucide-react';
 import type { Client, Letter, LetterType, LetterStatus } from '@/types';
-import { formatDate, generateLetterNumber } from '@/lib/numbering';
+import { formatDate } from '@/lib/numbering';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -152,15 +152,6 @@ export default function Letters() {
     });
   };
 
-  const getNextSeqNo = (date: Date) => {
-    const year = date.getFullYear();
-    const existingInYear = letters.filter((l) => {
-      const lDate = new Date(l.letterDate);
-      return lDate.getFullYear() === year;
-    });
-    return existingInYear.length + 1;
-  };
-
   const handleOpenDetail = (letter: Letter) => {
     setSelectedLetter(letter);
     setIsDetailOpen(true);
@@ -181,20 +172,11 @@ export default function Letters() {
         return;
       }
 
-      const seqNo = getNextSeqNo(formData.letterDate);
-      const letterNumber = generateLetterNumber({
-        seqNo,
-        clientCode: client.code,
-        letterDate: formData.letterDate,
-      });
-
       const created = await createLetter({
         letterDate: formData.letterDate,
         clientId: formData.clientId,
         letterType: formData.letterType,
         subject: formData.subject,
-        seqNo,
-        letterNumber,
         status: 'ACTIVE',
         notes: formData.notes,
       });
@@ -203,7 +185,7 @@ export default function Letters() {
       resetForm();
       toast({
         title: 'Success',
-        description: `Surat ${letterNumber} berhasil dibuat`,
+        description: `Surat ${created.letterNumber} berhasil dibuat`,
       });
     } catch (error) {
       toast({
