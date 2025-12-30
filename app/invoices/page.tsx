@@ -315,8 +315,9 @@ export default function Invoices() {
           <meta charset="utf-8" />
           <title>Invoice ${data.invoiceNumber}</title>
           <style>
-            @page { size: A4; margin: 20mm; }
-            body { font-family: Arial, sans-serif; color: #111; }
+              @page { size: A4; margin: 20mm; }
+              :root { --primary: #1e4e8c; --primary-soft: #e7eef8; --border: #94a3b8; --muted: #6b7280; }
+            body { font-family: "Segoe UI", Arial, sans-serif; color: #111; background: #fff; }
             .page { page-break-after: always; }
             .header { position: relative; height: 180px; margin-bottom: 18px; }
             .header-bg { position: absolute; inset: 0; background-image: url('${headerUrl}'); background-size: cover; background-position: top center; }
@@ -325,24 +326,29 @@ export default function Invoices() {
             @media print {
               body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
             }
-            .title { font-size: 18px; font-weight: 700; letter-spacing: 0.5px; }
+            .title { font-size: 18px; font-weight: 700; letter-spacing: 1px; color: var(--primary); }
             .meta { display: flex; justify-content: space-between; margin-top: 46px; font-size: 12px; }
             .meta .left { max-width: 60%; }
-            .table { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 12px; }
-            .table th, .table td { border: 1px solid #333; padding: 8px; vertical-align: top; }
-            .table th { text-align: left; background: #f6f6f6; }
-            .right { text-align: right; }
-            .totals { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 12px; }
-            .totals td { border: 1px solid #333; padding: 6px 8px; }
-            .note { font-size: 12px; }
-            .sign { text-align: right; font-size: 12px; }
-            .note-table { width: 100%; border-collapse: collapse; margin-top: 12px; }
-            .note-table td { border: 1px solid #333; padding: 10px; vertical-align: top; }
-            .kw-title { text-align: center; font-size: 16px; font-weight: 700; margin-top: 8px; }
-            .kw-table { width: 100%; border-collapse: collapse; margin-top: 44px; font-size: 12px; }
-            .kw-table td { border: 1px solid #333; padding: 8px; vertical-align: top; }
-            .kw-label { width: 180px; }
-            .kw-box { border: 1px solid #333; padding: 6px 10px; display: inline-block; }
+              .box { border: none; border-radius: 8px; overflow: hidden; box-shadow: none; }
+              .table { width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 0; font-size: 12px; border: 1px solid var(--border); }
+              .table th, .table td { border: none; padding: 8px; vertical-align: top; }
+              .table tr + tr td { border-top: 1px solid var(--border); }
+              .table th { text-align: left; background: var(--primary-soft); color: var(--primary); }
+              .table tbody tr:nth-child(even) { background: #f2f6fc; }
+              .right { text-align: right; }
+              .totals { width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 0; font-size: 12px; border: 1px solid var(--border); }
+              .totals td { border: none; padding: 6px 8px; }
+              .totals tr + tr td { border-top: 1px solid var(--border); }
+              .note { font-size: 12px; }
+              .sign { text-align: right; font-size: 12px; }
+              .note-table { width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 0; border: 1px solid var(--border); }
+              .note-table td { border: none; padding: 10px; vertical-align: top; }
+              .kw-title { text-align: center; font-size: 16px; font-weight: 700; margin-top: 8px; }
+              .kw-table { width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 0; font-size: 12px; border: 1px solid var(--border); }
+              .kw-table td { border: none; padding: 8px; vertical-align: top; }
+              .kw-table tr + tr td { border-top: 1px solid var(--border); }
+              .kw-label { width: 180px; }
+              .kw-box { border: 0.5px solid var(--border); padding: 6px 10px; display: inline-block; }
             .kw-amount { font-size: 14px; font-weight: 700; }
             .spacer { height: 70px; }
           </style>
@@ -366,7 +372,8 @@ export default function Invoices() {
                 <div><strong>Reff:</strong> (${data.contractNumber})</div>
               </div>
             </div>
-            <table class="table">
+              <div class="box" style="margin-top:14px;">
+              <table class="table">
               <thead>
                 <tr>
                   <th style="width: 40px;">No</th>
@@ -381,8 +388,10 @@ export default function Invoices() {
                   <td class="right">${formatCurrency(data.dpp)}</td>
                 </tr>
               </tbody>
-            </table>
-            <table class="totals">
+              </table>
+              </div>
+              <div class="box" style="margin-top:8px;">
+              <table class="totals">
               <tr>
                 <td class="right">TOTAL</td>
                 <td class="right" style="width: 180px;">${formatCurrency(data.dpp)}</td>
@@ -395,8 +404,10 @@ export default function Invoices() {
                 <td class="right"><strong>TOTAL TAGIHAN</strong></td>
                 <td class="right"><strong>${formatCurrency(data.total)}</strong></td>
               </tr>
-            </table>
-            <table class="note-table">
+              </table>
+              </div>
+              <div class="box" style="margin-top:12px;">
+              <table class="note-table">
               <tr>
                 <td class="note">
                   <div><strong>Catatan:</strong></div>
@@ -412,7 +423,8 @@ export default function Invoices() {
                   <div>Anita Rahman, CPA</div>
                 </td>
               </tr>
-            </table>
+              </table>
+              </div>
           </div>
           <div class="page">
             <div class="header">
@@ -421,7 +433,8 @@ export default function Invoices() {
                 <div class="title">KWITANSI</div>
               </div>
             </div>
-            <table class="kw-table">
+              <div class="box" style="margin-top:44px;">
+              <table class="kw-table">
               <tr>
                 <td class="kw-label">No:</td>
                 <td>${data.invoiceNumber}</td>
@@ -450,7 +463,8 @@ export default function Invoices() {
                   <div>Anita Rahman, CPA</div>
                 </td>
               </tr>
-            </table>
+              </table>
+              </div>
           </div>
         </body>
       </html>
@@ -787,7 +801,7 @@ function InvoicePreview({
   headerSrc: string;
 }) {
   return (
-      <div className="space-y-8 bg-white text-black p-6 rounded-md">
+    <div className="space-y-8 rounded-md bg-white p-6 text-black">
         <div className="space-y-4">
           <div className="relative h-44">
             <div
@@ -795,7 +809,7 @@ function InvoicePreview({
               style={{ backgroundImage: `url(${headerSrc})` }}
             />
           </div>
-          <h3 className="mt-4 text-center text-lg font-bold tracking-wide">FAKTUR TAGIHAN</h3>
+          <h3 className="mt-4 text-center text-lg font-bold tracking-wide text-primary">FAKTUR TAGIHAN</h3>
           <div className="mt-4 flex flex-col gap-4 text-sm md:flex-row md:justify-between">
             <div className="space-y-1">
               <p className="font-semibold">{data.clientName}</p>
@@ -811,68 +825,68 @@ function InvoicePreview({
             </p>
           </div>
         </div>
-        <div className="overflow-auto border border-black/80">
+        <div className="overflow-auto rounded-md border border-slate-300">
           <table className="w-full text-sm">
-            <thead className="bg-muted/30 text-left">
+            <thead className="bg-primary/10 text-left text-primary uppercase tracking-wide">
               <tr>
-                <th className="border-b border-black/60 p-2 w-10">No</th>
-                <th className="border-b border-black/60 p-2">Keterangan</th>
-                <th className="border-b border-black/60 p-2 text-right w-40">Nilai (Rp)</th>
+                <th className="border-b border-slate-300 p-2 w-10">No</th>
+                  <th className="border-b border-slate-300 p-2">Keterangan</th>
+                  <th className="border-b border-slate-300 p-2 text-right w-40">Nilai (Rp)</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="[&>tr:nth-child(even)]:bg-slate-50">
               <tr>
-                <td className="border-b border-black/40 p-2">1</td>
-                <td className="border-b border-black/40 p-2 whitespace-pre-line">
-                  {data.description}
-                </td>
-                <td className="border-b border-black/40 p-2 text-right">
-                  {formatCurrency(data.dpp)}
-                </td>
+                  <td className="border-b border-slate-200 p-2">1</td>
+                  <td className="border-b border-slate-200 p-2 whitespace-pre-line">
+                    {data.description}
+                  </td>
+                  <td className="border-b border-slate-200 p-2 text-right">
+                    {formatCurrency(data.dpp)}
+                  </td>
               </tr>
             </tbody>
           </table>
         </div>
-        <div className="overflow-auto border border-black/80">
+        <div className="overflow-auto rounded-md border border-slate-300">
           <table className="w-full text-sm">
             <tbody>
               <tr>
-                <td className="border-b border-black/60 p-2 text-right w-[70%]">TOTAL</td>
-                <td className="border-b border-black/60 p-2 text-right">
-                  {formatCurrency(data.dpp)}
-                </td>
-              </tr>
-              <tr>
-                <td className="border-b border-black/60 p-2 text-right">PPN (11%)</td>
-                <td className="border-b border-black/60 p-2 text-right">
-                  {formatCurrency(data.ppn)}
-                </td>
-              </tr>
-              <tr>
-                <td className="border-b border-black/60 p-2 text-right font-semibold">
-                  TOTAL TAGIHAN
-                </td>
-                <td className="border-b border-black/60 p-2 text-right font-semibold">
-                  {formatCurrency(data.total)}
-                </td>
-              </tr>
+                  <td className="border-b border-slate-300 p-2 text-right w-[70%]">TOTAL</td>
+                  <td className="border-b border-slate-300 p-2 text-right">
+                    {formatCurrency(data.dpp)}
+                  </td>
+                </tr>
+                <tr>
+                  <td className="border-b border-slate-300 p-2 text-right">PPN (11%)</td>
+                  <td className="border-b border-slate-300 p-2 text-right">
+                    {formatCurrency(data.ppn)}
+                  </td>
+                </tr>
+                <tr>
+                  <td className="border-b border-slate-300 p-2 text-right font-semibold">
+                    TOTAL TAGIHAN
+                  </td>
+                  <td className="border-b border-slate-300 p-2 text-right font-semibold">
+                    {formatCurrency(data.total)}
+                  </td>
+                </tr>
             </tbody>
           </table>
         </div>
-        <div className="overflow-auto border border-black/80 text-sm">
+        <div className="overflow-auto rounded-md border border-slate-300 text-sm">
           <table className="w-full">
             <tbody>
               <tr>
-                <td className="border-b border-black/60 p-3 align-top w-[60%]">
-                  <p className="font-semibold">Catatan:</p>
+                  <td className="border-b border-slate-300 p-3 align-top w-[60%]">
+                    <p className="font-semibold">Catatan:</p>
                   <p>Pembayaran dapat dilakukan dengan cara transfer kepada:</p>
                   <p>KAP KRISNAWAN, NUGROHO & FAHMY</p>
                   <p>BANK MANDIRI</p>
                   <p>KCP JAKARTA LEBAK BULUS</p>
                   <p>Rekening No. 101-00-1469009-1</p>
                 </td>
-                <td className="border-b border-black/60 p-3 align-top text-right w-[40%]">
-                  <p>Jakarta, {data.invoiceDate}</p>
+                  <td className="border-b border-slate-300 p-3 align-top text-right w-[40%]">
+                    <p>Jakarta, {data.invoiceDate}</p>
                   <div className="h-20" />
                   <p>Anita Rahman, CPA</p>
                 </td>
@@ -889,40 +903,40 @@ function InvoicePreview({
             style={{ backgroundImage: `url(${headerSrc})` }}
           />
         </div>
-        <h3 className="mt-4 text-center text-lg font-bold tracking-wide">KWITANSI</h3>
-        <div className="mt-4 overflow-auto border border-black/80">
+          <h3 className="mt-4 text-center text-lg font-bold tracking-wide text-primary">KWITANSI</h3>
+        <div className="mt-4 overflow-auto rounded-md border border-slate-300">
           <table className="w-full text-sm">
             <tbody>
               <tr>
-                <td className="border-b border-black/60 p-2 w-[180px]">No:</td>
-                <td className="border-b border-black/60 p-2">{invoice.invoiceNumber}</td>
-              </tr>
-              <tr>
-                <td className="border-b border-black/60 p-2">TELAH DITERIMA DARI:</td>
-                <td className="border-b border-black/60 p-2">{data.clientName}</td>
-              </tr>
-              <tr>
-                <td className="border-b border-black/60 p-2">UANG SEJUMLAH:</td>
-                <td className="border-b border-black/60 p-2 font-semibold">
-                  #{data.terbilang}#
-                </td>
-              </tr>
-              <tr>
-                <td className="border-b border-black/60 p-2">UNTUK PEMBAYARAN:</td>
-                <td className="border-b border-black/60 p-2 whitespace-pre-line">
-                  {data.description}
-                </td>
-              </tr>
-              <tr>
-                <td className="border-b border-black/60 p-2">JUMLAH:</td>
-                <td className="border-b border-black/60 p-2 font-semibold">
-                  {formatCurrency(data.total)}
-                </td>
-              </tr>
-              <tr>
-                <td className="border-b border-black/60 p-2"></td>
-                <td className="border-b border-black/60 p-2 text-right">
-                  <p>Jakarta, {data.invoiceDate}</p>
+                  <td className="border-b border-slate-300 p-2 w-[180px]">No:</td>
+                  <td className="border-b border-slate-300 p-2">{invoice.invoiceNumber}</td>
+                </tr>
+                <tr>
+                  <td className="border-b border-slate-300 p-2">TELAH DITERIMA DARI:</td>
+                  <td className="border-b border-slate-300 p-2">{data.clientName}</td>
+                </tr>
+                <tr>
+                  <td className="border-b border-slate-300 p-2">UANG SEJUMLAH:</td>
+                  <td className="border-b border-slate-300 p-2 font-semibold">
+                    #{data.terbilang}#
+                  </td>
+                </tr>
+                <tr>
+                  <td className="border-b border-slate-300 p-2">UNTUK PEMBAYARAN:</td>
+                  <td className="border-b border-slate-300 p-2 whitespace-pre-line">
+                    {data.description}
+                  </td>
+                </tr>
+                <tr>
+                  <td className="border-b border-slate-300 p-2">JUMLAH:</td>
+                  <td className="border-b border-slate-300 p-2 font-semibold">
+                    {formatCurrency(data.total)}
+                  </td>
+                </tr>
+                <tr>
+                  <td className="border-b border-slate-300 p-2"></td>
+                  <td className="border-b border-slate-300 p-2 text-right">
+                    <p>Jakarta, {data.invoiceDate}</p>
                   <div className="h-20" />
                   <p>Anita Rahman, CPA</p>
                 </td>
