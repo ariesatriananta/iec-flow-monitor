@@ -344,7 +344,7 @@ export default function Invoices() {
             .kw-label { width: 180px; }
             .kw-box { border: 1px solid #333; padding: 6px 10px; display: inline-block; }
             .kw-amount { font-size: 14px; font-weight: 700; }
-            .spacer { height: 10px; }
+            .spacer { height: 60px; }
           </style>
         </head>
         <body>
@@ -792,13 +792,11 @@ function InvoicePreview({
               className="absolute inset-0 bg-cover bg-top"
               style={{ backgroundImage: `url(${headerSrc})` }}
             />
-            <div className="relative flex h-full items-end justify-center pb-4">
-              <h3 className="text-lg font-bold tracking-wide">FAKTUR TAGIHAN</h3>
-            </div>
           </div>
-        <div className="flex flex-col gap-4 text-sm md:flex-row md:justify-between">
-          <div className="space-y-1">
-            <p className="font-semibold">{data.clientName}</p>
+          <h3 className="mt-4 text-center text-lg font-bold tracking-wide">FAKTUR TAGIHAN</h3>
+          <div className="mt-4 flex flex-col gap-4 text-sm md:flex-row md:justify-between">
+            <div className="space-y-1">
+              <p className="font-semibold">{data.clientName}</p>
             <p>{data.clientAddress}</p>
             <p>Up : {data.clientPic}</p>
           </div>
@@ -873,7 +871,7 @@ function InvoicePreview({
                 </td>
                 <td className="border-b border-black/60 p-3 align-top text-right w-[40%]">
                   <p>Jakarta, {data.invoiceDate}</p>
-                  <div className="h-8" />
+                  <div className="h-20" />
                   <p>Anita Rahman, CPA</p>
                 </td>
               </tr>
@@ -888,11 +886,9 @@ function InvoicePreview({
             className="absolute inset-0 bg-cover bg-top"
             style={{ backgroundImage: `url(${headerSrc})` }}
           />
-          <div className="relative flex h-full items-end justify-center pb-4">
-            <h3 className="text-lg font-bold tracking-wide">KWITANSI</h3>
-          </div>
         </div>
-        <div className="overflow-auto border border-black/80">
+        <h3 className="mt-4 text-center text-lg font-bold tracking-wide">KWITANSI</h3>
+        <div className="mt-4 overflow-auto border border-black/80">
           <table className="w-full text-sm">
             <tbody>
               <tr>
@@ -925,7 +921,7 @@ function InvoicePreview({
                 <td className="border-b border-black/60 p-2"></td>
                 <td className="border-b border-black/60 p-2 text-right">
                   <p>Jakarta, {data.invoiceDate}</p>
-                  <div className="h-8" />
+                  <div className="h-20" />
                   <p>Anita Rahman, CPA</p>
                 </td>
               </tr>
