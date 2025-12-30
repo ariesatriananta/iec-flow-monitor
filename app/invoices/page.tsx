@@ -344,7 +344,7 @@ export default function Invoices() {
             .kw-label { width: 180px; }
             .kw-box { border: 1px solid #333; padding: 6px 10px; display: inline-block; }
             .kw-amount { font-size: 14px; font-weight: 700; }
-            .spacer { height: 60px; }
+            .spacer { height: 70px; }
           </style>
         </head>
         <body>
@@ -371,7 +371,7 @@ export default function Invoices() {
                 <tr>
                   <th style="width: 40px;">No</th>
                   <th>Keterangan</th>
-                  <th style="width: 160px;" class="right">Nilai (Rp)</th>
+                  <th style="width: 180px;" class="right">Nilai (Rp)</th>
                 </tr>
               </thead>
               <tbody>
@@ -384,8 +384,8 @@ export default function Invoices() {
             </table>
             <table class="totals">
               <tr>
-                <td class="right" style="width: 70%;">TOTAL</td>
-                <td class="right">${formatCurrency(data.dpp)}</td>
+                <td class="right">TOTAL</td>
+                <td class="right" style="width: 180px;">${formatCurrency(data.dpp)}</td>
               </tr>
               <tr>
                 <td class="right">PPN (11%)</td>
@@ -398,7 +398,7 @@ export default function Invoices() {
             </table>
             <table class="note-table">
               <tr>
-                <td class="note" style="width: 60%;">
+                <td class="note">
                   <div><strong>Catatan:</strong></div>
                   <div>Pembayaran dapat dilakukan dengan cara transfer kepada:</div>
                   <div>KAP KRISNAWAN, NUGROHO & FAHMY</div>
@@ -406,7 +406,7 @@ export default function Invoices() {
                   <div>KCP JAKARTA LEBAK BULUS</div>
                   <div>Rekening No. 101-00-1469009-1</div>
                 </td>
-                <td class="sign" style="width: 40%;">
+                <td class="sign" style="width: 176px;">
                   <div>Jakarta, ${data.invoiceDate}</div>
                   <div class="spacer"></div>
                   <div>Anita Rahman, CPA</div>
@@ -733,21 +733,23 @@ export default function Invoices() {
           if (!open) setSelectedInvoice(null);
         }}
       >
-        <DialogContent className="sm:max-w-[900px] max-h-[85vh] overflow-auto bg-muted">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-[900px] h-[85vh] bg-muted p-0 grid grid-rows-[auto,1fr,auto]">
+          <DialogHeader className="bg-muted/95 px-6 py-4 backdrop-blur">
             <DialogTitle>Preview Invoice</DialogTitle>
             <DialogDescription>
               Pastikan data sudah sesuai sebelum print.
             </DialogDescription>
           </DialogHeader>
-          {selectedInvoice && (
-            <InvoicePreview
-              invoice={selectedInvoice}
-              data={getInvoicePreviewData(selectedInvoice)}
-              headerSrc={headerDataUrl || "/invoice-header.jpg"}
-            />
-          )}
-          <DialogFooter className="gap-2">
+          <div className="overflow-auto px-6 pb-6">
+            {selectedInvoice && (
+              <InvoicePreview
+                invoice={selectedInvoice}
+                data={getInvoicePreviewData(selectedInvoice)}
+                headerSrc={headerDataUrl || "/invoice-header.jpg"}
+              />
+            )}
+          </div>
+          <DialogFooter className="gap-2 bg-muted/95 px-6 py-4 backdrop-blur border-t">
             <Button variant="outline" onClick={() => setIsPreviewOpen(false)}>
               Tutup
             </Button>
