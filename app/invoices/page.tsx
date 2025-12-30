@@ -46,6 +46,8 @@ import { formatCurrency, formatDate } from '@/lib/numbering';
 import { useToast } from '@/hooks/use-toast';
 import { fetchInvoices, updateInvoice } from '@/lib/api/invoices';
 import { fetchContracts } from '@/lib/api/contracts';
+import { fetchTermins } from '@/lib/api/termins';
+import * as XLSX from 'xlsx';
 
 export default function Invoices() {
   const { toast } = useToast();
@@ -54,6 +56,8 @@ export default function Invoices() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<InvoiceStatus | 'ALL'>('ALL');
   const [isLoading, setIsLoading] = useState(true);
+  const [visibleCount, setVisibleCount] = useState(20);
+  const [terminNameById, setTerminNameById] = useState<Record<string, string>>({});
 
   const filteredInvoices = invoices
     .filter((invoice) => {
@@ -79,6 +83,21 @@ export default function Invoices() {
         if (!active) return;
         setInvoices(invoiceData);
         setContracts(contractData);
+        const contractIds = Array.from(
+          new Set(invoiceData.map((invoice) => invoice.contractId))
+        );
+        const terminsList = (
+          await Promise.all(
+            contractIds.map((id) => fetchTermins(id).catch(() => []))
+          )
+        ).flat();
+        const nextTerminMap: Record<string, string> = {};
+        for (const termin of terminsList) {
+          nextTerminMap[termin.id] = termin.terminName;
+        }
+        if (active) {
+          setTerminNameById(nextTerminMap);
+        }
       } catch (error) {
         console.error(error);
       } finally {
@@ -90,6 +109,12 @@ export default function Invoices() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    setVisibleCount(20);
+  }, [searchQuery, filterStatus]);
+
+  const visibleInvoices = filteredInvoices.slice(0, visibleCount);
 
   const handlePrintPdf = (invoice: Invoice) => {
     toast({
@@ -156,9 +181,41 @@ export default function Invoices() {
   };
 
   const handleExportExcel = () => {
+    const formatDateTime = (value: Date | string) =>
+      new Date(value)
+        .toLocaleString('en-GB', {
+          timeZone: 'Asia/Jakarta',
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        })
+        .replace(',', '');
+
+    const rows = filteredInvoices.map((invoice) => {
+      const contractInfo = getContractInfo(invoice.contractId);
+      return {
+        'No. Invoice': invoice.invoiceNumber,
+        'Tgl Invoice': formatDate(new Date(invoice.invoiceDate)),
+        'No. Proposal': contractInfo.number,
+        Termin: terminNameById[invoice.terminId] ?? '',
+        Nominal: Number(invoice.amount),
+        Status: invoice.status,
+        created_at: formatDateTime(invoice.createdAt),
+        updated_at: formatDateTime(invoice.updatedAt),
+      };
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Invoices');
+    const fileName = `invoices-${new Date().toISOString().slice(0, 10)}.xlsx`;
+    XLSX.writeFile(workbook, fileName, { bookType: 'xlsx' });
     toast({
       title: 'Export Excel',
-      description: 'File Excel sedang diunduh...',
+      description: 'File Excel sudah diunduh.',
     });
   };
 
@@ -269,7 +326,7 @@ export default function Invoices() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredInvoices.map((invoice) => {
+                    visibleInvoices.map((invoice) => {
                       const contractInfo = getContractInfo(invoice.contractId);
                       return (
                         <TableRow key={invoice.id}>
@@ -346,7 +403,7 @@ export default function Invoices() {
                   <p>Tidak ada invoice ditemukan</p>
                 </div>
               ) : (
-                filteredInvoices.map((invoice) => {
+                visibleInvoices.map((invoice) => {
                   const contractInfo = getContractInfo(invoice.contractId);
                   return (
                     <div key={invoice.id} className="rounded-lg border p-4">
@@ -421,6 +478,16 @@ export default function Invoices() {
                 })
               )}
             </div>
+            {visibleInvoices.length < filteredInvoices.length && (
+              <div className="flex justify-center p-4">
+                <Button
+                  variant="outline"
+                  onClick={() => setVisibleCount((prev) => prev + 20)}
+                >
+                  Load More
+                </Button>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

@@ -75,6 +75,7 @@ export default function Letters() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(20);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -120,6 +121,12 @@ export default function Letters() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    setVisibleCount(20);
+  }, [searchQuery, filterType]);
+
+  const visibleLetters = filteredLetters.slice(0, visibleCount);
 
   const resetForm = () => {
     setFormData({
@@ -323,7 +330,7 @@ export default function Letters() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredLetters.map((letter) => (
+                    visibleLetters.map((letter) => (
                       <TableRow key={letter.id}>
                         <TableCell className="font-mono font-medium">
                           {letter.letterNumber}
@@ -385,7 +392,7 @@ export default function Letters() {
                   <p>Tidak ada surat ditemukan</p>
                 </div>
               ) : (
-                filteredLetters.map((letter) => (
+                visibleLetters.map((letter) => (
                   <div key={letter.id} className="rounded-lg border p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
@@ -441,6 +448,16 @@ export default function Letters() {
                 ))
               )}
             </div>
+            {visibleLetters.length < filteredLetters.length && (
+              <div className="flex justify-center p-4">
+                <Button
+                  variant="outline"
+                  onClick={() => setVisibleCount((prev) => prev + 20)}
+                >
+                  Load More
+                </Button>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

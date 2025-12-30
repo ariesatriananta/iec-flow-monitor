@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AdminLayout } from '@/components/layout/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -70,6 +70,7 @@ export default function Users() {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(20);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -88,6 +89,12 @@ export default function Users() {
       (a, b) =>
         new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
     );
+
+  useEffect(() => {
+    setVisibleCount(20);
+  }, [searchQuery]);
+
+  const visibleUsers = filteredUsers.slice(0, visibleCount);
 
   const resetForm = () => {
     setFormData({ name: '', email: '', password: '' });
@@ -238,8 +245,8 @@ export default function Users() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredUsers.map((user) => (
-                      <TableRow key={user.id}>
+                  visibleUsers.map((user) => (
+                    <TableRow key={user.id}>
                         <TableCell className="font-medium">{user.name}</TableCell>
                         <TableCell>{user.email}</TableCell>
                         <TableCell>
@@ -283,7 +290,7 @@ export default function Users() {
                   <p>Tidak ada user ditemukan</p>
                 </div>
               ) : (
-                filteredUsers.map((user) => (
+                visibleUsers.map((user) => (
                   <div key={user.id} className="rounded-lg border p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
@@ -325,6 +332,16 @@ export default function Users() {
                 ))
               )}
             </div>
+            {visibleUsers.length < filteredUsers.length && (
+              <div className="flex justify-center p-4">
+                <Button
+                  variant="outline"
+                  onClick={() => setVisibleCount((prev) => prev + 20)}
+                >
+                  Load More
+                </Button>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

@@ -44,6 +44,7 @@ export default function Clients() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [togglingClientId, setTogglingClientId] = useState<string | null>(null);
+  const [visibleCount, setVisibleCount] = useState(20);
   const { toast } = useToast();
 
   // Form state
@@ -80,6 +81,12 @@ export default function Clients() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    setVisibleCount(20);
+  }, [searchQuery]);
+
+  const visibleClients = filteredClients.slice(0, visibleCount);
 
   const resetForm = () => {
     setFormData({
@@ -328,8 +335,8 @@ export default function Clients() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredClients.map((client) => (
-                      <TableRow key={client.id}>
+                  visibleClients.map((client) => (
+                    <TableRow key={client.id}>
                         <TableCell>{client.name}</TableCell>
                         <TableCell>{client.picName || '-'}</TableCell>
                         <TableCell>{client.email || '-'}</TableCell>
@@ -389,7 +396,7 @@ export default function Clients() {
                   <p>Tidak ada client ditemukan</p>
                 </div>
               ) : (
-                filteredClients.map((client) => (
+                visibleClients.map((client) => (
                   <div key={client.id} className="rounded-lg border p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
@@ -446,6 +453,16 @@ export default function Clients() {
                 ))
               )}
             </div>
+            {visibleClients.length < filteredClients.length && (
+              <div className="flex justify-center p-4">
+                <Button
+                  variant="outline"
+                  onClick={() => setVisibleCount((prev) => prev + 20)}
+                >
+                  Load More
+                </Button>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

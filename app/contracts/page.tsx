@@ -62,6 +62,7 @@ import { formatCurrency, formatDate, generateProposalNumber } from '@/lib/number
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import * as XLSX from 'xlsx';
 
 export default function Contracts() {
   const router = useRouter();
@@ -75,6 +76,7 @@ export default function Contracts() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  const [visibleCount, setVisibleCount] = useState(20);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -121,6 +123,12 @@ export default function Contracts() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    setVisibleCount(20);
+  }, [searchQuery, filterStatus]);
+
+  const visibleContracts = filteredContracts.slice(0, visibleCount);
 
   const resetForm = () => {
     setFormData({
@@ -316,11 +324,29 @@ export default function Contracts() {
   };
 
   const handleExportExcel = () => {
+    const rows = filteredContracts.map((contract) => ({
+      'No. Proposal/Kontrak': contract.proposalNumber,
+      'Tanggal Proposal': formatDate(new Date(contract.proposalDate)),
+      'Nama Client': contract.client?.name ?? '',
+      'Nama Service (A - audit / B-non audit)':
+        contract.serviceCode === 'A' ? 'A - Audit' : 'B - Non Audit',
+      'Engagement No': contract.engagementNo,
+      'Contract Title': contract.contractTitle ?? '',
+      'Contract Value': Number(contract.contractValue),
+      'Payment Status': contract.paymentStatus,
+      'Proposal Status': contract.status,
+      created_at: formatDate(new Date(contract.createdAt)),
+      updated_at: formatDate(new Date(contract.updatedAt)),
+    }));
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Contracts');
+    const fileName = `contracts-${new Date().toISOString().slice(0, 10)}.xlsx`;
+    XLSX.writeFile(workbook, fileName, { bookType: 'xlsx' });
     toast({
       title: 'Export Excel',
-      description: 'File Excel sedang diunduh...',
+      description: 'File Excel sudah diunduh.',
     });
-    // TODO: Implement actual Excel export
   };
 
   const getPaymentStatusColor = (status: PaymentStatus) => {
@@ -427,7 +453,7 @@ export default function Contracts() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredContracts.map((contract) => (
+                    visibleContracts.map((contract) => (
                       <TableRow key={contract.id} className="cursor-pointer hover:bg-muted/50">
                         <TableCell className="font-mono text-sm font-medium">
                           {contract.proposalNumber}
@@ -524,7 +550,7 @@ export default function Contracts() {
                   <p>Tidak ada contract ditemukan</p>
                 </div>
               ) : (
-                filteredContracts.map((contract) => (
+                visibleContracts.map((contract) => (
                   <div key={contract.id} className="rounded-lg border p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div className="space-y-2">
@@ -616,6 +642,16 @@ export default function Contracts() {
                 ))
               )}
             </div>
+            {visibleContracts.length < filteredContracts.length && (
+              <div className="flex justify-center p-4">
+                <Button
+                  variant="outline"
+                  onClick={() => setVisibleCount((prev) => prev + 20)}
+                >
+                  Load More
+                </Button>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
