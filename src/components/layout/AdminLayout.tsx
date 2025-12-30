@@ -23,6 +23,14 @@ export function AdminLayout({ children, title }: AdminLayoutProps) {
     }
   }, [isAuthenticated, isLoading, router]);
 
+  useEffect(() => {
+    if (title) {
+      document.title = `IECNET - ${title}`;
+    } else {
+      document.title = 'IECNET - Admin System';
+    }
+  }, [title]);
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">

@@ -20,6 +20,7 @@ export default function Login() {
   const { toast } = useToast();
 
   useEffect(() => {
+    document.title = 'IECNET - Login';
     if (isAuthenticated) {
       router.push('/dashboard');
     }

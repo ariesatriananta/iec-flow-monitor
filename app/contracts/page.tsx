@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { AdminLayout } from '@/components/layout/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -66,17 +66,21 @@ import * as XLSX from 'xlsx';
 
 export default function Contracts() {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterStatus, setFilterStatus] = useState<PaymentStatus | 'ALL'>('ALL');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingContract, setEditingContract] = useState<Contract | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [visibleCount, setVisibleCount] = useState(20);
+
+  const searchQuery = searchParams.get('q') ?? '';
+  const filterStatus = (searchParams.get('status') ?? 'ALL') as PaymentStatus | 'ALL';
+  const filterClientId = searchParams.get('client') ?? 'ALL';
 
   // Form state
   const [formData, setFormData] = useState({
@@ -94,7 +98,9 @@ export default function Contracts() {
         contract.proposalNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
         contract.client?.name.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesStatus = filterStatus === 'ALL' || contract.paymentStatus === filterStatus;
-      return matchesSearch && matchesStatus;
+      const matchesClient =
+        filterClientId === 'ALL' || contract.clientId === filterClientId;
+      return matchesSearch && matchesStatus && matchesClient;
     })
     .sort(
       (a, b) =>
@@ -126,7 +132,24 @@ export default function Contracts() {
 
   useEffect(() => {
     setVisibleCount(20);
-  }, [searchQuery, filterStatus]);
+  }, [searchQuery, filterStatus, filterClientId]);
+
+  const setQueryParam = (key: string, value: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (!value || value === 'ALL') {
+      params.delete(key);
+    } else {
+      params.set(key, value);
+    }
+    const nextQuery = params.toString();
+    const nextUrl = nextQuery ? `${pathname}?${nextQuery}` : pathname;
+    router.replace(nextUrl, { scroll: false });
+  };
+
+  const clientOptions = clients
+    .filter((client) => client.name)
+    .map((client) => ({ id: client.id, name: client.name }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   const visibleContracts = filteredContracts.slice(0, visibleCount);
 
@@ -405,13 +428,30 @@ export default function Contracts() {
               <Input
                 placeholder="Cari nomor atau client..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => setQueryParam('q', e.target.value.trim())}
                 className="pl-9"
               />
             </div>
             <Select
+              value={filterClientId}
+              onValueChange={(value) => setQueryParam('client', value)}
+            >
+              <SelectTrigger className="w-full md:w-[220px]">
+                <Filter className="w-4 h-4 mr-2" />
+                <SelectValue placeholder="Filter client" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">Semua Client</SelectItem>
+                {clientOptions.map((client) => (
+                  <SelectItem key={client.id} value={client.id}>
+                    {client.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
               value={filterStatus}
-              onValueChange={(value) => setFilterStatus(value as PaymentStatus | 'ALL')}
+              onValueChange={(value) => setQueryParam('status', value)}
             >
               <SelectTrigger className="w-full md:w-[180px]">
                 <Filter className="w-4 h-4 mr-2" />
