@@ -26,6 +26,16 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -59,6 +69,7 @@ import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { fetchClients } from '@/lib/api/clients';
 import { createLetter, fetchLetters, updateLetter } from '@/lib/api/letters';
+import * as XLSX from 'xlsx';
 
 const letterTypeLabels: Record<LetterType, string> = {
   HRGA: 'HR/GA',
@@ -73,6 +84,9 @@ export default function Letters() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<LetterType | 'ALL'>('ALL');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [selectedLetter, setSelectedLetter] = useState<Letter | null>(null);
+  const [confirmVoid, setConfirmVoid] = useState<Letter | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [visibleCount, setVisibleCount] = useState(20);
@@ -147,6 +161,11 @@ export default function Letters() {
     return existingInYear.length + 1;
   };
 
+  const handleOpenDetail = (letter: Letter) => {
+    setSelectedLetter(letter);
+    setIsDetailOpen(true);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -218,10 +237,46 @@ export default function Letters() {
     }
   };
 
+  const handleConfirmVoid = async () => {
+    if (!confirmVoid) return;
+    const letter = confirmVoid;
+    setConfirmVoid(null);
+    await handleVoidLetter(letter);
+  };
+
   const handleExportExcel = () => {
+    const formatDateTime = (value: Date | string) =>
+      new Date(value)
+        .toLocaleString('en-GB', {
+          timeZone: 'Asia/Jakarta',
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false,
+        })
+        .replace(',', '');
+
+    const rows = filteredLetters.map((letter) => ({
+      'No. Surat': letter.letterNumber,
+      'Tgl Surat': formatDate(new Date(letter.letterDate)),
+      'Tipe Surat': letterTypeLabels[letter.letterType],
+      Client: letter.client?.name ?? '',
+      Subject: letter.subject,
+      Status: letter.status,
+      created_at: formatDateTime(letter.createdAt),
+      updated_at: formatDateTime(letter.updatedAt),
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Letters');
+    const fileName = `letters-${new Date().toISOString().slice(0, 10)}.xlsx`;
+    XLSX.writeFile(workbook, fileName, { bookType: 'xlsx' });
     toast({
       title: 'Export Excel',
-      description: 'File Excel sedang diunduh...',
+      description: 'File Excel sudah diunduh.',
     });
   };
 
@@ -360,20 +415,20 @@ export default function Letters() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem>
-                                <Eye className="w-4 h-4 mr-2" />
-                                View Detail
-                              </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleOpenDetail(letter)}>
+                              <Eye className="w-4 h-4 mr-2" />
+                              View Detail
+                            </DropdownMenuItem>
                               {letter.status === 'ACTIVE' && (
                                 <>
                                   <DropdownMenuSeparator />
-                                  <DropdownMenuItem
-                                    className="text-destructive"
-                                    onClick={() => handleVoidLetter(letter)}
-                                  >
-                                    <XCircle className="w-4 h-4 mr-2" />
-                                    Void Surat
-                                  </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  className="text-destructive"
+                                  onClick={() => setConfirmVoid(letter)}
+                                >
+                                  <XCircle className="w-4 h-4 mr-2" />
+                                  Void Surat
+                                </DropdownMenuItem>
                                 </>
                               )}
                             </DropdownMenuContent>
@@ -425,16 +480,16 @@ export default function Letters() {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem>
-                            <Eye className="w-4 h-4 mr-2" />
-                            View Detail
-                          </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleOpenDetail(letter)}>
+                          <Eye className="w-4 h-4 mr-2" />
+                          View Detail
+                        </DropdownMenuItem>
                           {letter.status === 'ACTIVE' && (
                             <>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
                                 className="text-destructive"
-                                onClick={() => handleVoidLetter(letter)}
+                                onClick={() => setConfirmVoid(letter)}
                               >
                                 <XCircle className="w-4 h-4 mr-2" />
                                 Void Surat
@@ -577,6 +632,85 @@ export default function Letters() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={confirmVoid !== null} onOpenChange={() => setConfirmVoid(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Void Surat</AlertDialogTitle>
+            <AlertDialogDescription>
+              Yakin ingin void surat{" "}
+              <span className="font-mono">{confirmVoid?.letterNumber}</span>? Tindakan ini tidak dapat dibatalkan.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmVoid}>
+              Ya, void
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Detail Dialog */}
+      <Dialog
+        open={isDetailOpen}
+        onOpenChange={(open) => {
+          setIsDetailOpen(open);
+          if (!open) setSelectedLetter(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-[520px]">
+          <DialogHeader>
+            <DialogTitle>Detail Surat</DialogTitle>
+            <DialogDescription>Informasi ringkas surat</DialogDescription>
+          </DialogHeader>
+          {selectedLetter && (
+            <div className="grid gap-4 py-2">
+              <div className="space-y-1">
+                <Label>No. Surat</Label>
+                <p className="font-mono text-sm">{selectedLetter.letterNumber}</p>
+              </div>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="space-y-1">
+                  <Label>Tanggal</Label>
+                  <p className="text-sm">{formatDate(new Date(selectedLetter.letterDate))}</p>
+                </div>
+                <div className="space-y-1">
+                  <Label>Tipe</Label>
+                  <Badge variant="outline" className={getLetterTypeColor(selectedLetter.letterType)}>
+                    {letterTypeLabels[selectedLetter.letterType]}
+                  </Badge>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label>Client</Label>
+                <p className="text-sm">{selectedLetter.client?.name ?? '-'}</p>
+              </div>
+              <div className="space-y-1">
+                <Label>Subject</Label>
+                <p className="text-sm">{selectedLetter.subject}</p>
+              </div>
+              {selectedLetter.notes && (
+                <div className="space-y-1">
+                  <Label>Notes</Label>
+                  <p className="text-sm whitespace-pre-wrap">{selectedLetter.notes}</p>
+                </div>
+              )}
+              <div className="space-y-1">
+                <Label>Status</Label>
+                <Badge className={getLetterStatusColor(selectedLetter.status)}>
+                  {selectedLetter.status}
+                </Badge>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setIsDetailOpen(false)}>
+              Tutup
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </AdminLayout>
