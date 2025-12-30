@@ -8,6 +8,14 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
   Table,
   TableBody,
   TableCell,
@@ -48,6 +56,7 @@ import { fetchInvoices, updateInvoice } from '@/lib/api/invoices';
 import { fetchContracts } from '@/lib/api/contracts';
 import { fetchTermins } from '@/lib/api/termins';
 import * as XLSX from 'xlsx';
+import { terbilang } from '@/lib/terbilang';
 
 export default function Invoices() {
   const { toast } = useToast();
@@ -58,6 +67,9 @@ export default function Invoices() {
   const [isLoading, setIsLoading] = useState(true);
   const [visibleCount, setVisibleCount] = useState(20);
   const [terminNameById, setTerminNameById] = useState<Record<string, string>>({});
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [headerDataUrl, setHeaderDataUrl] = useState<string>('');
 
   const filteredInvoices = invoices
     .filter((invoice) => {
@@ -111,16 +123,36 @@ export default function Invoices() {
   }, []);
 
   useEffect(() => {
+    let active = true;
+    const loadHeader = async () => {
+      try {
+        const response = await fetch('/invoice-header.jpg');
+        const blob = await response.blob();
+        const reader = new FileReader();
+        reader.onload = () => {
+          if (!active) return;
+          setHeaderDataUrl(typeof reader.result === 'string' ? reader.result : '');
+        };
+        reader.readAsDataURL(blob);
+      } catch (error) {
+        console.error(error);
+      }
+    };
+    loadHeader();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
     setVisibleCount(20);
   }, [searchQuery, filterStatus]);
 
   const visibleInvoices = filteredInvoices.slice(0, visibleCount);
 
-  const handlePrintPdf = (invoice: Invoice) => {
-    toast({
-      title: 'Template Belum Tersedia',
-      description: 'Template PDF invoice akan tersedia segera',
-    });
+  const handleOpenPreview = (invoice: Invoice) => {
+    setSelectedInvoice(invoice);
+    setIsPreviewOpen(true);
   };
 
   const handleMarkAsIssued = async (invoice: Invoice) => {
@@ -219,6 +251,217 @@ export default function Invoices() {
     });
   };
 
+  const getContractById = (contractId: string) =>
+    contracts.find((c) => c.id === contractId);
+
+  const formatDateLong = (value: Date | string) =>
+    new Date(value).toLocaleDateString('id-ID', {
+      timeZone: 'Asia/Jakarta',
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+    });
+
+  const formatDateTime = (value: Date | string) =>
+    new Date(value)
+      .toLocaleString('en-GB', {
+        timeZone: 'Asia/Jakarta',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      })
+      .replace(',', '');
+
+  const getInvoicePreviewData = (invoice: Invoice) => {
+    const contract = getContractById(invoice.contractId);
+    const client = contract?.client;
+    const terminName = terminNameById[invoice.terminId] ?? '';
+    const descriptionParts = [contract?.contractTitle, terminName].filter(Boolean);
+    const description = descriptionParts.join('\n');
+    const dpp = Number(invoice.amount);
+    const ppn = Math.round(dpp * 0.11);
+    const total = dpp + ppn;
+    return {
+      contractNumber: contract?.proposalNumber ?? '-',
+      invoiceNumber: invoice.invoiceNumber,
+      invoiceDate: formatDateLong(invoice.invoiceDate),
+      clientName: client?.name ?? '-',
+      clientAddress: client?.address ?? '-',
+      clientPic: client?.picName ?? '-',
+      description: description || '-',
+      dpp,
+      ppn,
+      total,
+      terbilang: terbilang(total).toUpperCase(),
+      createdAt: formatDateTime(invoice.createdAt),
+      updatedAt: formatDateTime(invoice.updatedAt),
+    };
+  };
+
+  const handlePrintInvoice = () => {
+    if (!selectedInvoice) return;
+    const data = getInvoicePreviewData(selectedInvoice);
+    const printWindow = window.open('', '_blank', 'width=1000,height=800');
+    if (!printWindow) return;
+    const headerUrl = headerDataUrl || `${window.location.origin}/invoice-header.jpg`;
+    const descriptionHtml = data.description.replace(/\n/g, '<br/>');
+    const html = `
+      <!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>Invoice ${data.invoiceNumber}</title>
+          <style>
+            @page { size: A4; margin: 20mm; }
+            body { font-family: Arial, sans-serif; color: #111; }
+            .page { page-break-after: always; }
+            .header { position: relative; height: 180px; margin-bottom: 18px; }
+            .header-bg { position: absolute; inset: 0; background-image: url('${headerUrl}'); background-size: cover; background-position: top center; }
+            .header-content { position: relative; text-align: center; padding-top: 175px; }
+            .page:last-child { page-break-after: auto; }
+            @media print {
+              body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            }
+            .title { font-size: 18px; font-weight: 700; letter-spacing: 0.5px; }
+            .meta { display: flex; justify-content: space-between; margin-top: 46px; font-size: 12px; }
+            .meta .left { max-width: 60%; }
+            .table { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 12px; }
+            .table th, .table td { border: 1px solid #333; padding: 8px; vertical-align: top; }
+            .table th { text-align: left; background: #f6f6f6; }
+            .right { text-align: right; }
+            .totals { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 12px; }
+            .totals td { border: 1px solid #333; padding: 6px 8px; }
+            .note { font-size: 12px; }
+            .sign { text-align: right; font-size: 12px; }
+            .note-table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+            .note-table td { border: 1px solid #333; padding: 10px; vertical-align: top; }
+            .kw-title { text-align: center; font-size: 16px; font-weight: 700; margin-top: 8px; }
+            .kw-table { width: 100%; border-collapse: collapse; margin-top: 44px; font-size: 12px; }
+            .kw-table td { border: 1px solid #333; padding: 8px; vertical-align: top; }
+            .kw-label { width: 180px; }
+            .kw-box { border: 1px solid #333; padding: 6px 10px; display: inline-block; }
+            .kw-amount { font-size: 14px; font-weight: 700; }
+            .spacer { height: 10px; }
+          </style>
+        </head>
+        <body>
+          <div class="page">
+            <div class="header">
+              <div class="header-bg"></div>
+              <div class="header-content">
+                <div class="title">FAKTUR TAGIHAN</div>
+              </div>
+            </div>
+            <div class="meta">
+              <div class="left">
+                <div><strong>${data.clientName}</strong></div>
+                <div>${data.clientAddress}</div>
+                <div>Up : ${data.clientPic}</div>
+              </div>
+              <div class="right">
+                <div><strong>No. Invoice:</strong> ${data.invoiceNumber}</div>
+                <div><strong>Reff:</strong> (${data.contractNumber})</div>
+              </div>
+            </div>
+            <table class="table">
+              <thead>
+                <tr>
+                  <th style="width: 40px;">No</th>
+                  <th>Keterangan</th>
+                  <th style="width: 160px;" class="right">Nilai (Rp)</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>1</td>
+                  <td>${descriptionHtml}</td>
+                  <td class="right">${formatCurrency(data.dpp)}</td>
+                </tr>
+              </tbody>
+            </table>
+            <table class="totals">
+              <tr>
+                <td class="right" style="width: 70%;">TOTAL</td>
+                <td class="right">${formatCurrency(data.dpp)}</td>
+              </tr>
+              <tr>
+                <td class="right">PPN (11%)</td>
+                <td class="right">${formatCurrency(data.ppn)}</td>
+              </tr>
+              <tr>
+                <td class="right"><strong>TOTAL TAGIHAN</strong></td>
+                <td class="right"><strong>${formatCurrency(data.total)}</strong></td>
+              </tr>
+            </table>
+            <table class="note-table">
+              <tr>
+                <td class="note" style="width: 60%;">
+                  <div><strong>Catatan:</strong></div>
+                  <div>Pembayaran dapat dilakukan dengan cara transfer kepada:</div>
+                  <div>KAP KRISNAWAN, NUGROHO & FAHMY</div>
+                  <div>BANK MANDIRI</div>
+                  <div>KCP JAKARTA LEBAK BULUS</div>
+                  <div>Rekening No. 101-00-1469009-1</div>
+                </td>
+                <td class="sign" style="width: 40%;">
+                  <div>Jakarta, ${data.invoiceDate}</div>
+                  <div class="spacer"></div>
+                  <div>Anita Rahman, CPA</div>
+                </td>
+              </tr>
+            </table>
+          </div>
+          <div class="page">
+            <div class="header">
+              <div class="header-bg"></div>
+              <div class="header-content">
+                <div class="title">KWITANSI</div>
+              </div>
+            </div>
+            <table class="kw-table">
+              <tr>
+                <td class="kw-label">No:</td>
+                <td>${data.invoiceNumber}</td>
+              </tr>
+              <tr>
+                <td class="kw-label">TELAH DITERIMA DARI:</td>
+                <td>${data.clientName}</td>
+              </tr>
+              <tr>
+                <td class="kw-label">UANG SEJUMLAH:</td>
+                <td><span class="kw-box">#${data.terbilang}#</span></td>
+              </tr>
+              <tr>
+                <td class="kw-label">UNTUK PEMBAYARAN:</td>
+                <td>${descriptionHtml}</td>
+              </tr>
+              <tr>
+                <td class="kw-label">JUMLAH:</td>
+                <td class="kw-amount">${formatCurrency(data.total)}</td>
+              </tr>
+              <tr>
+                <td></td>
+                <td class="sign">
+                  <div>Jakarta, ${data.invoiceDate}</div>
+                  <div class="spacer"></div>
+                  <div>Anita Rahman, CPA</div>
+                </td>
+              </tr>
+            </table>
+          </div>
+        </body>
+      </html>
+    `;
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+  };
+
   const getInvoiceStatusColor = (status: InvoiceStatus) => {
     switch (status) {
       case 'PAID':
@@ -254,19 +497,10 @@ export default function Invoices() {
       <Card>
         <CardHeader className="flex flex-col gap-3 space-y-0 pb-4 md:flex-row md:items-center md:justify-between">
           <CardTitle className="text-xl">Daftar Invoices</CardTitle>
-          <div className="grid w-full gap-2 md:w-auto md:grid-cols-2 md:items-center">
+          <div className="grid w-full gap-2 md:w-auto md:items-center">
             <Button variant="outline" onClick={handleExportExcel} className="w-full">
               <Download className="w-4 h-4 mr-2" />
               Export Excel
-            </Button>
-            <Button
-              onClick={() =>
-                toast({ title: 'Info', description: 'Buat invoice dari halaman Contract Detail' })
-              }
-              className="w-full"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Buat Invoice
             </Button>
           </div>
         </CardHeader>
@@ -354,14 +588,14 @@ export default function Invoices() {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuItem>
-                                  <Eye className="w-4 h-4 mr-2" />
-                                  View Detail
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handlePrintPdf(invoice)}>
-                                  <Printer className="w-4 h-4 mr-2" />
-                                  Print PDF
-                                </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleOpenPreview(invoice)}>
+                                <Eye className="w-4 h-4 mr-2" />
+                                View Detail
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => handleOpenPreview(invoice)}>
+                                <Printer className="w-4 h-4 mr-2" />
+                                Print PDF
+                              </DropdownMenuItem>
                                 {invoice.status === 'DRAFT' && (
                                   <DropdownMenuItem onClick={() => handleMarkAsIssued(invoice)}>
                                     <Check className="w-4 h-4 mr-2" />
@@ -438,11 +672,11 @@ export default function Invoices() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleOpenPreview(invoice)}>
                               <Eye className="w-4 h-4 mr-2" />
                               View Detail
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handlePrintPdf(invoice)}>
+                            <DropdownMenuItem onClick={() => handleOpenPreview(invoice)}>
                               <Printer className="w-4 h-4 mr-2" />
                               Print PDF
                             </DropdownMenuItem>
@@ -491,7 +725,215 @@ export default function Invoices() {
           </div>
         </CardContent>
       </Card>
+
+      <Dialog
+        open={isPreviewOpen}
+        onOpenChange={(open) => {
+          setIsPreviewOpen(open);
+          if (!open) setSelectedInvoice(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-[900px] max-h-[85vh] overflow-auto bg-muted">
+          <DialogHeader>
+            <DialogTitle>Preview Invoice</DialogTitle>
+            <DialogDescription>
+              Pastikan data sudah sesuai sebelum print.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedInvoice && (
+            <InvoicePreview
+              invoice={selectedInvoice}
+              data={getInvoicePreviewData(selectedInvoice)}
+              headerSrc={headerDataUrl || "/invoice-header.jpg"}
+            />
+          )}
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setIsPreviewOpen(false)}>
+              Tutup
+            </Button>
+            <Button onClick={handlePrintInvoice}>Print</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
+  );
+}
+
+interface InvoicePreviewData {
+  contractNumber: string;
+  invoiceNumber: string;
+  invoiceDate: string;
+  clientName: string;
+  clientAddress: string;
+  clientPic: string;
+  description: string;
+  dpp: number;
+  ppn: number;
+  total: number;
+  terbilang: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+function InvoicePreview({
+  invoice,
+  data,
+  headerSrc,
+}: {
+  invoice: Invoice;
+  data: InvoicePreviewData;
+  headerSrc: string;
+}) {
+  return (
+      <div className="space-y-8 bg-white text-black p-6 rounded-md">
+        <div className="space-y-4">
+          <div className="relative h-44">
+            <div
+              className="absolute inset-0 bg-cover bg-top"
+              style={{ backgroundImage: `url(${headerSrc})` }}
+            />
+            <div className="relative flex h-full items-end justify-center pb-4">
+              <h3 className="text-lg font-bold tracking-wide">FAKTUR TAGIHAN</h3>
+            </div>
+          </div>
+        <div className="flex flex-col gap-4 text-sm md:flex-row md:justify-between">
+          <div className="space-y-1">
+            <p className="font-semibold">{data.clientName}</p>
+            <p>{data.clientAddress}</p>
+            <p>Up : {data.clientPic}</p>
+          </div>
+          <div className="space-y-1 text-left md:text-right">
+            <p>
+              <span className="font-semibold">No. Invoice:</span> {data.invoiceNumber}
+            </p>
+            <p>
+              <span className="font-semibold">Reff:</span> ({data.contractNumber})
+            </p>
+          </div>
+        </div>
+        <div className="overflow-auto border border-black/80">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/30 text-left">
+              <tr>
+                <th className="border-b border-black/60 p-2 w-10">No</th>
+                <th className="border-b border-black/60 p-2">Keterangan</th>
+                <th className="border-b border-black/60 p-2 text-right w-40">Nilai (Rp)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td className="border-b border-black/40 p-2">1</td>
+                <td className="border-b border-black/40 p-2 whitespace-pre-line">
+                  {data.description}
+                </td>
+                <td className="border-b border-black/40 p-2 text-right">
+                  {formatCurrency(data.dpp)}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div className="overflow-auto border border-black/80">
+          <table className="w-full text-sm">
+            <tbody>
+              <tr>
+                <td className="border-b border-black/60 p-2 text-right w-[70%]">TOTAL</td>
+                <td className="border-b border-black/60 p-2 text-right">
+                  {formatCurrency(data.dpp)}
+                </td>
+              </tr>
+              <tr>
+                <td className="border-b border-black/60 p-2 text-right">PPN (11%)</td>
+                <td className="border-b border-black/60 p-2 text-right">
+                  {formatCurrency(data.ppn)}
+                </td>
+              </tr>
+              <tr>
+                <td className="border-b border-black/60 p-2 text-right font-semibold">
+                  TOTAL TAGIHAN
+                </td>
+                <td className="border-b border-black/60 p-2 text-right font-semibold">
+                  {formatCurrency(data.total)}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div className="overflow-auto border border-black/80 text-sm">
+          <table className="w-full">
+            <tbody>
+              <tr>
+                <td className="border-b border-black/60 p-3 align-top w-[60%]">
+                  <p className="font-semibold">Catatan:</p>
+                  <p>Pembayaran dapat dilakukan dengan cara transfer kepada:</p>
+                  <p>KAP KRISNAWAN, NUGROHO & FAHMY</p>
+                  <p>BANK MANDIRI</p>
+                  <p>KCP JAKARTA LEBAK BULUS</p>
+                  <p>Rekening No. 101-00-1469009-1</p>
+                </td>
+                <td className="border-b border-black/60 p-3 align-top text-right w-[40%]">
+                  <p>Jakarta, {data.invoiceDate}</p>
+                  <div className="h-8" />
+                  <p>Anita Rahman, CPA</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        <div className="relative h-44">
+          <div
+            className="absolute inset-0 bg-cover bg-top"
+            style={{ backgroundImage: `url(${headerSrc})` }}
+          />
+          <div className="relative flex h-full items-end justify-center pb-4">
+            <h3 className="text-lg font-bold tracking-wide">KWITANSI</h3>
+          </div>
+        </div>
+        <div className="overflow-auto border border-black/80">
+          <table className="w-full text-sm">
+            <tbody>
+              <tr>
+                <td className="border-b border-black/60 p-2 w-[180px]">No:</td>
+                <td className="border-b border-black/60 p-2">{invoice.invoiceNumber}</td>
+              </tr>
+              <tr>
+                <td className="border-b border-black/60 p-2">TELAH DITERIMA DARI:</td>
+                <td className="border-b border-black/60 p-2">{data.clientName}</td>
+              </tr>
+              <tr>
+                <td className="border-b border-black/60 p-2">UANG SEJUMLAH:</td>
+                <td className="border-b border-black/60 p-2 font-semibold">
+                  #{data.terbilang}#
+                </td>
+              </tr>
+              <tr>
+                <td className="border-b border-black/60 p-2">UNTUK PEMBAYARAN:</td>
+                <td className="border-b border-black/60 p-2 whitespace-pre-line">
+                  {data.description}
+                </td>
+              </tr>
+              <tr>
+                <td className="border-b border-black/60 p-2">JUMLAH:</td>
+                <td className="border-b border-black/60 p-2 font-semibold">
+                  {formatCurrency(data.total)}
+                </td>
+              </tr>
+              <tr>
+                <td className="border-b border-black/60 p-2"></td>
+                <td className="border-b border-black/60 p-2 text-right">
+                  <p>Jakarta, {data.invoiceDate}</p>
+                  <div className="h-8" />
+                  <p>Anita Rahman, CPA</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
   );
 }
 
