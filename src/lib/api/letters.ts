@@ -14,8 +14,6 @@ export async function createLetter(payload: {
   letterDate: Date;
   letterType: string;
   subject: string;
-  seqNo: number;
-  letterNumber: string;
   status: string;
   notes?: string;
 }): Promise<Letter> {
