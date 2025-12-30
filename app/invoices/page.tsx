@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { AdminLayout } from '@/components/layout/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -43,8 +44,6 @@ import {
   MoreHorizontal,
   Eye,
   Printer,
-  Check,
-  XCircle,
   Download,
   Filter,
   Receipt,
@@ -52,7 +51,7 @@ import {
 import type { Contract, Invoice, InvoiceStatus } from '@/types';
 import { formatCurrency, formatDate } from '@/lib/numbering';
 import { useToast } from '@/hooks/use-toast';
-import { fetchInvoices, updateInvoice } from '@/lib/api/invoices';
+import { fetchInvoices } from '@/lib/api/invoices';
 import { fetchContracts } from '@/lib/api/contracts';
 import { fetchTermins } from '@/lib/api/termins';
 import * as XLSX from 'xlsx';
@@ -60,10 +59,11 @@ import { terbilang } from '@/lib/terbilang';
 
 export default function Invoices() {
   const { toast } = useToast();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [contracts, setContracts] = useState<Contract[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [filterStatus, setFilterStatus] = useState<InvoiceStatus | 'ALL'>('ALL');
   const [isLoading, setIsLoading] = useState(true);
   const [visibleCount, setVisibleCount] = useState(20);
   const [terminNameById, setTerminNameById] = useState<Record<string, string>>({});
@@ -71,13 +71,22 @@ export default function Invoices() {
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [headerDataUrl, setHeaderDataUrl] = useState<string>('');
 
+  const searchQuery = searchParams.get('q') ?? '';
+  const filterStatus = (searchParams.get('status') ?? 'ALL') as InvoiceStatus | 'ALL';
+  const filterClientId = searchParams.get('client') ?? 'ALL';
+
+  const searchLower = searchQuery.trim().toLowerCase();
   const filteredInvoices = invoices
     .filter((invoice) => {
-      const matchesSearch = invoice.invoiceNumber
-        .toLowerCase()
-        .includes(searchQuery.toLowerCase());
+      const contract = contracts.find((c) => c.id === invoice.contractId);
+      const matchesSearch =
+        searchLower.length === 0 ||
+        invoice.invoiceNumber.toLowerCase().includes(searchLower) ||
+        (contract?.proposalNumber ?? '').toLowerCase().includes(searchLower);
       const matchesStatus = filterStatus === 'ALL' || invoice.status === filterStatus;
-      return matchesSearch && matchesStatus;
+      const matchesClient =
+        filterClientId === 'ALL' || contract?.clientId === filterClientId;
+      return matchesSearch && matchesStatus && matchesClient;
     })
     .sort(
       (a, b) =>
@@ -146,7 +155,29 @@ export default function Invoices() {
 
   useEffect(() => {
     setVisibleCount(20);
-  }, [searchQuery, filterStatus]);
+  }, [searchQuery, filterStatus, filterClientId]);
+
+  const setQueryParam = (key: string, value: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (!value || value === 'ALL') {
+      params.delete(key);
+    } else {
+      params.set(key, value);
+    }
+    const nextQuery = params.toString();
+    const nextUrl = nextQuery ? `${pathname}?${nextQuery}` : pathname;
+    router.replace(nextUrl, { scroll: false });
+  };
+
+  const clientOptions = Array.from(
+    new Map(
+      contracts
+        .filter((contract) => contract.client)
+        .map((contract) => [contract.clientId, contract.client?.name ?? ''])
+    )
+  )
+    .map(([id, name]) => ({ id, name }))
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   const visibleInvoices = filteredInvoices.slice(0, visibleCount);
 
@@ -155,62 +186,7 @@ export default function Invoices() {
     setIsPreviewOpen(true);
   };
 
-  const handleMarkAsIssued = async (invoice: Invoice) => {
-    try {
-      const updated = await updateInvoice(invoice.id, {
-        status: 'ISSUED',
-      });
-      setInvoices(invoices.map((i) => (i.id === updated.id ? updated : i)));
-      toast({
-        title: 'Status Updated',
-        description: `Invoice ${invoice.invoiceNumber} telah di-issued`,
-      });
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Gagal update status invoice',
-        variant: 'destructive',
-      });
-    }
-  };
 
-  const handleMarkAsPaid = async (invoice: Invoice) => {
-    try {
-      const updated = await updateInvoice(invoice.id, {
-        status: 'PAID',
-      });
-      setInvoices(invoices.map((i) => (i.id === updated.id ? updated : i)));
-      toast({
-        title: 'Payment Received',
-        description: `Invoice ${invoice.invoiceNumber} telah lunas`,
-      });
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Gagal update invoice',
-        variant: 'destructive',
-      });
-    }
-  };
-
-  const handleVoidInvoice = async (invoice: Invoice) => {
-    try {
-      const updated = await updateInvoice(invoice.id, {
-        status: 'VOID',
-      });
-      setInvoices(invoices.map((i) => (i.id === updated.id ? updated : i)));
-      toast({
-        title: 'Invoice Voided',
-        description: `Invoice ${invoice.invoiceNumber} telah di-void`,
-      });
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Gagal void invoice',
-        variant: 'destructive',
-      });
-    }
-  };
 
   const handleExportExcel = () => {
     const formatDateTime = (value: Date | string) =>
@@ -539,22 +515,39 @@ export default function Invoices() {
             <div className="relative w-full md:flex-1 md:max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
-                placeholder="Cari nomor invoice..."
+                placeholder="Cari nomor invoice/contract..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => setQueryParam('q', e.target.value.trim())}
                 className="pl-9"
               />
             </div>
             <Select
+              value={filterClientId}
+              onValueChange={(value) => setQueryParam('client', value)}
+            >
+              <SelectTrigger className="w-full md:w-[220px]">
+                <Filter className="w-4 h-4 mr-2" />
+                <SelectValue placeholder="Filter client" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">Semua Client</SelectItem>
+                {clientOptions.map((client) => (
+                  <SelectItem key={client.id} value={client.id}>
+                    {client.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
               value={filterStatus}
-              onValueChange={(value) => setFilterStatus(value as InvoiceStatus | 'ALL')}
+              onValueChange={(value) => setQueryParam('status', value)}
             >
               <SelectTrigger className="w-full md:w-[150px]">
                 <Filter className="w-4 h-4 mr-2" />
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="ALL">Semua</SelectItem>
+                <SelectItem value="ALL">Semua Status</SelectItem>
                 <SelectItem value="DRAFT">Draft</SelectItem>
                 <SelectItem value="ISSUED">Issued</SelectItem>
                 <SelectItem value="PAID">Paid</SelectItem>
@@ -625,30 +618,6 @@ export default function Invoices() {
                                 <Printer className="w-4 h-4 mr-2" />
                                 Print PDF
                               </DropdownMenuItem>
-                                {invoice.status === 'DRAFT' && (
-                                  <DropdownMenuItem onClick={() => handleMarkAsIssued(invoice)}>
-                                    <Check className="w-4 h-4 mr-2" />
-                                    Mark as Issued
-                                  </DropdownMenuItem>
-                                )}
-                                {invoice.status === 'ISSUED' && (
-                                  <DropdownMenuItem onClick={() => handleMarkAsPaid(invoice)}>
-                                    <Check className="w-4 h-4 mr-2" />
-                                    Mark as Paid
-                                  </DropdownMenuItem>
-                                )}
-                                {invoice.status !== 'VOID' && invoice.status !== 'PAID' && (
-                                  <>
-                                    <DropdownMenuSeparator />
-                                    <DropdownMenuItem
-                                      className="text-destructive"
-                                      onClick={() => handleVoidInvoice(invoice)}
-                                    >
-                                      <XCircle className="w-4 h-4 mr-2" />
-                                      Void Invoice
-                                    </DropdownMenuItem>
-                                  </>
-                                )}
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </TableCell>
@@ -709,30 +678,6 @@ export default function Invoices() {
                               <Printer className="w-4 h-4 mr-2" />
                               Print PDF
                             </DropdownMenuItem>
-                            {invoice.status === 'DRAFT' && (
-                              <DropdownMenuItem onClick={() => handleMarkAsIssued(invoice)}>
-                                <Check className="w-4 h-4 mr-2" />
-                                Mark as Issued
-                              </DropdownMenuItem>
-                            )}
-                            {invoice.status === 'ISSUED' && (
-                              <DropdownMenuItem onClick={() => handleMarkAsPaid(invoice)}>
-                                <Check className="w-4 h-4 mr-2" />
-                                Mark as Paid
-                              </DropdownMenuItem>
-                            )}
-                            {invoice.status !== 'VOID' && invoice.status !== 'PAID' && (
-                              <>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                  className="text-destructive"
-                                  onClick={() => handleVoidInvoice(invoice)}
-                                >
-                                  <XCircle className="w-4 h-4 mr-2" />
-                                  Void Invoice
-                                </DropdownMenuItem>
-                              </>
-                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </div>

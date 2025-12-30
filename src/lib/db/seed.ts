@@ -247,10 +247,6 @@ async function migrateNumbering() {
     }
   }
 
-  const contractRowsForInvoices = await db.select().from(contracts);
-  const contractById = new Map(
-    contractRowsForInvoices.map((contract) => [contract.id, contract])
-  );
   const invoiceRows = await db.select().from(invoices);
   await db
     .update(invoices)
@@ -258,20 +254,14 @@ async function migrateNumbering() {
       invoiceNumber: sql`'TEMP-' || ${invoices.id}`,
       updatedAt: new Date(),
     });
-  const invoicesByClientYear = new Map<string, typeof invoiceRows>();
+  const invoicesByYear = new Map<number, typeof invoiceRows>();
   for (const invoice of invoiceRows) {
-    const contract = contractById.get(invoice.contractId);
-    if (!contract) continue;
     const { year } = getJakartaMonthYear(new Date(invoice.invoiceDate));
-    const key = `${contract.clientId}:${year}`;
-    const group = invoicesByClientYear.get(key) ?? [];
+    const group = invoicesByYear.get(year) ?? [];
     group.push(invoice);
-    invoicesByClientYear.set(key, group);
+    invoicesByYear.set(year, group);
   }
-  for (const [key, items] of invoicesByClientYear.entries()) {
-    const [clientId] = key.split(":");
-    const clientCode = clientCodeById.get(clientId);
-    if (!clientCode) continue;
+  for (const items of invoicesByYear.values()) {
     items.sort((a, b) => {
       const timeDiff =
         new Date(a.invoiceDate).getTime() - new Date(b.invoiceDate).getTime();
@@ -283,7 +273,6 @@ async function migrateNumbering() {
       const seqNo = index + 1;
       const invoiceNumber = generateInvoiceNumber({
         seqNo,
-        clientCode,
         invoiceDate: new Date(invoice.invoiceDate),
       });
       await db

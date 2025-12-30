@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import { and, eq, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { contracts, termins } from "@/lib/db/schema";
-import { clients, invoices } from "@/lib/db/schema";
+import { invoices } from "@/lib/db/schema";
 import { generateInvoiceNumber, getJakartaMonthYear } from "@/lib/numbering";
 
 async function updateContractPaymentStatus(db: ReturnType<typeof getDb>, contractId: string) {
@@ -80,11 +80,8 @@ export async function PUT(
     const [contractRow] = await db
       .select({
         contractId: contracts.id,
-        clientId: contracts.clientId,
-        clientCode: clients.code,
       })
       .from(contracts)
-      .innerJoin(clients, eq(contracts.clientId, clients.id))
       .where(eq(contracts.id, updated.contractId))
       .limit(1);
 
@@ -93,9 +90,7 @@ export async function PUT(
       const { year } = getJakartaMonthYear(invoiceDate);
       const existingInvoices = await db
         .select({ invoiceDate: invoices.invoiceDate, seqNo: invoices.seqNo })
-        .from(invoices)
-        .innerJoin(contracts, eq(invoices.contractId, contracts.id))
-        .where(eq(contracts.clientId, contractRow.clientId));
+        .from(invoices);
 
       const sameYearInvoices = existingInvoices.filter((invoice) => {
         const invoiceMonthYear = getJakartaMonthYear(new Date(invoice.invoiceDate));
@@ -108,7 +103,6 @@ export async function PUT(
       const seqNo = maxSeq + 1;
       const invoiceNumber = generateInvoiceNumber({
         seqNo,
-        clientCode: contractRow.clientCode,
         invoiceDate,
       });
 

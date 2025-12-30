@@ -80,18 +80,17 @@ export function generateProposalNumber(params: {
 
 /**
  * Generate invoice number
- * Format: I.{SEQ}/{CLIENT_CODE}/{MONTH_ROMAN}/{YEAR}
+ * Format: I.{SEQ}/AP.2137/{MONTH_ROMAN}/{YEAR}
  * Example: I.001/AP.2137/XII/2025
  */
 export function generateInvoiceNumber(params: {
   seqNo: number;
-  clientCode: string;
   invoiceDate: Date;
 }): string {
-  const { seqNo, clientCode, invoiceDate } = params;
+  const { seqNo, invoiceDate } = params;
   const { month, year } = getJakartaMonthYear(invoiceDate);
   
-  return `I.${padSeq(seqNo)}/${clientCode}/${romanMonth(month)}/${year}`;
+  return `I.${padSeq(seqNo)}/AP.2137/${romanMonth(month)}/${year}`;
 }
 
 /**
