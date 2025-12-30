@@ -329,22 +329,37 @@ export default function Invoices() {
             .title { font-size: 18px; font-weight: 700; letter-spacing: 1px; color: var(--primary); }
             .meta { display: flex; justify-content: space-between; margin-top: 46px; font-size: 12px; }
             .meta .left { max-width: 60%; }
-              .box { border: none; border-radius: 8px; overflow: hidden; box-shadow: none; }
-              .table { width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 0; font-size: 12px; border: 1px solid var(--border); }
+              .box {
+                border: 0.5px solid var(--border);
+                border-radius: 8px;
+                overflow: hidden;
+                box-shadow: none;
+                }
+              .table,
+                .totals,
+                .note-table,
+                .kw-table {
+                width: 100%;
+                border-collapse: collapse; /* penting untuk rapihin garis */
+                margin-top: 0;
+                font-size: 12px;
+                border: none; /* ✅ HILANGKAN border luar table */
+                }
+                
               .table th, .table td { border: none; padding: 8px; vertical-align: top; }
               .table tr + tr td { border-top: 1px solid var(--border); }
               .table th { text-align: left; background: var(--primary-soft); color: var(--primary); }
               .table tbody tr:nth-child(even) { background: #f2f6fc; }
               .right { text-align: right; }
-              .totals { width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 0; font-size: 12px; border: 1px solid var(--border); }
+              
               .totals td { border: none; padding: 6px 8px; }
               .totals tr + tr td { border-top: 1px solid var(--border); }
               .note { font-size: 12px; }
               .sign { text-align: right; font-size: 12px; }
-              .note-table { width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 0; border: 1px solid var(--border); }
+              
               .note-table td { border: none; padding: 10px; vertical-align: top; }
               .kw-title { text-align: center; font-size: 16px; font-weight: 700; margin-top: 8px; }
-              .kw-table { width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 0; font-size: 12px; border: 1px solid var(--border); }
+              
               .kw-table td { border: none; padding: 8px; vertical-align: top; }
               .kw-table tr + tr td { border-top: 1px solid var(--border); }
               .kw-label { width: 180px; }
