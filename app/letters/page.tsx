@@ -255,14 +255,14 @@ export default function Letters() {
   return (
     <AdminLayout title="Letters">
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+        <CardHeader className="flex flex-col gap-3 space-y-0 pb-4 md:flex-row md:items-center md:justify-between">
           <CardTitle className="text-xl">Daftar Letters</CardTitle>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={handleExportExcel}>
+          <div className="grid w-full gap-2 md:w-auto md:grid-cols-2 md:items-center">
+            <Button variant="outline" onClick={handleExportExcel} className="w-full">
               <Download className="w-4 h-4 mr-2" />
               Export Excel
             </Button>
-            <Button onClick={() => setIsDialogOpen(true)}>
+            <Button onClick={() => setIsDialogOpen(true)} className="w-full">
               <Plus className="w-4 h-4 mr-2" />
               Buat Surat
             </Button>
@@ -270,8 +270,8 @@ export default function Letters() {
         </CardHeader>
         <CardContent>
           {/* Filters */}
-          <div className="flex items-center gap-4 mb-4">
-            <div className="relative flex-1 max-w-sm">
+          <div className="flex flex-col gap-3 mb-4 md:flex-row md:items-center md:gap-4">
+            <div className="relative w-full md:flex-1 md:max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
                 placeholder="Cari nomor atau subject..."
@@ -284,7 +284,7 @@ export default function Letters() {
               value={filterType}
               onValueChange={(value) => setFilterType(value as LetterType | 'ALL')}
             >
-              <SelectTrigger className="w-[150px]">
+              <SelectTrigger className="w-full md:w-[150px]">
                 <Filter className="w-4 h-4 mr-2" />
                 <SelectValue placeholder="Type" />
               </SelectTrigger>
@@ -299,83 +299,148 @@ export default function Letters() {
 
           {/* Table */}
           <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>No. Surat</TableHead>
-                  <TableHead>Tanggal</TableHead>
-                  <TableHead>Tipe</TableHead>
-                  <TableHead>Client</TableHead>
-                  <TableHead>Subject</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="w-[50px]"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredLetters.length === 0 ? (
+            <div className="hidden md:block">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8">
-                      <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                        <Mail className="w-8 h-8" />
-                        <p>Tidak ada surat ditemukan</p>
-                      </div>
-                    </TableCell>
+                    <TableHead>No. Surat</TableHead>
+                    <TableHead>Tanggal</TableHead>
+                    <TableHead>Tipe</TableHead>
+                    <TableHead>Client</TableHead>
+                    <TableHead>Subject</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="w-[50px]"></TableHead>
                   </TableRow>
-                ) : (
-                  filteredLetters.map((letter) => (
-                    <TableRow key={letter.id}>
-                      <TableCell className="font-mono font-medium">
-                        {letter.letterNumber}
+                </TableHeader>
+                <TableBody>
+                  {filteredLetters.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-8">
+                        <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                          <Mail className="w-8 h-8" />
+                          <p>Tidak ada surat ditemukan</p>
+                        </div>
                       </TableCell>
-                      <TableCell>{formatDate(new Date(letter.letterDate))}</TableCell>
-                      <TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredLetters.map((letter) => (
+                      <TableRow key={letter.id}>
+                        <TableCell className="font-mono font-medium">
+                          {letter.letterNumber}
+                        </TableCell>
+                        <TableCell>{formatDate(new Date(letter.letterDate))}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={getLetterTypeColor(letter.letterType)}>
+                            {letterTypeLabels[letter.letterType]}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div>
+                            <p className="font-medium">{letter.client?.name}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell className="max-w-[200px] truncate">{letter.subject}</TableCell>
+                        <TableCell>
+                          <Badge className={getLetterStatusColor(letter.status)}>
+                            {letter.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon">
+                                <MoreHorizontal className="w-4 h-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem>
+                                <Eye className="w-4 h-4 mr-2" />
+                                View Detail
+                              </DropdownMenuItem>
+                              {letter.status === 'ACTIVE' && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    className="text-destructive"
+                                    onClick={() => handleVoidLetter(letter)}
+                                  >
+                                    <XCircle className="w-4 h-4 mr-2" />
+                                    Void Surat
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+            <div className="space-y-3 p-4 md:hidden">
+              {filteredLetters.length === 0 ? (
+                <div className="flex flex-col items-center gap-2 text-muted-foreground py-8">
+                  <Mail className="w-8 h-8" />
+                  <p>Tidak ada surat ditemukan</p>
+                </div>
+              ) : (
+                filteredLetters.map((letter) => (
+                  <div key={letter.id} className="rounded-lg border p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs text-muted-foreground">No. Surat</p>
+                        <p className="font-mono text-sm font-medium">
+                          {letter.letterNumber}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-2">Client</p>
+                        <p className="text-sm">{letter.client?.name}</p>
+                        <p className="text-xs text-muted-foreground mt-2">Subject</p>
+                        <p className="text-sm">{letter.subject}</p>
+                      </div>
+                      <div className="flex flex-col items-end gap-2">
                         <Badge variant="outline" className={getLetterTypeColor(letter.letterType)}>
                           {letterTypeLabels[letter.letterType]}
                         </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div>
-                          <p className="font-medium">{letter.client?.name}</p>
-                        </div>
-                      </TableCell>
-                      <TableCell className="max-w-[200px] truncate">{letter.subject}</TableCell>
-                      <TableCell>
                         <Badge className={getLetterStatusColor(letter.status)}>
                           {letter.status}
                         </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon">
-                              <MoreHorizontal className="w-4 h-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem>
-                              <Eye className="w-4 h-4 mr-2" />
-                              View Detail
-                            </DropdownMenuItem>
-                            {letter.status === 'ACTIVE' && (
-                              <>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                  className="text-destructive"
-                                  onClick={() => handleVoidLetter(letter)}
-                                >
-                                  <XCircle className="w-4 h-4 mr-2" />
-                                  Void Surat
-                                </DropdownMenuItem>
-                              </>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">
+                        {formatDate(new Date(letter.letterDate))}
+                      </span>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon">
+                            <MoreHorizontal className="w-4 h-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem>
+                            <Eye className="w-4 h-4 mr-2" />
+                            View Detail
+                          </DropdownMenuItem>
+                          {letter.status === 'ACTIVE' && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                className="text-destructive"
+                                onClick={() => handleVoidLetter(letter)}
+                              >
+                                <XCircle className="w-4 h-4 mr-2" />
+                                Void Surat
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -391,7 +456,7 @@ export default function Letters() {
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="client">Client *</Label>
                   <Select
@@ -506,15 +571,15 @@ function LettersSkeleton() {
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
         <Skeleton className="h-6 w-40" />
-        <div className="flex items-center gap-2">
-          <Skeleton className="h-9 w-28" />
-          <Skeleton className="h-9 w-28" />
+        <div className="grid w-full gap-2 md:w-auto md:grid-cols-2 md:items-center">
+          <Skeleton className="h-9 w-full md:w-28" />
+          <Skeleton className="h-9 w-full md:w-28" />
         </div>
       </CardHeader>
       <CardContent>
-        <div className="flex items-center gap-4 mb-4">
-          <Skeleton className="h-10 w-full max-w-sm" />
-          <Skeleton className="h-10 w-36" />
+        <div className="flex flex-col gap-3 mb-4 md:flex-row md:items-center md:gap-4">
+          <Skeleton className="h-10 w-full md:max-w-sm" />
+          <Skeleton className="h-10 w-full md:w-36" />
         </div>
         <div className="rounded-md border">
           <div className="space-y-3 p-4">

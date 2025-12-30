@@ -195,14 +195,19 @@ export default function Invoices() {
   return (
     <AdminLayout title="Invoices">
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+        <CardHeader className="flex flex-col gap-3 space-y-0 pb-4 md:flex-row md:items-center md:justify-between">
           <CardTitle className="text-xl">Daftar Invoices</CardTitle>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={handleExportExcel}>
+          <div className="grid w-full gap-2 md:w-auto md:grid-cols-2 md:items-center">
+            <Button variant="outline" onClick={handleExportExcel} className="w-full">
               <Download className="w-4 h-4 mr-2" />
               Export Excel
             </Button>
-            <Button onClick={() => toast({ title: 'Info', description: 'Buat invoice dari halaman Contract Detail' })}>
+            <Button
+              onClick={() =>
+                toast({ title: 'Info', description: 'Buat invoice dari halaman Contract Detail' })
+              }
+              className="w-full"
+            >
               <Plus className="w-4 h-4 mr-2" />
               Buat Invoice
             </Button>
@@ -210,8 +215,8 @@ export default function Invoices() {
         </CardHeader>
         <CardContent>
           {/* Filters */}
-          <div className="flex items-center gap-4 mb-4">
-            <div className="relative flex-1 max-w-sm">
+          <div className="flex flex-col gap-3 mb-4 md:flex-row md:items-center md:gap-4">
+            <div className="relative w-full md:flex-1 md:max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
                 placeholder="Cari nomor invoice..."
@@ -224,7 +229,7 @@ export default function Invoices() {
               value={filterStatus}
               onValueChange={(value) => setFilterStatus(value as InvoiceStatus | 'ALL')}
             >
-              <SelectTrigger className="w-[150px]">
+              <SelectTrigger className="w-full md:w-[150px]">
                 <Filter className="w-4 h-4 mr-2" />
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
@@ -240,98 +245,182 @@ export default function Invoices() {
 
           {/* Table */}
           <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>No. Invoice</TableHead>
-                  <TableHead>Tanggal</TableHead>
-                  <TableHead>Contract</TableHead>
-                  <TableHead>Client</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="w-[50px]"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredInvoices.length === 0 ? (
+            <div className="hidden md:block">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8">
-                      <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                        <Receipt className="w-8 h-8" />
-                        <p>Tidak ada invoice ditemukan</p>
-                      </div>
-                    </TableCell>
+                    <TableHead>No. Invoice</TableHead>
+                    <TableHead>Tanggal</TableHead>
+                    <TableHead>Contract</TableHead>
+                    <TableHead>Client</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="w-[50px]"></TableHead>
                   </TableRow>
-                ) : (
-                  filteredInvoices.map((invoice) => {
-                    const contractInfo = getContractInfo(invoice.contractId);
-                    return (
-                      <TableRow key={invoice.id}>
-                        <TableCell className="font-mono font-medium">
-                          {invoice.invoiceNumber}
-                        </TableCell>
-                        <TableCell>{formatDate(new Date(invoice.invoiceDate))}</TableCell>
-                        <TableCell className="font-mono text-sm">
-                          {contractInfo.number}
-                        </TableCell>
-                        <TableCell>{contractInfo.client}</TableCell>
-                        <TableCell className="text-right font-medium">
-                          {formatCurrency(invoice.amount)}
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={getInvoiceStatusColor(invoice.status)}>
-                            {invoice.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon">
-                                <MoreHorizontal className="w-4 h-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem>
-                                <Eye className="w-4 h-4 mr-2" />
-                                View Detail
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handlePrintPdf(invoice)}>
-                                <Printer className="w-4 h-4 mr-2" />
-                                Print PDF
-                              </DropdownMenuItem>
-                              {invoice.status === 'DRAFT' && (
-                                <DropdownMenuItem onClick={() => handleMarkAsIssued(invoice)}>
-                                  <Check className="w-4 h-4 mr-2" />
-                                  Mark as Issued
+                </TableHeader>
+                <TableBody>
+                  {filteredInvoices.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-8">
+                        <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                          <Receipt className="w-8 h-8" />
+                          <p>Tidak ada invoice ditemukan</p>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredInvoices.map((invoice) => {
+                      const contractInfo = getContractInfo(invoice.contractId);
+                      return (
+                        <TableRow key={invoice.id}>
+                          <TableCell className="font-mono font-medium">
+                            {invoice.invoiceNumber}
+                          </TableCell>
+                          <TableCell>{formatDate(new Date(invoice.invoiceDate))}</TableCell>
+                          <TableCell className="font-mono text-sm">
+                            {contractInfo.number}
+                          </TableCell>
+                          <TableCell>{contractInfo.client}</TableCell>
+                          <TableCell className="text-right font-medium">
+                            {formatCurrency(invoice.amount)}
+                          </TableCell>
+                          <TableCell>
+                            <Badge className={getInvoiceStatusColor(invoice.status)}>
+                              {invoice.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon">
+                                  <MoreHorizontal className="w-4 h-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem>
+                                  <Eye className="w-4 h-4 mr-2" />
+                                  View Detail
                                 </DropdownMenuItem>
-                              )}
-                              {invoice.status === 'ISSUED' && (
-                                <DropdownMenuItem onClick={() => handleMarkAsPaid(invoice)}>
-                                  <Check className="w-4 h-4 mr-2" />
-                                  Mark as Paid
+                                <DropdownMenuItem onClick={() => handlePrintPdf(invoice)}>
+                                  <Printer className="w-4 h-4 mr-2" />
+                                  Print PDF
                                 </DropdownMenuItem>
-                              )}
-                              {invoice.status !== 'VOID' && invoice.status !== 'PAID' && (
-                                <>
-                                  <DropdownMenuSeparator />
-                                  <DropdownMenuItem
-                                    className="text-destructive"
-                                    onClick={() => handleVoidInvoice(invoice)}
-                                  >
-                                    <XCircle className="w-4 h-4 mr-2" />
-                                    Void Invoice
+                                {invoice.status === 'DRAFT' && (
+                                  <DropdownMenuItem onClick={() => handleMarkAsIssued(invoice)}>
+                                    <Check className="w-4 h-4 mr-2" />
+                                    Mark as Issued
                                   </DropdownMenuItem>
-                                </>
-                              )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
+                                )}
+                                {invoice.status === 'ISSUED' && (
+                                  <DropdownMenuItem onClick={() => handleMarkAsPaid(invoice)}>
+                                    <Check className="w-4 h-4 mr-2" />
+                                    Mark as Paid
+                                  </DropdownMenuItem>
+                                )}
+                                {invoice.status !== 'VOID' && invoice.status !== 'PAID' && (
+                                  <>
+                                    <DropdownMenuSeparator />
+                                    <DropdownMenuItem
+                                      className="text-destructive"
+                                      onClick={() => handleVoidInvoice(invoice)}
+                                    >
+                                      <XCircle className="w-4 h-4 mr-2" />
+                                      Void Invoice
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+            <div className="space-y-3 p-4 md:hidden">
+              {filteredInvoices.length === 0 ? (
+                <div className="flex flex-col items-center gap-2 text-muted-foreground py-8">
+                  <Receipt className="w-8 h-8" />
+                  <p>Tidak ada invoice ditemukan</p>
+                </div>
+              ) : (
+                filteredInvoices.map((invoice) => {
+                  const contractInfo = getContractInfo(invoice.contractId);
+                  return (
+                    <div key={invoice.id} className="rounded-lg border p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs text-muted-foreground">No. Invoice</p>
+                          <p className="font-mono text-sm font-medium">
+                            {invoice.invoiceNumber}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-2">Contract</p>
+                          <p className="font-mono text-sm">{contractInfo.number}</p>
+                          <p className="text-xs text-muted-foreground mt-2">Client</p>
+                          <p className="text-sm">{contractInfo.client}</p>
+                        </div>
+                        <Badge className={getInvoiceStatusColor(invoice.status)}>
+                          {invoice.status}
+                        </Badge>
+                      </div>
+                      <div className="mt-3 flex items-center justify-between text-sm">
+                        <span className="text-muted-foreground">
+                          {formatDate(new Date(invoice.invoiceDate))}
+                        </span>
+                        <span className="font-medium">
+                          {formatCurrency(invoice.amount)}
+                        </span>
+                      </div>
+                      <div className="mt-3 flex items-center justify-end">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon">
+                              <MoreHorizontal className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem>
+                              <Eye className="w-4 h-4 mr-2" />
+                              View Detail
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handlePrintPdf(invoice)}>
+                              <Printer className="w-4 h-4 mr-2" />
+                              Print PDF
+                            </DropdownMenuItem>
+                            {invoice.status === 'DRAFT' && (
+                              <DropdownMenuItem onClick={() => handleMarkAsIssued(invoice)}>
+                                <Check className="w-4 h-4 mr-2" />
+                                Mark as Issued
+                              </DropdownMenuItem>
+                            )}
+                            {invoice.status === 'ISSUED' && (
+                              <DropdownMenuItem onClick={() => handleMarkAsPaid(invoice)}>
+                                <Check className="w-4 h-4 mr-2" />
+                                Mark as Paid
+                              </DropdownMenuItem>
+                            )}
+                            {invoice.status !== 'VOID' && invoice.status !== 'PAID' && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  className="text-destructive"
+                                  onClick={() => handleVoidInvoice(invoice)}
+                                >
+                                  <XCircle className="w-4 h-4 mr-2" />
+                                  Void Invoice
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -342,17 +431,17 @@ export default function Invoices() {
 function InvoicesSkeleton() {
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+      <CardHeader className="flex flex-col gap-3 space-y-0 pb-4 md:flex-row md:items-center md:justify-between">
         <Skeleton className="h-6 w-44" />
-        <div className="flex items-center gap-2">
-          <Skeleton className="h-9 w-28" />
-          <Skeleton className="h-9 w-32" />
+        <div className="grid w-full gap-2 md:w-auto md:grid-cols-2 md:items-center">
+          <Skeleton className="h-9 w-full md:w-28" />
+          <Skeleton className="h-9 w-full md:w-32" />
         </div>
       </CardHeader>
       <CardContent>
-        <div className="flex items-center gap-4 mb-4">
-          <Skeleton className="h-10 w-full max-w-sm" />
-          <Skeleton className="h-10 w-36" />
+        <div className="flex flex-col gap-3 mb-4 md:flex-row md:items-center md:gap-4">
+          <Skeleton className="h-10 w-full md:max-w-sm" />
+          <Skeleton className="h-10 w-full md:w-36" />
         </div>
         <div className="rounded-md border">
           <div className="space-y-3 p-4">

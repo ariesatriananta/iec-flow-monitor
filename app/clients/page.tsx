@@ -188,11 +188,11 @@ export default function Clients() {
   return (
     <AdminLayout title="Clients">
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+        <CardHeader className="flex flex-col gap-3 space-y-0 pb-4 md:flex-row md:items-center md:justify-between">
           <CardTitle className="text-xl">Daftar Clients</CardTitle>
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button onClick={() => handleOpenDialog()}>
+              <Button onClick={() => handleOpenDialog()} className="w-full md:w-auto">
                 <Plus className="w-4 h-4 mr-2" />
                 Tambah Client
               </Button>
@@ -233,7 +233,7 @@ export default function Clients() {
                       placeholder="Jl. Contoh No. 123, Jakarta"
                     />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="picName">PIC Name</Label>
                       <Input
@@ -292,8 +292,8 @@ export default function Clients() {
         </CardHeader>
         <CardContent>
           {/* Search */}
-          <div className="flex items-center gap-4 mb-4">
-            <div className="relative flex-1 max-w-sm">
+          <div className="flex flex-col gap-3 mb-4 md:flex-row md:items-center md:gap-4">
+            <div className="relative w-full md:flex-1 md:max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
                 placeholder="Cari nama client..."
@@ -306,80 +306,146 @@ export default function Clients() {
 
           {/* Table */}
           <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nama Perusahaan</TableHead>
-                  <TableHead>PIC</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="w-[50px]"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredClients.length === 0 ? (
+            <div className="hidden md:block">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-8">
-                      <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                        <Building2 className="w-8 h-8" />
-                        <p>Tidak ada client ditemukan</p>
-                      </div>
-                    </TableCell>
+                    <TableHead>Nama Perusahaan</TableHead>
+                    <TableHead>PIC</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="w-[50px]"></TableHead>
                   </TableRow>
-                ) : (
-                  filteredClients.map((client) => (
-                    <TableRow key={client.id}>
-                      <TableCell>{client.name}</TableCell>
-                      <TableCell>{client.picName || '-'}</TableCell>
-                      <TableCell>{client.email || '-'}</TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={client.isActive ? 'default' : 'secondary'}
-                          className={
-                            client.isActive
-                              ? 'bg-success text-success-foreground'
-                              : ''
-                          }
-                        >
-                          {client.isActive ? 'Active' : 'Inactive'}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              disabled={togglingClientId === client.id}
-                            >
-                              {togglingClientId === client.id ? (
-                                <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                              ) : (
-                                <MoreHorizontal className="w-4 h-4" />
-                              )}
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() => handleOpenDialog(client)}
-                            >
-                              <Pencil className="w-4 h-4 mr-2" />
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onClick={() => handleToggleActive(client)}
-                            >
-                              <Trash2 className="w-4 h-4 mr-2" />
-                              {client.isActive ? 'Deactivate' : 'Activate'}
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
+                </TableHeader>
+                <TableBody>
+                  {filteredClients.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-8">
+                        <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                          <Building2 className="w-8 h-8" />
+                          <p>Tidak ada client ditemukan</p>
+                        </div>
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                  ) : (
+                    filteredClients.map((client) => (
+                      <TableRow key={client.id}>
+                        <TableCell>{client.name}</TableCell>
+                        <TableCell>{client.picName || '-'}</TableCell>
+                        <TableCell>{client.email || '-'}</TableCell>
+                        <TableCell>
+                          <Badge
+                            variant={client.isActive ? 'default' : 'secondary'}
+                            className={
+                              client.isActive
+                                ? 'bg-success text-success-foreground'
+                                : ''
+                            }
+                          >
+                            {client.isActive ? 'Active' : 'Inactive'}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                disabled={togglingClientId === client.id}
+                              >
+                                {togglingClientId === client.id ? (
+                                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                                ) : (
+                                  <MoreHorizontal className="w-4 h-4" />
+                                )}
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={() => handleOpenDialog(client)}
+                              >
+                                <Pencil className="w-4 h-4 mr-2" />
+                                Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => handleToggleActive(client)}
+                              >
+                                <Trash2 className="w-4 h-4 mr-2" />
+                                {client.isActive ? 'Deactivate' : 'Activate'}
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+            <div className="space-y-3 p-4 md:hidden">
+              {filteredClients.length === 0 ? (
+                <div className="flex flex-col items-center gap-2 text-muted-foreground py-8">
+                  <Building2 className="w-8 h-8" />
+                  <p>Tidak ada client ditemukan</p>
+                </div>
+              ) : (
+                filteredClients.map((client) => (
+                  <div key={client.id} className="rounded-lg border p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Nama Perusahaan</p>
+                        <p className="font-medium">{client.name}</p>
+                        <p className="text-xs text-muted-foreground mt-2">PIC</p>
+                        <p className="text-sm">{client.picName || '-'}</p>
+                        <p className="text-xs text-muted-foreground mt-2">Email</p>
+                        <p className="text-sm break-all">{client.email || '-'}</p>
+                      </div>
+                      <Badge
+                        variant={client.isActive ? 'default' : 'secondary'}
+                        className={
+                          client.isActive
+                            ? 'bg-success text-success-foreground'
+                            : ''
+                        }
+                      >
+                        {client.isActive ? 'Active' : 'Inactive'}
+                      </Badge>
+                    </div>
+                    <div className="mt-3 flex items-center justify-end">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            disabled={togglingClientId === client.id}
+                          >
+                            {togglingClientId === client.id ? (
+                              <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                            ) : (
+                              <MoreHorizontal className="w-4 h-4" />
+                            )}
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => handleOpenDialog(client)}
+                          >
+                            <Pencil className="w-4 h-4 mr-2" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => handleToggleActive(client)}
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            {client.isActive ? 'Deactivate' : 'Activate'}
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -390,13 +456,13 @@ export default function Clients() {
 function ClientsSkeleton() {
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+      <CardHeader className="flex flex-col gap-3 space-y-0 pb-4 md:flex-row md:items-center md:justify-between">
         <Skeleton className="h-6 w-40" />
         <Skeleton className="h-9 w-36" />
       </CardHeader>
       <CardContent>
-        <div className="flex items-center gap-4 mb-4">
-          <Skeleton className="h-10 w-full max-w-sm" />
+        <div className="flex flex-col gap-3 mb-4 md:flex-row md:items-center md:gap-4">
+          <Skeleton className="h-10 w-full md:max-w-sm" />
         </div>
         <div className="rounded-md border">
           <div className="space-y-3 p-4">

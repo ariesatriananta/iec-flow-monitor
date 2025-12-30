@@ -50,33 +50,66 @@ const navItems = [
   }
 ];
 
-export function AdminSidebar() {
+interface AdminSidebarProps {
+  variant?: 'default' | 'sheet';
+  onNavigate?: () => void;
+}
+
+export function AdminSidebar({ variant = 'default', onNavigate }: AdminSidebarProps) {
+  const allowCollapse = variant === 'default';
   const [collapsed, setCollapsed] = useState(false);
   const pathname = usePathname();
   const { loadingHref, setRouteLoading } = useRouteLoading();
 
+  const isCollapsed = allowCollapse ? collapsed : false;
+
   return (
     <aside
       className={cn(
-        'h-screen bg-sidebar text-sidebar-foreground flex flex-col transition-all duration-300 sticky top-0',
-        collapsed ? 'w-16' : 'w-64'
+        'bg-sidebar text-sidebar-foreground flex flex-col transition-all duration-300',
+        variant === 'default' ? 'h-screen sticky top-0' : 'h-full',
+        isCollapsed ? 'w-16' : 'w-64'
       )}
     >
       {/* Logo Section */}
-      <div className="p-4 border-b border-sidebar-border flex items-center gap-3">
-        <img
-          src="/logo-2.jpg"
-          alt="IECNET Logo"
-          className={cn(
-            'rounded-md transition-all',
-            collapsed ? 'w-8 h-8' : 'w-16 h-10'
+      <div
+        className={cn(
+          'p-4 border-b border-sidebar-border flex gap-3',
+          isCollapsed ? 'flex-col items-center' : 'items-center justify-between'
+        )}
+      >
+        <div className={cn('flex items-center gap-3 min-w-0', isCollapsed && 'justify-center')}>
+          <img
+            src="/logo-2.jpg"
+            alt="IECNET Logo"
+            className={cn(
+              'rounded-md transition-all',
+              isCollapsed ? 'w-8 h-8' : 'w-16 h-10'
+            )}
+          />
+          {!isCollapsed && (
+            <div className="flex flex-col min-w-0">
+              <span className="font-semibold text-sm">IECNET</span>
+              <span className="text-xs opacity-80">Admin System</span>
+            </div>
           )}
-        />
-        {!collapsed && (
-          <div className="flex flex-col">
-            <span className="font-semibold text-sm">IECNET</span>
-            <span className="text-xs opacity-80">Admin System</span>
-          </div>
+        </div>
+        {allowCollapse && (
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            className={cn(
+              'p-2 rounded-md hover:bg-sidebar-accent transition-colors',
+              isCollapsed && 'mt-1'
+            )}
+            title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {isCollapsed ? (
+              <ChevronRight className="w-4 h-4" />
+            ) : (
+              <ChevronLeft className="w-4 h-4" />
+            )}
+          </button>
         )}
       </div>
 
@@ -102,12 +135,13 @@ export function AdminSidebar() {
                     if (!isActive) {
                       setRouteLoading(item.href);
                     }
+                    onNavigate?.();
                   }}
-                  title={collapsed ? item.title : undefined}
+                  title={isCollapsed ? item.title : undefined}
                 >
                   <item.icon className="w-5 h-5 flex-shrink-0" />
-                  {!collapsed && <span className="flex-1">{item.title}</span>}
-                  {!collapsed && isLoading && (
+                  {!isCollapsed && <span className="flex-1">{item.title}</span>}
+                  {!isCollapsed && isLoading && (
                     <span className="ml-auto h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
                   )}
                 </Link>
@@ -117,18 +151,17 @@ export function AdminSidebar() {
         </ul>
       </nav>
 
-      {/* Collapse Toggle */}
-      <button
-        onClick={() => setCollapsed(!collapsed)}
-        className="p-4 border-t border-sidebar-border flex items-center justify-center hover:bg-sidebar-accent transition-colors"
-        title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-      >
-        {collapsed ? (
-          <ChevronRight className="w-5 h-5" />
+      {/* Footer */}
+      <div className="p-4 border-t border-sidebar-border text-xs text-muted-foreground">
+        {!isCollapsed ? (
+          <div className="flex items-center justify-between">
+            <span>© {new Date().getFullYear()} IECNET</span>
+            <span>All rights reserved</span>
+          </div>
         ) : (
-          <ChevronLeft className="w-5 h-5" />
+          <span>©</span>
         )}
-      </button>
+      </div>
     </aside>
   );
 }

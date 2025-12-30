@@ -11,15 +11,16 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
-import { Search, Sun, Moon, User, LogOut, Settings } from 'lucide-react';
+import { Search, Sun, Moon, User, LogOut, Settings, Menu } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
 
 interface AdminHeaderProps {
   title?: string;
+  onOpenSidebar?: () => void;
 }
 
-export function AdminHeader({ title }: AdminHeaderProps) {
+export function AdminHeader({ title, onOpenSidebar }: AdminHeaderProps) {
   const { user, logout } = useAuth();
   const router = useRouter();
   const { theme, setTheme } = useTheme();
@@ -31,10 +32,19 @@ export function AdminHeader({ title }: AdminHeaderProps) {
   };
 
   return (
-    <header className="h-16 border-b border-border bg-card px-6 flex items-center justify-between sticky top-0 z-10">
+    <header className="h-16 border-b border-border bg-card px-4 md:px-6 flex items-center justify-between sticky top-0 z-10">
       <div className="flex items-center gap-4">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="md:hidden"
+          onClick={onOpenSidebar}
+          aria-label="Open sidebar"
+        >
+          <Menu className="w-5 h-5" />
+        </Button>
         {title && (
-          <h1 className="text-xl font-semibold text-foreground">{title}</h1>
+          <h1 className="text-lg md:text-xl font-semibold text-foreground">{title}</h1>
         )}
       </div>
 

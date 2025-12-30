@@ -126,7 +126,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {kpiCards.map((card) => (
           <Card key={card.title} className="hover:shadow-md transition-shadow">
-            <CardContent className="p-6">
+            <CardContent className="p-4 md:p-6">
               <div className="flex items-start justify-between">
                 <div className="space-y-1">
                   <p className="text-sm text-muted-foreground">{card.title}</p>
@@ -151,7 +151,7 @@ export default function Dashboard() {
             <CardDescription>Jumlah kontrak 6 bulan terakhir</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-64">
+            <div className="h-56 md:h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={monthlyData}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -178,7 +178,7 @@ export default function Dashboard() {
             <CardDescription>Trend pembayaran 6 bulan terakhir</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="h-64">
+            <div className="h-56 md:h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={monthlyData}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
@@ -260,43 +260,77 @@ export default function Dashboard() {
             </Button>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Number</TableHead>
-                  <TableHead>Client</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {contracts.slice(0, 5).map((contract) => (
-                  <TableRow key={contract.id} className="cursor-pointer hover:bg-muted/50">
-                    <TableCell className="font-mono text-sm">
-                      {contract.proposalNumber}
-                    </TableCell>
-                    <TableCell>{contract.client?.name}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={
-                          contract.paymentStatus === 'PAID'
-                            ? 'default'
-                            : contract.paymentStatus === 'PARTIAL'
-                            ? 'secondary'
-                            : 'outline'
-                        }
-                        className={
-                          contract.paymentStatus === 'PAID'
-                            ? 'bg-success text-success-foreground'
-                            : ''
-                        }
-                      >
-                        {contract.paymentStatus}
-                      </Badge>
-                    </TableCell>
+            <div className="hidden md:block">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Number</TableHead>
+                    <TableHead>Client</TableHead>
+                    <TableHead>Status</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {contracts.slice(0, 5).map((contract) => (
+                    <TableRow key={contract.id} className="cursor-pointer hover:bg-muted/50">
+                      <TableCell className="font-mono text-sm">
+                        {contract.proposalNumber}
+                      </TableCell>
+                      <TableCell>{contract.client?.name}</TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={
+                            contract.paymentStatus === 'PAID'
+                              ? 'default'
+                              : contract.paymentStatus === 'PARTIAL'
+                              ? 'secondary'
+                              : 'outline'
+                          }
+                          className={
+                            contract.paymentStatus === 'PAID'
+                              ? 'bg-success text-success-foreground'
+                              : ''
+                          }
+                        >
+                          {contract.paymentStatus}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            <div className="space-y-3 md:hidden">
+              {contracts.slice(0, 5).map((contract) => (
+                <div key={contract.id} className="rounded-lg border p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Number</p>
+                      <p className="font-mono text-sm font-medium">
+                        {contract.proposalNumber}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-2">Client</p>
+                      <p className="text-sm">{contract.client?.name}</p>
+                    </div>
+                    <Badge
+                      variant={
+                        contract.paymentStatus === 'PAID'
+                          ? 'default'
+                          : contract.paymentStatus === 'PARTIAL'
+                          ? 'secondary'
+                          : 'outline'
+                      }
+                      className={
+                        contract.paymentStatus === 'PAID'
+                          ? 'bg-success text-success-foreground'
+                          : ''
+                      }
+                    >
+                      {contract.paymentStatus}
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
 
@@ -312,43 +346,77 @@ export default function Dashboard() {
             </Button>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Number</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {invoices.slice(0, 5).map((invoice) => (
-                  <TableRow key={invoice.id} className="cursor-pointer hover:bg-muted/50">
-                    <TableCell className="font-mono text-sm">
-                      {invoice.invoiceNumber}
-                    </TableCell>
-                    <TableCell>{formatCurrency(invoice.amount)}</TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={
-                          invoice.status === 'PAID'
-                            ? 'default'
-                            : invoice.status === 'ISSUED'
-                            ? 'secondary'
-                            : 'outline'
-                        }
-                        className={
-                          invoice.status === 'PAID'
-                            ? 'bg-success text-success-foreground'
-                            : ''
-                        }
-                      >
-                        {invoice.status}
-                      </Badge>
-                    </TableCell>
+            <div className="hidden md:block">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Number</TableHead>
+                    <TableHead>Amount</TableHead>
+                    <TableHead>Status</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {invoices.slice(0, 5).map((invoice) => (
+                    <TableRow key={invoice.id} className="cursor-pointer hover:bg-muted/50">
+                      <TableCell className="font-mono text-sm">
+                        {invoice.invoiceNumber}
+                      </TableCell>
+                      <TableCell>{formatCurrency(invoice.amount)}</TableCell>
+                      <TableCell>
+                        <Badge
+                          variant={
+                            invoice.status === 'PAID'
+                              ? 'default'
+                              : invoice.status === 'ISSUED'
+                              ? 'secondary'
+                              : 'outline'
+                          }
+                          className={
+                            invoice.status === 'PAID'
+                              ? 'bg-success text-success-foreground'
+                              : ''
+                          }
+                        >
+                          {invoice.status}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            <div className="space-y-3 md:hidden">
+              {invoices.slice(0, 5).map((invoice) => (
+                <div key={invoice.id} className="rounded-lg border p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Number</p>
+                      <p className="font-mono text-sm font-medium">
+                        {invoice.invoiceNumber}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-2">Amount</p>
+                      <p className="text-sm">{formatCurrency(invoice.amount)}</p>
+                    </div>
+                    <Badge
+                      variant={
+                        invoice.status === 'PAID'
+                          ? 'default'
+                          : invoice.status === 'ISSUED'
+                          ? 'secondary'
+                          : 'outline'
+                      }
+                      className={
+                        invoice.status === 'PAID'
+                          ? 'bg-success text-success-foreground'
+                          : ''
+                      }
+                    >
+                      {invoice.status}
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
       </div>

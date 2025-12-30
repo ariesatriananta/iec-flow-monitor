@@ -358,14 +358,14 @@ export default function Contracts() {
   return (
     <AdminLayout title="Contracts">
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+        <CardHeader className="flex flex-col gap-3 space-y-0 pb-4 md:flex-row md:items-center md:justify-between">
           <CardTitle className="text-xl">Daftar Contracts</CardTitle>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={handleExportExcel}>
+          <div className="grid w-full gap-2 md:w-auto md:grid-cols-2 md:items-center md:gap-2">
+            <Button variant="outline" onClick={handleExportExcel} className="w-full">
               <Download className="w-4 h-4 mr-2" />
               Export Excel
             </Button>
-            <Button onClick={() => handleOpenDialog()}>
+            <Button onClick={() => handleOpenDialog()} className="w-full">
               <Plus className="w-4 h-4 mr-2" />
               Tambah Contract
             </Button>
@@ -373,8 +373,8 @@ export default function Contracts() {
         </CardHeader>
         <CardContent>
           {/* Filters */}
-          <div className="flex items-center gap-4 mb-4">
-            <div className="relative flex-1 max-w-sm">
+          <div className="flex flex-col gap-3 mb-4 md:flex-row md:items-center md:gap-4">
+            <div className="relative w-full md:flex-1 md:max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
                 placeholder="Cari nomor atau client..."
@@ -387,7 +387,7 @@ export default function Contracts() {
               value={filterStatus}
               onValueChange={(value) => setFilterStatus(value as PaymentStatus | 'ALL')}
             >
-              <SelectTrigger className="w-[180px]">
+              <SelectTrigger className="w-full md:w-[180px]">
                 <Filter className="w-4 h-4 mr-2" />
                 <SelectValue placeholder="Payment Status" />
               </SelectTrigger>
@@ -402,119 +402,220 @@ export default function Contracts() {
 
           {/* Table */}
           <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>No. Proposal</TableHead>
-                  <TableHead>Tanggal</TableHead>
-                  <TableHead>Client</TableHead>
-                  <TableHead>Service</TableHead>
-                  <TableHead className="text-right">Nilai</TableHead>
-                  <TableHead>Payment</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="w-[50px]"></TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredContracts.length === 0 ? (
+            <div className="hidden md:block">
+              <Table>
+                <TableHeader>
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8">
-                      <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                        <FileText className="w-8 h-8" />
-                        <p>Tidak ada contract ditemukan</p>
-                      </div>
-                    </TableCell>
+                    <TableHead>No. Proposal</TableHead>
+                    <TableHead>Tanggal</TableHead>
+                    <TableHead>Client</TableHead>
+                    <TableHead>Service</TableHead>
+                    <TableHead className="text-right">Nilai</TableHead>
+                    <TableHead>Payment</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="w-[50px]"></TableHead>
                   </TableRow>
-                ) : (
-                  filteredContracts.map((contract) => (
-                    <TableRow key={contract.id} className="cursor-pointer hover:bg-muted/50">
-                      <TableCell className="font-mono text-sm font-medium">
-                        {contract.proposalNumber}
-                      </TableCell>
-                      <TableCell>{formatDate(new Date(contract.proposalDate))}</TableCell>
-                      <TableCell>
-                        <div>
-                          <p className="font-medium">{contract.client?.name}</p>
+                </TableHeader>
+                <TableBody>
+                  {filteredContracts.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center py-8">
+                        <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                          <FileText className="w-8 h-8" />
+                          <p>Tidak ada contract ditemukan</p>
                         </div>
                       </TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{contract.serviceCode}</Badge>
-                      </TableCell>
-                      <TableCell className="text-right font-medium">
-                        {formatCurrency(contract.contractValue)}
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={getPaymentStatusColor(contract.paymentStatus)}>
-                          {contract.paymentStatus}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant="outline"
-                          className={getContractStatusColor(contract.status)}
-                        >
-                          {contract.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              disabled={actionLoadingId === contract.id}
-                            >
-                              {actionLoadingId === contract.id ? (
-                                <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-                              ) : (
-                                <MoreHorizontal className="w-4 h-4" />
-                              )}
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() => {
-                                setActionLoadingId(contract.id);
-                                router.push(`/contracts/${contract.id}`);
-                              }}
-                            >
-                              <Eye className="w-4 h-4 mr-2" />
-                              View Detail
-                            </DropdownMenuItem>
-                            {contract.status === 'ACTIVE' && (
-                              <>
-                                <DropdownMenuItem
-                                  onClick={() => handleOpenDialog(contract)}
-                                >
-                                  <Pencil className="w-4 h-4 mr-2" />
-                                  Edit
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                  className="text-destructive"
-                                  onClick={() => handleVoidContract(contract)}
-                                >
-                                  <XCircle className="w-4 h-4 mr-2" />
-                                  Void Contract
-                                </DropdownMenuItem>
-                              </>
-                            )}
-                            {contract.status === 'VOID' && (
-                              <DropdownMenuItem
-                                onClick={() => handleReactivateContract(contract)}
-                              >
-                                <RotateCcw className="w-4 h-4 mr-2" />
-                                Reactivate
-                              </DropdownMenuItem>
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                  ) : (
+                    filteredContracts.map((contract) => (
+                      <TableRow key={contract.id} className="cursor-pointer hover:bg-muted/50">
+                        <TableCell className="font-mono text-sm font-medium">
+                          {contract.proposalNumber}
+                        </TableCell>
+                        <TableCell>{formatDate(new Date(contract.proposalDate))}</TableCell>
+                        <TableCell>
+                          <div>
+                            <p className="font-medium">{contract.client?.name}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{contract.serviceCode}</Badge>
+                        </TableCell>
+                        <TableCell className="text-right font-medium">
+                          {formatCurrency(contract.contractValue)}
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={getPaymentStatusColor(contract.paymentStatus)}>
+                            {contract.paymentStatus}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant="outline"
+                            className={getContractStatusColor(contract.status)}
+                          >
+                            {contract.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                disabled={actionLoadingId === contract.id}
+                              >
+                                {actionLoadingId === contract.id ? (
+                                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                                ) : (
+                                  <MoreHorizontal className="w-4 h-4" />
+                                )}
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setActionLoadingId(contract.id);
+                                  router.push(`/contracts/${contract.id}`);
+                                }}
+                              >
+                                <Eye className="w-4 h-4 mr-2" />
+                                View Detail
+                              </DropdownMenuItem>
+                              {contract.status === 'ACTIVE' && (
+                                <>
+                                  <DropdownMenuItem
+                                    onClick={() => handleOpenDialog(contract)}
+                                  >
+                                    <Pencil className="w-4 h-4 mr-2" />
+                                    Edit
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    className="text-destructive"
+                                    onClick={() => handleVoidContract(contract)}
+                                  >
+                                    <XCircle className="w-4 h-4 mr-2" />
+                                    Void Contract
+                                  </DropdownMenuItem>
+                                </>
+                              )}
+                              {contract.status === 'VOID' && (
+                                <DropdownMenuItem
+                                  onClick={() => handleReactivateContract(contract)}
+                                >
+                                  <RotateCcw className="w-4 h-4 mr-2" />
+                                  Reactivate
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+            <div className="space-y-3 p-4 md:hidden">
+              {filteredContracts.length === 0 ? (
+                <div className="flex flex-col items-center gap-2 text-muted-foreground py-8">
+                  <FileText className="w-8 h-8" />
+                  <p>Tidak ada contract ditemukan</p>
+                </div>
+              ) : (
+                filteredContracts.map((contract) => (
+                  <div key={contract.id} className="rounded-lg border p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-2">
+                        <div>
+                          <p className="text-xs text-muted-foreground">No. Proposal</p>
+                          <p className="font-mono text-sm font-medium">
+                            {contract.proposalNumber}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Client</p>
+                          <p className="text-sm">{contract.client?.name}</p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge variant="outline">{contract.serviceCode}</Badge>
+                          <Badge className={getPaymentStatusColor(contract.paymentStatus)}>
+                            {contract.paymentStatus}
+                          </Badge>
+                          <Badge
+                            variant="outline"
+                            className={getContractStatusColor(contract.status)}
+                          >
+                            {contract.status}
+                          </Badge>
+                        </div>
+                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            disabled={actionLoadingId === contract.id}
+                          >
+                            {actionLoadingId === contract.id ? (
+                              <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                            ) : (
+                              <MoreHorizontal className="w-4 h-4" />
+                            )}
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => {
+                              setActionLoadingId(contract.id);
+                              router.push(`/contracts/${contract.id}`);
+                            }}
+                          >
+                            <Eye className="w-4 h-4 mr-2" />
+                            View Detail
+                          </DropdownMenuItem>
+                          {contract.status === 'ACTIVE' && (
+                            <>
+                              <DropdownMenuItem
+                                onClick={() => handleOpenDialog(contract)}
+                              >
+                                <Pencil className="w-4 h-4 mr-2" />
+                                Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                className="text-destructive"
+                                onClick={() => handleVoidContract(contract)}
+                              >
+                                <XCircle className="w-4 h-4 mr-2" />
+                                Void Contract
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                          {contract.status === 'VOID' && (
+                            <DropdownMenuItem
+                              onClick={() => handleReactivateContract(contract)}
+                            >
+                              <RotateCcw className="w-4 h-4 mr-2" />
+                              Reactivate
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                    <div className="mt-3 flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">
+                        {formatDate(new Date(contract.proposalDate))}
+                      </span>
+                      <span className="font-medium">
+                        {formatCurrency(contract.contractValue)}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -534,7 +635,7 @@ export default function Contracts() {
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="client">Client *</Label>
                   <Select
@@ -590,7 +691,7 @@ export default function Contracts() {
                   </Popover>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="serviceCode">Service Code *</Label>
                   <Select

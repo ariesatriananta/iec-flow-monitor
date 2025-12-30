@@ -1,10 +1,11 @@
 "use client";
 
-import { ReactNode, useEffect } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { AdminSidebar } from './AdminSidebar';
 import { AdminHeader } from './AdminHeader';
+import { Sheet, SheetContent } from '@/components/ui/sheet';
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -14,6 +15,7 @@ interface AdminLayoutProps {
 export function AdminLayout({ children, title }: AdminLayoutProps) {
   const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -38,10 +40,20 @@ export function AdminLayout({ children, title }: AdminLayoutProps) {
 
   return (
     <div className="min-h-screen flex bg-background w-full">
-      <AdminSidebar />
+      <div className="hidden md:flex">
+        <AdminSidebar />
+      </div>
+      <Sheet open={isSidebarOpen} onOpenChange={setIsSidebarOpen}>
+        <SheetContent side="left" className="p-0 w-72 bg-sidebar border-r border-sidebar-border shadow-xl">
+          <AdminSidebar
+            variant="sheet"
+            onNavigate={() => setIsSidebarOpen(false)}
+          />
+        </SheetContent>
+      </Sheet>
       <div className="flex-1 flex flex-col min-w-0">
-        <AdminHeader title={title} />
-        <main className="flex-1 p-6 overflow-auto">
+        <AdminHeader title={title} onOpenSidebar={() => setIsSidebarOpen(true)} />
+        <main className="flex-1 p-4 md:p-6 overflow-auto">
           {children}
         </main>
       </div>

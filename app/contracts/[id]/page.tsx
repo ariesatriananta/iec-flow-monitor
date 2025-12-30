@@ -432,7 +432,7 @@ export default function ContractDetail() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 gap-4 mb-6 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center gap-3">
@@ -516,7 +516,7 @@ export default function ContractDetail() {
 
       {/* Tabs */}
       <Tabs defaultValue="termins" className="space-y-4">
-        <TabsList>
+        <TabsList className="flex flex-wrap justify-start">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="termins">Termins ({termins.length})</TabsTrigger>
           <TabsTrigger value="invoices">Invoices ({invoices.length})</TabsTrigger>
@@ -576,104 +576,232 @@ export default function ContractDetail() {
 
         <TabsContent value="termins">
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
+            <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
                 <CardTitle>Payment Termins</CardTitle>
                 <CardDescription>Daftar pembayaran bertahap</CardDescription>
               </div>
               {contract.status === 'ACTIVE' && (
-                <Button onClick={() => setIsTerminDialogOpen(true)}>
+                <Button onClick={() => setIsTerminDialogOpen(true)} className="w-full md:w-auto">
                   <Plus className="w-4 h-4 mr-2" />
                   Tambah Termin
                 </Button>
               )}
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Nama Termin</TableHead>
-                    <TableHead className="text-right">Nominal</TableHead>
-                    <TableHead>Progress</TableHead>
-                    <TableHead>Due Date</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {termins.length === 0 ? (
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                        Belum ada termin
-                      </TableCell>
+                      <TableHead>Nama Termin</TableHead>
+                      <TableHead className="text-right">Nominal</TableHead>
+                      <TableHead>Progress</TableHead>
+                      <TableHead>Due Date</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
-                  ) : (
-                    sortedTermins.map((termin) => {
-                      const isRowLoading = actionLoading?.id === termin.id;
-                      const isInvoiceLoading = isRowLoading && actionLoading?.type === 'invoice';
-                      const isDeleteLoading = isRowLoading && actionLoading?.type === 'delete';
-                      const isPaidLoading = isRowLoading && actionLoading?.type === 'paid';
-                      const isRevertLoading = isRowLoading && actionLoading?.type === 'revert';
-                      const isPendingLoading = isRowLoading && actionLoading?.type === 'pending';
+                  </TableHeader>
+                  <TableBody>
+                    {termins.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                          Belum ada termin
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      sortedTermins.map((termin) => {
+                        const isRowLoading = actionLoading?.id === termin.id;
+                        const isInvoiceLoading = isRowLoading && actionLoading?.type === 'invoice';
+                        const isDeleteLoading = isRowLoading && actionLoading?.type === 'delete';
+                        const isPaidLoading = isRowLoading && actionLoading?.type === 'paid';
+                        const isRevertLoading = isRowLoading && actionLoading?.type === 'revert';
+                        const isPendingLoading = isRowLoading && actionLoading?.type === 'pending';
 
-                      return (
-                      <TableRow key={termin.id}>
-                        <TableCell className="font-medium">{termin.terminName}</TableCell>
-                        <TableCell className="text-right">
-                          {formatCurrency(termin.terminAmount)}
-                        </TableCell>
-                        <TableCell>
-                          {calculatePercentage(termin.terminAmount, contract.contractValue)}%
-                        </TableCell>
-                        <TableCell>
-                          {termin.dueDate ? formatDate(new Date(termin.dueDate)) : '-'}
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={getTerminStatusColor(termin.status)}>
-                            {termin.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            {termin.status === 'PENDING' && (
-                              <>
+                        return (
+                        <TableRow key={termin.id}>
+                          <TableCell className="font-medium">{termin.terminName}</TableCell>
+                          <TableCell className="text-right">
+                            {formatCurrency(termin.terminAmount)}
+                          </TableCell>
+                          <TableCell>
+                            {calculatePercentage(termin.terminAmount, contract.contractValue)}%
+                          </TableCell>
+                          <TableCell>
+                            {termin.dueDate ? formatDate(new Date(termin.dueDate)) : '-'}
+                          </TableCell>
+                          <TableCell>
+                            <Badge className={getTerminStatusColor(termin.status)}>
+                              {termin.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              {termin.status === 'PENDING' && (
+                                <>
+                                  <Button
+                                    size="sm"
+                                    variant="default"
+                                    onClick={() =>
+                                      setConfirmAction({ type: 'invoice', termin })
+                                    }
+                                    disabled={isRowLoading}
+                                  >
+                                    {isInvoiceLoading ? (
+                                      <span className="h-3 w-3 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+                                    ) : (
+                                      <>
+                                        <Receipt className="w-3 h-3 mr-1" />
+                                        Invoice
+                                      </>
+                                    )}
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() =>
+                                      setConfirmAction({ type: 'delete', termin })
+                                    }
+                                    disabled={isRowLoading}
+                                  >
+                                    {isDeleteLoading ? (
+                                      <span className="h-3 w-3 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+                                    ) : (
+                                      <>
+                                        <Trash2 className="w-3 h-3 mr-1" />
+                                        Hapus
+                                      </>
+                                    )}
+                                  </Button>
+                                </>
+                              )}
+                              {termin.status === 'INVOICED' && (
                                 <Button
                                   size="sm"
-                                  variant="default"
-                                  onClick={() =>
-                                    setConfirmAction({ type: 'invoice', termin })
-                                  }
+                                  onClick={() => setConfirmAction({ type: 'paid', termin })}
                                   disabled={isRowLoading}
                                 >
-                                  {isInvoiceLoading ? (
+                                  {isPaidLoading ? (
                                     <span className="h-3 w-3 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
                                   ) : (
                                     <>
-                                      <Receipt className="w-3 h-3 mr-1" />
-                                      Invoice
+                                      <Check className="w-3 h-3 mr-1" />
+                                      Paid
                                     </>
                                   )}
                                 </Button>
+                              )}
+                              {termin.status === 'INVOICED' && (
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  onClick={() =>
-                                    setConfirmAction({ type: 'delete', termin })
-                                  }
+                                  onClick={() => setConfirmAction({ type: 'pending', termin })}
                                   disabled={isRowLoading}
                                 >
-                                  {isDeleteLoading ? (
+                                  {isPendingLoading ? (
                                     <span className="h-3 w-3 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
                                   ) : (
                                     <>
-                                      <Trash2 className="w-3 h-3 mr-1" />
-                                      Hapus
+                                      <Undo2 className="w-3 h-3 mr-1" />
+                                      Pending
                                     </>
                                   )}
                                 </Button>
-                              </>
-                            )}
-                            {termin.status === 'INVOICED' && (
+                              )}
+                              {termin.status === 'PAID' && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => setConfirmAction({ type: 'revert', termin })}
+                                  disabled={isRowLoading}
+                                >
+                                  {isRevertLoading ? (
+                                    <span className="h-3 w-3 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+                                  ) : (
+                                    <>
+                                      <Undo2 className="w-3 h-3 mr-1" />
+                                      Revert
+                                    </>
+                                  )}
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )})
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+              <div className="space-y-3 md:hidden">
+                {termins.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">Belum ada termin</div>
+                ) : (
+                  sortedTermins.map((termin) => {
+                    const isRowLoading = actionLoading?.id === termin.id;
+                    const isInvoiceLoading = isRowLoading && actionLoading?.type === 'invoice';
+                    const isDeleteLoading = isRowLoading && actionLoading?.type === 'delete';
+                    const isPaidLoading = isRowLoading && actionLoading?.type === 'paid';
+                    const isRevertLoading = isRowLoading && actionLoading?.type === 'revert';
+                    const isPendingLoading = isRowLoading && actionLoading?.type === 'pending';
+
+                    return (
+                      <div key={termin.id} className="rounded-lg border p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs text-muted-foreground">Nama Termin</p>
+                            <p className="font-medium">{termin.terminName}</p>
+                            <p className="text-xs text-muted-foreground mt-2">Nominal</p>
+                            <p className="text-sm">{formatCurrency(termin.terminAmount)}</p>
+                          </div>
+                          <Badge className={getTerminStatusColor(termin.status)}>
+                            {termin.status}
+                          </Badge>
+                        </div>
+                        <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+                          <span>
+                            Progress {calculatePercentage(termin.terminAmount, contract.contractValue)}%
+                          </span>
+                          <span>
+                            {termin.dueDate ? formatDate(new Date(termin.dueDate)) : '-'}
+                          </span>
+                        </div>
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          {termin.status === 'PENDING' && (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="default"
+                                onClick={() => setConfirmAction({ type: 'invoice', termin })}
+                                disabled={isRowLoading}
+                              >
+                                {isInvoiceLoading ? (
+                                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+                                ) : (
+                                  <>
+                                    <Receipt className="w-3 h-3 mr-1" />
+                                    Invoice
+                                  </>
+                                )}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => setConfirmAction({ type: 'delete', termin })}
+                                disabled={isRowLoading}
+                              >
+                                {isDeleteLoading ? (
+                                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+                                ) : (
+                                  <>
+                                    <Trash2 className="w-3 h-3 mr-1" />
+                                    Hapus
+                                  </>
+                                )}
+                              </Button>
+                            </>
+                          )}
+                          {termin.status === 'INVOICED' && (
+                            <>
                               <Button
                                 size="sm"
                                 onClick={() => setConfirmAction({ type: 'paid', termin })}
@@ -688,8 +816,6 @@ export default function ContractDetail() {
                                   </>
                                 )}
                               </Button>
-                            )}
-                            {termin.status === 'INVOICED' && (
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -705,31 +831,31 @@ export default function ContractDetail() {
                                   </>
                                 )}
                               </Button>
-                            )}
-                            {termin.status === 'PAID' && (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => setConfirmAction({ type: 'revert', termin })}
-                                disabled={isRowLoading}
-                              >
-                                {isRevertLoading ? (
-                                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
-                                ) : (
-                                  <>
-                                    <Undo2 className="w-3 h-3 mr-1" />
-                                    Revert
-                                  </>
-                                )}
-                              </Button>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    )})
-                  )}
-                </TableBody>
-              </Table>
+                            </>
+                          )}
+                          {termin.status === 'PAID' && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setConfirmAction({ type: 'revert', termin })}
+                              disabled={isRowLoading}
+                            >
+                              {isRevertLoading ? (
+                                <span className="h-3 w-3 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+                              ) : (
+                                <>
+                                  <Undo2 className="w-3 h-3 mr-1" />
+                                  Revert
+                                </>
+                              )}
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -741,46 +867,80 @@ export default function ContractDetail() {
               <CardDescription>Daftar invoice untuk kontrak ini</CardDescription>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>No. Invoice</TableHead>
-                    <TableHead>Tanggal</TableHead>
-                    <TableHead className="text-right">Amount</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {invoices.length === 0 ? (
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader>
                     <TableRow>
-                      <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
-                        Belum ada invoice
-                      </TableCell>
+                      <TableHead>No. Invoice</TableHead>
+                      <TableHead>Tanggal</TableHead>
+                      <TableHead className="text-right">Amount</TableHead>
+                      <TableHead>Status</TableHead>
                     </TableRow>
-                  ) : (
-                    invoices.map((invoice) => (
-                      <TableRow key={invoice.id}>
-                        <TableCell className="font-mono">{invoice.invoiceNumber}</TableCell>
-                        <TableCell>{formatDate(new Date(invoice.invoiceDate))}</TableCell>
-                        <TableCell className="text-right">
-                          {formatCurrency(invoice.amount)}
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            className={
-                              invoice.status === 'PAID'
-                                ? 'bg-success text-success-foreground'
-                                : ''
-                            }
-                          >
-                            {invoice.status}
-                          </Badge>
+                  </TableHeader>
+                  <TableBody>
+                    {invoices.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                          Belum ada invoice
                         </TableCell>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+                    ) : (
+                      invoices.map((invoice) => (
+                        <TableRow key={invoice.id}>
+                          <TableCell className="font-mono">{invoice.invoiceNumber}</TableCell>
+                          <TableCell>{formatDate(new Date(invoice.invoiceDate))}</TableCell>
+                          <TableCell className="text-right">
+                            {formatCurrency(invoice.amount)}
+                          </TableCell>
+                          <TableCell>
+                            <Badge
+                              className={
+                                invoice.status === 'PAID'
+                                  ? 'bg-success text-success-foreground'
+                                  : ''
+                              }
+                            >
+                              {invoice.status}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+              <div className="space-y-3 md:hidden">
+                {invoices.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">Belum ada invoice</div>
+                ) : (
+                  invoices.map((invoice) => (
+                    <div key={invoice.id} className="rounded-lg border p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-xs text-muted-foreground">No. Invoice</p>
+                          <p className="font-mono text-sm font-medium">
+                            {invoice.invoiceNumber}
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-2">Tanggal</p>
+                          <p className="text-sm">{formatDate(new Date(invoice.invoiceDate))}</p>
+                        </div>
+                        <Badge
+                          className={
+                            invoice.status === 'PAID'
+                              ? 'bg-success text-success-foreground'
+                              : ''
+                          }
+                        >
+                          {invoice.status}
+                        </Badge>
+                      </div>
+                      <div className="mt-3 text-sm font-medium">
+                        {formatCurrency(invoice.amount)}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
