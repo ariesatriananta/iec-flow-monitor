@@ -69,6 +69,7 @@ import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { fetchClients } from '@/lib/api/clients';
 import { createLetter, fetchLetters, updateLetter } from '@/lib/api/letters';
+import { fetchSettings, type SettingsPayload } from '@/lib/api/settings';
 import * as XLSX from 'xlsx';
 
 const letterTypeLabels: Record<LetterType, string> = {
@@ -90,6 +91,7 @@ export default function Letters() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [visibleCount, setVisibleCount] = useState(20);
+  const [settings, setSettings] = useState<SettingsPayload | null>(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -117,13 +119,15 @@ export default function Letters() {
     let active = true;
     const loadData = async () => {
       try {
-        const [letterData, clientData] = await Promise.all([
+        const [letterData, clientData, settingsData] = await Promise.all([
           fetchLetters(),
           fetchClients(),
+          fetchSettings(),
         ]);
         if (!active) return;
         setLetters(letterData);
         setClients(clientData);
+        setSettings(settingsData);
       } catch (error) {
         console.error(error);
       } finally {
@@ -650,6 +654,27 @@ export default function Letters() {
           </DialogHeader>
           {selectedLetter && (
             <div className="grid gap-4 py-2">
+              {(settings?.companyLogoUrl || settings?.companyName || settings?.companyAddress) && (
+                <div className="rounded-lg border border-border/60 bg-muted/40 p-3">
+                  <div className="flex items-center gap-3">
+                    {settings.companyLogoUrl && (
+                      <img
+                        src={settings.companyLogoUrl}
+                        alt="Logo"
+                        className="h-10 w-10 rounded-md object-contain"
+                      />
+                    )}
+                    <div className="text-sm">
+                      {settings.companyName && (
+                        <p className="font-semibold">{settings.companyName}</p>
+                      )}
+                      {settings.companyAddress && (
+                        <p className="text-muted-foreground">{settings.companyAddress}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
               <div className="space-y-1">
                 <Label>No. Surat</Label>
                 <p className="font-mono text-sm">{selectedLetter.letterNumber}</p>

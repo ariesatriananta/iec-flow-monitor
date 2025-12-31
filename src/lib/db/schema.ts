@@ -144,3 +144,18 @@ export const users = pgTable(
     usernameUnique: uniqueIndex("users_username_unique").on(table.username),
   })
 );
+
+export const settings = pgTable("settings", {
+  id: text("id").primaryKey(),
+  companyName: text("company_name").notNull(),
+  companyAddress: text("company_address"),
+  companyPhone: text("company_phone"),
+  companyEmail: text("company_email"),
+  companyLogoUrl: text("company_logo_url"),
+  numberingPrefix: text("numbering_prefix").notNull(),
+  numberingReset: text("numbering_reset").notNull(),
+  defaultPpnRate: numeric("default_ppn_rate", { precision: 5, scale: 2 }).notNull(),
+  defaultSignerName: text("default_signer_name").notNull(),
+  createdAt: timestamp("created_at", { mode: "date" }).notNull(),
+  updatedAt: timestamp("updated_at", { mode: "date" }).notNull(),
+});

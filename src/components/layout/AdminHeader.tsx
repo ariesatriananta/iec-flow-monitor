@@ -11,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
-import { Search, Sun, Moon, User, LogOut, Settings, Menu } from 'lucide-react';
+import { Search, Sun, Moon, User, LogOut, UserCircle, Menu, Settings } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
 
@@ -89,7 +89,11 @@ export function AdminHeader({ title, onOpenSidebar }: AdminHeaderProps) {
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push('/profile')}>
+              <UserCircle className="w-4 h-4 mr-2" />
+              My Profile
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push('/settings')}>
               <Settings className="w-4 h-4 mr-2" />
               Settings
             </DropdownMenuItem>

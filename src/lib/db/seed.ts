@@ -2,7 +2,7 @@ import "dotenv/config";
 import { eq, sql } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { getDb } from "./index";
-import { clients, contracts, termins, invoices, letters, users } from "./schema";
+import { clients, contracts, termins, invoices, letters, users, settings } from "./schema";
 import {
   mockClients,
   mockContracts,
@@ -40,6 +40,44 @@ async function seedUsers() {
         name: "Admin IECNET",
         role: "ADMIN",
         passwordHash,
+        updatedAt: now,
+      },
+    });
+}
+
+async function seedSettings() {
+  const db = getDb();
+  const now = new Date();
+  await db
+    .insert(settings)
+    .values({
+      id: "default",
+      companyName: "Krisnawan, Nugroho & Fahmy",
+      companyAddress:
+        "Pesanggrahan Office R102, Jl Lebak Bulus III No. 50, Jakarta 12440, Indonesia",
+      companyPhone: "+62 21 2297 6353",
+      companyEmail: "contactus@knfeds.id",
+      companyLogoUrl: "/logo-1.png",
+      numberingPrefix: "AP.2137",
+      numberingReset: "YEARLY",
+      defaultPpnRate: "11",
+      defaultSignerName: "Anita Rahman, CPA",
+      createdAt: now,
+      updatedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: settings.id,
+      set: {
+        companyName: "Krisnawan, Nugroho & Fahmy",
+        companyAddress:
+          "Pesanggrahan Office R102, Jl Lebak Bulus III No. 50, Jakarta 12440, Indonesia",
+        companyPhone: "+62 21 2297 6353",
+        companyEmail: "contactus@knfeds.id",
+        companyLogoUrl: "/logo-1.png",
+        numberingPrefix: "AP.2137",
+        numberingReset: "YEARLY",
+        defaultPpnRate: "11",
+        defaultSignerName: "Anita Rahman, CPA",
         updatedAt: now,
       },
     });
@@ -526,6 +564,7 @@ async function seedLetters() {
 
 async function run() {
   await seedUsers();
+  await seedSettings();
   await seedClients();
   await migrateClientCodes();
   await seedContracts();

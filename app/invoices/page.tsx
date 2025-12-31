@@ -54,6 +54,7 @@ import { useToast } from '@/hooks/use-toast';
 import { fetchInvoices } from '@/lib/api/invoices';
 import { fetchContracts } from '@/lib/api/contracts';
 import { fetchTermins } from '@/lib/api/termins';
+import { fetchSettings, type SettingsPayload } from '@/lib/api/settings';
 import * as XLSX from 'xlsx';
 import { terbilang } from '@/lib/terbilang';
 
@@ -70,6 +71,7 @@ export default function Invoices() {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [headerDataUrl, setHeaderDataUrl] = useState<string>('');
+  const [settings, setSettings] = useState<SettingsPayload | null>(null);
 
   const searchQuery = searchParams.get('q') ?? '';
   const filterStatus = (searchParams.get('status') ?? 'ALL') as InvoiceStatus | 'ALL';
@@ -126,6 +128,22 @@ export default function Invoices() {
       }
     };
     loadData();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const loadSettings = async () => {
+      try {
+        const data = await fetchSettings();
+        if (active) setSettings(data);
+      } catch (error) {
+        console.error(error);
+      }
+    };
+    loadSettings();
     return () => {
       active = false;
     };
@@ -258,7 +276,8 @@ export default function Invoices() {
     const descriptionParts = [contract?.contractTitle, terminName].filter(Boolean);
     const description = descriptionParts.join('\n');
     const dpp = Number(invoice.amount);
-    const ppn = Math.round(dpp * 0.11);
+    const ppnRate = Number(settings?.defaultPpnRate ?? 11);
+    const ppn = Math.round(dpp * (ppnRate / 100));
     const total = dpp + ppn;
     return {
       contractNumber: contract?.proposalNumber ?? '-',
@@ -270,8 +289,15 @@ export default function Invoices() {
       description: description || '-',
       dpp,
       ppn,
+      ppnRate,
       total,
       terbilang: terbilang(total).toUpperCase(),
+      signerName: settings?.defaultSignerName || 'Anita Rahman, CPA',
+      companyName: settings?.companyName || '',
+      companyAddress: settings?.companyAddress || '',
+      companyPhone: settings?.companyPhone || '',
+      companyEmail: settings?.companyEmail || '',
+      companyLogoUrl: settings?.companyLogoUrl || '',
       createdAt: formatDateTime(invoice.createdAt),
       updatedAt: formatDateTime(invoice.updatedAt),
     };
@@ -283,6 +309,7 @@ export default function Invoices() {
     const printWindow = window.open('', '_blank', 'width=1000,height=800');
     if (!printWindow) return;
     const headerUrl = headerDataUrl || `${window.location.origin}/invoice-header.jpg`;
+    const logoUrl = data.companyLogoUrl || `${window.location.origin}/logo-1.png`;
     const descriptionHtml = data.description.replace(/\n/g, '<br/>');
     const html = `
       <!doctype html>
@@ -388,7 +415,7 @@ export default function Invoices() {
                 <td class="right" style="width: 180px;">${formatCurrency(data.dpp)}</td>
               </tr>
               <tr>
-                <td class="right">PPN (11%)</td>
+                <td class="right">PPN (${data.ppnRate}%)</td>
                 <td class="right">${formatCurrency(data.ppn)}</td>
               </tr>
               <tr>
@@ -411,7 +438,7 @@ export default function Invoices() {
                 <td class="sign" style="width: 176px;">
                   <div>Jakarta, ${data.invoiceDate}</div>
                   <div class="spacer"></div>
-                  <div>Anita Rahman, CPA</div>
+                  <div>${data.signerName}</div>
                 </td>
               </tr>
               </table>
@@ -451,7 +478,7 @@ export default function Invoices() {
                 <td class="sign">
                   <div>Jakarta, ${data.invoiceDate}</div>
                   <div class="spacer"></div>
-                  <div>Anita Rahman, CPA</div>
+                  <div>${data.signerName}</div>
                 </td>
               </tr>
               </table>
@@ -745,8 +772,15 @@ interface InvoicePreviewData {
   description: string;
   dpp: number;
   ppn: number;
+  ppnRate: number;
   total: number;
   terbilang: string;
+  signerName: string;
+  companyName: string;
+  companyAddress: string;
+  companyPhone: string;
+  companyEmail: string;
+  companyLogoUrl: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -817,7 +851,7 @@ function InvoicePreview({
                   </td>
                 </tr>
                 <tr>
-                  <td className="border-b border-slate-300 p-2 text-right">PPN (11%)</td>
+                  <td className="border-b border-slate-300 p-2 text-right">PPN ({data.ppnRate}%)</td>
                   <td className="border-b border-slate-300 p-2 text-right">
                     {formatCurrency(data.ppn)}
                   </td>
@@ -848,7 +882,7 @@ function InvoicePreview({
                   <td className="border-b border-slate-300 p-3 align-top text-right w-[40%]">
                     <p>Jakarta, {data.invoiceDate}</p>
                   <div className="h-20" />
-                  <p>Anita Rahman, CPA</p>
+                  <p>{data.signerName}</p>
                 </td>
               </tr>
             </tbody>
@@ -898,7 +932,7 @@ function InvoicePreview({
                   <td className="border-b border-slate-300 p-2 text-right">
                     <p>Jakarta, {data.invoiceDate}</p>
                   <div className="h-20" />
-                  <p>Anita Rahman, CPA</p>
+                  <p>{data.signerName}</p>
                 </td>
               </tr>
             </tbody>
