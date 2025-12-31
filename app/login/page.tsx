@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -8,13 +8,17 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Eye, EyeOff, LogIn } from 'lucide-react';
+import { Eye, EyeOff, LogIn, Pause, Play } from 'lucide-react';
 
 export default function Login() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [audioTime, setAudioTime] = useState(0);
+  const [audioDuration, setAudioDuration] = useState(0);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
   const { login, isAuthenticated } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
@@ -25,6 +29,54 @@ export default function Login() {
       router.push('/dashboard');
     }
   }, [isAuthenticated, router]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    const handleLoaded = () => {
+      setAudioDuration(audio.duration || 0);
+      audio.play().catch(() => {
+        setIsPlaying(false);
+      });
+    };
+    const handleTimeUpdate = () => {
+      setAudioTime(audio.currentTime || 0);
+    };
+    const handlePlay = () => setIsPlaying(true);
+    const handlePause = () => setIsPlaying(false);
+
+    audio.addEventListener('loadedmetadata', handleLoaded);
+    audio.addEventListener('timeupdate', handleTimeUpdate);
+    audio.addEventListener('play', handlePlay);
+    audio.addEventListener('pause', handlePause);
+
+    return () => {
+      audio.removeEventListener('loadedmetadata', handleLoaded);
+      audio.removeEventListener('timeupdate', handleTimeUpdate);
+      audio.removeEventListener('play', handlePlay);
+      audio.removeEventListener('pause', handlePause);
+    };
+  }, []);
+
+  const toggleAudio = () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (audio.paused) {
+      audio.play().catch(() => {
+        setIsPlaying(false);
+      });
+    } else {
+      audio.pause();
+    }
+  };
+
+  const handleSeek = (value: number) => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.currentTime = value;
+    setAudioTime(value);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,13 +122,37 @@ export default function Login() {
       <div className="relative z-10 w-full max-w-md">
         <div className="pointer-events-none absolute -inset-10 rounded-[32px] bg-[radial-gradient(120px_120px_at_20%_15%,rgba(56,189,248,0.35),transparent_60%),radial-gradient(160px_160px_at_80%_20%,rgba(34,197,94,0.25),transparent_65%),radial-gradient(220px_220px_at_50%_85%,rgba(59,130,246,0.2),transparent_70%)] opacity-70 blur-2xl" />
         {/* Logo and Title */}
-        <div className="text-center mb-8">
+        <div className="text-center mb-4">
           <img
             src="/logo-1.png"
             alt="IECNET Logo"
             className="mx-auto mb-4 h-auto w-auto max-w-full rounded-lg"
           />
           <h1 className="text-2xl font-bold text-foreground">IECNET Admin System</h1>
+          <div className="mx-auto mt-4 flex max-w-[220px] items-center justify-center gap-2 rounded-full border border-white/20 bg-white/10 px-1 py-1 text-xs text-muted-foreground backdrop-blur">
+            <button
+              type="button"
+              onClick={toggleAudio}
+              className="flex h-5 w-5 items-center justify-center rounded-full border border-white/40 text-foreground/80 transition hover:text-foreground"
+              aria-label={isPlaying ? 'Pause' : 'Play'}
+            >
+              {isPlaying ? (
+                <Pause className="h-2 w-2" />
+              ) : (
+                <Play className="h-2 w-2" />
+              )}
+            </button>
+            <input
+              type="range"
+              min={0}
+              max={audioDuration || 0}
+              step={0.5}
+              value={audioTime}
+              onChange={(event) => handleSeek(Number(event.target.value))}
+              className="h-1 w-32 accent-primary"
+              aria-label="Audio seekbar"
+            />
+          </div>
         </div>
 
         <Card className="border-0 bg-transparent shadow-none">
@@ -87,7 +163,7 @@ export default function Login() {
 
                 {/* Light spots (biar keliatan “kaca kena cahaya”) */}
                 <div
-                className="pointer-events-none absolute inset-0 opacity-90"
+                className="pointer-events-none absolute inset-0 opacity-60"
                 style={{
                     backgroundImage:
                     "radial-gradient(280px 180px at 20% 10%, rgba(255,255,255,0.55), transparent 65%)," +
@@ -166,6 +242,7 @@ export default function Login() {
           </div>
         </Card>
       </div>
+      <audio ref={audioRef} src="/ggmu.mp3" preload="auto" />
     </div>
   );
 }
