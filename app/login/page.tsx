@@ -16,7 +16,7 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [audioTime, setAudioTime] = useState(0);
+  const [audioProgress, setAudioProgress] = useState(0);
   const [audioDuration, setAudioDuration] = useState(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const { login, isAuthenticated } = useAuth();
@@ -40,8 +40,16 @@ export default function Login() {
         setIsPlaying(false);
       });
     };
+    const handleDurationChange = () => {
+      setAudioDuration(audio.duration || 0);
+    };
     const handleTimeUpdate = () => {
-      setAudioTime(audio.currentTime || 0);
+      if (!audio.duration || Number.isNaN(audio.duration)) {
+        setAudioProgress(0);
+        return;
+      }
+      const progress = Math.min((audio.currentTime / audio.duration) * 100, 100);
+      setAudioProgress(progress);
     };
     const handlePlay = () => setIsPlaying(true);
     const handlePause = () => setIsPlaying(false);
@@ -50,12 +58,35 @@ export default function Login() {
     audio.addEventListener('timeupdate', handleTimeUpdate);
     audio.addEventListener('play', handlePlay);
     audio.addEventListener('pause', handlePause);
+    audio.addEventListener('durationchange', handleDurationChange);
+
+    const tryAutoPlay = () => {
+      if (!audio.paused) return;
+      audio.play().catch(() => {
+        setIsPlaying(false);
+      });
+    };
+
+    const handleFirstInteraction = () => {
+      tryAutoPlay();
+      window.removeEventListener('pointerdown', handleFirstInteraction);
+      window.removeEventListener('keydown', handleFirstInteraction);
+      window.removeEventListener('touchstart', handleFirstInteraction);
+    };
+
+    window.addEventListener('pointerdown', handleFirstInteraction);
+    window.addEventListener('keydown', handleFirstInteraction);
+    window.addEventListener('touchstart', handleFirstInteraction);
 
     return () => {
       audio.removeEventListener('loadedmetadata', handleLoaded);
       audio.removeEventListener('timeupdate', handleTimeUpdate);
       audio.removeEventListener('play', handlePlay);
       audio.removeEventListener('pause', handlePause);
+      audio.removeEventListener('durationchange', handleDurationChange);
+      window.removeEventListener('pointerdown', handleFirstInteraction);
+      window.removeEventListener('keydown', handleFirstInteraction);
+      window.removeEventListener('touchstart', handleFirstInteraction);
     };
   }, []);
 
@@ -74,8 +105,10 @@ export default function Login() {
   const handleSeek = (value: number) => {
     const audio = audioRef.current;
     if (!audio) return;
-    audio.currentTime = value;
-    setAudioTime(value);
+    if (!audio.duration || Number.isNaN(audio.duration)) return;
+    const nextTime = (value / 100) * audio.duration;
+    audio.currentTime = nextTime;
+    setAudioProgress(value);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -122,34 +155,34 @@ export default function Login() {
       <div className="relative z-10 w-full max-w-md">
         <div className="pointer-events-none absolute -inset-10 rounded-[32px] bg-[radial-gradient(120px_120px_at_20%_15%,rgba(56,189,248,0.35),transparent_60%),radial-gradient(160px_160px_at_80%_20%,rgba(34,197,94,0.25),transparent_65%),radial-gradient(220px_220px_at_50%_85%,rgba(59,130,246,0.2),transparent_70%)] opacity-70 blur-2xl" />
         {/* Logo and Title */}
-        <div className="text-center mb-4">
+        <div className="text-center mb-2">
           <img
             src="/logo-1.png"
             alt="IECNET Logo"
             className="mx-auto mb-4 h-auto w-auto max-w-full rounded-lg"
           />
           <h1 className="text-2xl font-bold text-foreground">IECNET Admin System</h1>
-          <div className="mx-auto mt-4 flex max-w-[220px] items-center justify-center gap-2 rounded-full border border-white/20 bg-white/10 px-1 py-1 text-xs text-muted-foreground backdrop-blur">
+          <div className="mx-auto mt-2 flex max-w-[220px] items-center justify-center gap-2 rounded-full border border-white/20 bg-white/10 px-1 py-1 text-xs text-muted-foreground backdrop-blur">
             <button
               type="button"
               onClick={toggleAudio}
-              className="flex h-5 w-5 items-center justify-center rounded-full border border-white/40 text-foreground/80 transition hover:text-foreground"
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-white/40 text-foreground/80 transition hover:text-foreground"
               aria-label={isPlaying ? 'Pause' : 'Play'}
             >
               {isPlaying ? (
-                <Pause className="h-2 w-2" />
+                <Pause className="h-3 w-3" />
               ) : (
-                <Play className="h-2 w-2" />
+                <Play className="h-3 w-3" />
               )}
             </button>
             <input
               type="range"
               min={0}
-              max={audioDuration || 0}
+              max={100}
               step={0.5}
-              value={audioTime}
-              onChange={(event) => handleSeek(Number(event.target.value))}
-              className="h-1 w-32 accent-primary"
+              value={audioProgress}
+              onInput={(event) => handleSeek(Number(event.currentTarget.value))}
+              className="h-1 w-24 accent-primary"
               aria-label="Audio seekbar"
             />
           </div>
