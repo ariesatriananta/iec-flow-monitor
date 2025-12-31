@@ -647,26 +647,28 @@ export default function Letters() {
           if (!open) setSelectedLetter(null);
         }}
       >
-        <DialogContent className="sm:max-w-[520px]">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-[640px] p-0">
+          <DialogHeader className="border-b border-border/60 px-6 py-5">
             <DialogTitle>Detail Surat</DialogTitle>
-            <DialogDescription>Informasi ringkas surat</DialogDescription>
+            <DialogDescription>Ringkasan informasi surat terpilih</DialogDescription>
           </DialogHeader>
           {selectedLetter && (
-            <div className="grid gap-4 py-2">
+            <div className="px-6 pb-6 pt-4 space-y-5">
               {(settings?.companyLogoUrl || settings?.companyName || settings?.companyAddress) && (
-                <div className="rounded-lg border border-border/60 bg-muted/40 p-3">
-                  <div className="flex items-center gap-3">
+                <div className="rounded-xl border border-border/60 bg-muted/40 p-4">
+                  <div className="flex items-center gap-4">
                     {settings.companyLogoUrl && (
                       <img
                         src={settings.companyLogoUrl}
                         alt="Logo"
-                        className="h-10 w-10 rounded-md object-contain"
+                        className="h-12 w-12 rounded-lg object-contain bg-white"
                       />
                     )}
                     <div className="text-sm">
                       {settings.companyName && (
-                        <p className="font-semibold">{settings.companyName}</p>
+                        <p className="text-base font-semibold text-foreground">
+                          {settings.companyName}
+                        </p>
                       )}
                       {settings.companyAddress && (
                         <p className="text-muted-foreground">{settings.companyAddress}</p>
@@ -675,45 +677,69 @@ export default function Letters() {
                   </div>
                 </div>
               )}
-              <div className="space-y-1">
-                <Label>No. Surat</Label>
-                <p className="font-mono text-sm">{selectedLetter.letterNumber}</p>
-              </div>
-              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div className="space-y-1">
-                  <Label>Tanggal</Label>
-                  <p className="text-sm">{formatDate(new Date(selectedLetter.letterDate))}</p>
+
+              <div className="grid gap-4 md:grid-cols-[1.2fr_0.8fr]">
+                <div className="rounded-xl border border-border/60 bg-background p-4">
+                  <p className="text-xs uppercase text-muted-foreground">No. Surat</p>
+                  <p className="mt-2 font-mono text-base font-semibold">
+                    {selectedLetter.letterNumber}
+                  </p>
+                  <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                      <p className="text-xs uppercase text-muted-foreground">Tanggal</p>
+                      <p className="mt-2 text-sm">
+                        {formatDate(new Date(selectedLetter.letterDate))}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase text-muted-foreground">Tipe</p>
+                      <div className="mt-2">
+                        <Badge
+                          variant="outline"
+                          className={getLetterTypeColor(selectedLetter.letterType)}
+                        >
+                          {letterTypeLabels[selectedLetter.letterType]}
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <Label>Tipe</Label>
-                  <Badge variant="outline" className={getLetterTypeColor(selectedLetter.letterType)}>
-                    {letterTypeLabels[selectedLetter.letterType]}
-                  </Badge>
+
+                <div className="rounded-xl border border-border/60 bg-muted/30 p-4 space-y-3">
+                  <div>
+                    <p className="text-xs uppercase text-muted-foreground">Client</p>
+                    <p className="mt-2 text-sm font-medium">
+                      {selectedLetter.client?.name ?? "-"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs uppercase text-muted-foreground">Status</p>
+                    <div className="mt-2">
+                      <Badge className={getLetterStatusColor(selectedLetter.status)}>
+                        {selectedLetter.status}
+                      </Badge>
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div className="space-y-1">
-                <Label>Client</Label>
-                <p className="text-sm">{selectedLetter.client?.name ?? '-'}</p>
-              </div>
-              <div className="space-y-1">
-                <Label>Subject</Label>
-                <p className="text-sm">{selectedLetter.subject}</p>
-              </div>
-              {selectedLetter.notes && (
-                <div className="space-y-1">
-                  <Label>Notes</Label>
-                  <p className="text-sm whitespace-pre-wrap">{selectedLetter.notes}</p>
+
+              <div className="rounded-xl border border-border/60 bg-background p-4 space-y-3">
+                <div>
+                  <p className="text-xs uppercase text-muted-foreground">Subject</p>
+                  <p className="mt-2 text-sm">{selectedLetter.subject}</p>
                 </div>
-              )}
-              <div className="space-y-1">
-                <Label>Status</Label>
-                <Badge className={getLetterStatusColor(selectedLetter.status)}>
-                  {selectedLetter.status}
-                </Badge>
+                {selectedLetter.notes && (
+                  <div>
+                    <p className="text-xs uppercase text-muted-foreground">Notes</p>
+                    <p className="mt-2 text-sm whitespace-pre-wrap">
+                      {selectedLetter.notes}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           )}
-          <DialogFooter>
+          <DialogFooter className="border-t border-border/60 px-6 py-4">
             <Button type="button" variant="outline" onClick={() => setIsDetailOpen(false)}>
               Tutup
             </Button>
