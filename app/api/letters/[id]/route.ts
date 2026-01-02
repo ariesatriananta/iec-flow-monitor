@@ -16,6 +16,23 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   const db = getDb();
+  type AssignmentPayload = {
+    id: string;
+    letterId: string;
+    title: string;
+    auditPeriodText: string;
+    createdAt: Date;
+    updatedAt: Date;
+    members: Array<{
+      id: string;
+      assignmentId: string;
+      name: string;
+      role: string;
+      order: number;
+      createdAt: Date;
+      updatedAt: Date;
+    }>;
+  };
   const [row] = await db
     .select({ letter: letters, client: clients })
     .from(letters)
@@ -27,7 +44,7 @@ export async function GET(
     return NextResponse.json({ error: "Letter tidak ditemukan" }, { status: 404 });
   }
 
-  let assignment = undefined;
+  let assignment: AssignmentPayload | null = null;
   if (row.letter.letterType === "SURAT_TUGAS") {
     const [assignmentRow] = await db
       .select()
