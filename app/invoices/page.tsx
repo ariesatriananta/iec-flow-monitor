@@ -360,7 +360,7 @@ export default function Invoices() {
               .note { font-size: 12px; }
               .sign { text-align: right; font-size: 12px; }
               
-              .note-table td { border: none; padding: 10px; vertical-align: top; }
+              .note-table td { border: none; padding: 10px; vertical-align: bottom; }
               .kw-title { text-align: center; font-size: 16px; font-weight: 700; margin-top: 8px; }
               
               .kw-table td { border: none; padding: 8px; vertical-align: top; }
@@ -368,7 +368,7 @@ export default function Invoices() {
               .kw-label { width: 180px; }
               .kw-box { border: 0.5px solid var(--border); padding: 6px 10px; display: inline-block; }
             .kw-amount { font-size: 14px; font-weight: 700; }
-            .spacer { height: 70px; }
+            .spacer { height: 100px; }
           </style>
         </head>
         <body>
@@ -383,11 +383,21 @@ export default function Invoices() {
               <div class="left">
                 <div><strong>${data.clientName}</strong></div>
                 <div>${data.clientAddress}</div>
-                <div>Up : ${data.clientPic}</div>
+                <div style="padding-top: 0.5rem;">Up : ${data.clientPic}</div>
               </div>
               <div class="right">
-                <div><strong>No. Invoice:</strong> ${data.invoiceNumber}</div>
-                <div><strong>Reff:</strong> (${data.contractNumber})</div>
+                <table style="margin-left:auto;font-size:12px;">
+                  <tr>
+                    <td style="padding:0 10px 4px 0; font-weight:600;">No. Invoice</td>
+                    <td style="padding:0 8px 4px 0;">:</td>
+                    <td style="text-align:left;">${data.invoiceNumber}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding-right:10px; font-weight:600;">Reff</td>
+                    <td style="padding-right:8px;">:</td>
+                    <td style="text-align:left;">(${data.contractNumber})</td>
+                  </tr>
+                </table>
               </div>
             </div>
               <div class="box" style="margin-top:14px;">
@@ -433,7 +443,8 @@ export default function Invoices() {
                   <div>KAP KRISNAWAN, NUGROHO & FAHMY</div>
                   <div>BANK MANDIRI</div>
                   <div>KCP JAKARTA LEBAK BULUS</div>
-                  <div>Rekening No. 101-00-1469009-1</div>
+                  <div>Bukti transfer email office.rasunasaid@knfdts.id</div>
+                  <div>No. Rekening 101-00-1469009-1</div>
                 </td>
                 <td class="sign" style="width: 176px;">
                   <div>Jakarta, ${data.invoiceDate}</div>
@@ -808,15 +819,21 @@ function InvoicePreview({
             <div className="space-y-1">
               <p className="font-semibold">{data.clientName}</p>
             <p>{data.clientAddress}</p>
-            <p>Up : {data.clientPic}</p>
+            <p className='py-2'>Up : {data.clientPic}</p>
           </div>
-          <div className="space-y-1 text-left md:text-right">
-            <p>
-              <span className="font-semibold">No. Invoice:</span> {data.invoiceNumber}
-            </p>
-            <p>
-              <span className="font-semibold">Reff:</span> ({data.contractNumber})
-            </p>
+          <div className="text-left md:text-right">
+            <div className="inline-block text-left">
+              <div className="flex items-center gap-2">
+                <span className="min-w-[86px] text-right font-semibold">No. Invoice</span>
+                <span className="w-3 text-center">:</span>
+                <span>{data.invoiceNumber}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="min-w-[86px] text-right font-semibold">Reff</span>
+                <span className="w-3 text-center">:</span>
+                <span>({data.contractNumber})</span>
+              </div>
+            </div>
           </div>
         </div>
         <div className="overflow-auto rounded-md border border-slate-300">
@@ -877,11 +894,12 @@ function InvoicePreview({
                   <p>KAP KRISNAWAN, NUGROHO & FAHMY</p>
                   <p>BANK MANDIRI</p>
                   <p>KCP JAKARTA LEBAK BULUS</p>
-                  <p>Rekening No. 101-00-1469009-1</p>
+                  <p>Bukti transfer email ke office.rasunasaid@knfdts.id</p>
+                  <p>No. Rekening 101-00-1469009-1</p>
                 </td>
                   <td className="border-b border-slate-300 p-3 align-top text-right w-[40%]">
                     <p>Jakarta, {data.invoiceDate}</p>
-                  <div className="h-20" />
+                  <div className="h-28" />
                   <p>{data.signerName}</p>
                 </td>
               </tr>
@@ -931,7 +949,7 @@ function InvoicePreview({
                   <td className="border-b border-slate-300 p-2"></td>
                   <td className="border-b border-slate-300 p-2 text-right">
                     <p>Jakarta, {data.invoiceDate}</p>
-                  <div className="h-20" />
+                  <div className="h-28" />
                   <p>{data.signerName}</p>
                 </td>
               </tr>
