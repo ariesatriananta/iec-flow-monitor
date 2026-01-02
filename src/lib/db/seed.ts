@@ -18,6 +18,35 @@ import {
 } from "../numbering";
 
 const toNumeric = (value: number) => value.toString();
+const mockClientById = new Map(mockClients.map((client) => [client.id, client]));
+
+async function resolveClientId(db: ReturnType<typeof getDb>, clientId: string) {
+  const direct = await db
+    .select({ id: clients.id })
+    .from(clients)
+    .where(eq(clients.id, clientId))
+    .limit(1);
+  if (direct.length > 0) return direct[0].id;
+
+  const mockClient = mockClientById.get(clientId);
+  if (!mockClient) return clientId;
+
+  const byCode = await db
+    .select({ id: clients.id })
+    .from(clients)
+    .where(eq(clients.code, mockClient.code))
+    .limit(1);
+  if (byCode.length > 0) return byCode[0].id;
+
+  const byName = await db
+    .select({ id: clients.id })
+    .from(clients)
+    .where(eq(clients.name, mockClient.name))
+    .limit(1);
+  if (byName.length > 0) return byName[0].id;
+
+  return clientId;
+}
 
 async function seedUsers() {
   const db = getDb();
@@ -160,6 +189,7 @@ async function migrateClientCodes() {
 async function seedContracts() {
   const db = getDb();
   for (const contract of mockContracts) {
+    const resolvedClientId = await resolveClientId(db, contract.clientId);
     const existing = await db
       .select({ id: contracts.id })
       .from(contracts)
@@ -170,7 +200,7 @@ async function seedContracts() {
         .update(contracts)
         .set({
           proposalDate: contract.proposalDate,
-          clientId: contract.clientId,
+          clientId: resolvedClientId,
           serviceCode: contract.serviceCode,
           engagementNo: contract.engagementNo,
           seqNo: contract.seqNo,
@@ -191,7 +221,7 @@ async function seedContracts() {
       .values({
         id: contract.id,
         proposalDate: contract.proposalDate,
-        clientId: contract.clientId,
+        clientId: resolvedClientId,
         serviceCode: contract.serviceCode,
         engagementNo: contract.engagementNo,
         seqNo: contract.seqNo,
@@ -208,7 +238,7 @@ async function seedContracts() {
         target: contracts.proposalNumber,
         set: {
           proposalDate: contract.proposalDate,
-          clientId: contract.clientId,
+          clientId: resolvedClientId,
           serviceCode: contract.serviceCode,
           engagementNo: contract.engagementNo,
           seqNo: contract.seqNo,
@@ -358,6 +388,14 @@ async function migrateNumbering() {
       letterNumber: sql`'TEMP-' || ${letters.id}`,
       updatedAt: new Date(),
     });
+  await db
+    .update(letters)
+    .set({ letterType: "UMUM", updatedAt: new Date() })
+    .where(eq(letters.letterType, "FINANCE"));
+  await db
+    .update(letters)
+    .set({ letterType: "SURAT_TUGAS", updatedAt: new Date() })
+    .where(eq(letters.letterType, "SURAT_JALAN"));
   const lettersByYear = new Map<number, typeof letterRows>();
   for (const letter of letterRows) {
     const { year } = getJakartaMonthYear(new Date(letter.letterDate));
@@ -506,6 +544,9 @@ async function syncTerminInvoiceIds() {
 async function seedLetters() {
   const db = getDb();
   for (const letter of mockLetters) {
+    const resolvedClientId = letter.clientId
+      ? await resolveClientId(db, letter.clientId)
+      : null;
     const existing = await db
       .select({ id: letters.id })
       .from(letters)
@@ -516,7 +557,7 @@ async function seedLetters() {
         .update(letters)
         .set({
           letterDate: letter.letterDate,
-          clientId: letter.clientId,
+          clientId: resolvedClientId,
           letterType: letter.letterType,
           subject: letter.subject,
           seqNo: letter.seqNo,
@@ -534,7 +575,7 @@ async function seedLetters() {
       .values({
         id: letter.id,
         letterDate: letter.letterDate,
-        clientId: letter.clientId,
+        clientId: resolvedClientId,
         letterType: letter.letterType,
         subject: letter.subject,
         seqNo: letter.seqNo,
@@ -548,7 +589,7 @@ async function seedLetters() {
         target: letters.letterNumber,
         set: {
           letterDate: letter.letterDate,
-          clientId: letter.clientId,
+          clientId: resolvedClientId,
           letterType: letter.letterType,
           subject: letter.subject,
           seqNo: letter.seqNo,

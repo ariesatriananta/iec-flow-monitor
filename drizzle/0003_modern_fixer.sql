@@ -1,0 +1,1 @@
+ALTER TABLE "letters" ALTER COLUMN "client_id" DROP NOT NULL;

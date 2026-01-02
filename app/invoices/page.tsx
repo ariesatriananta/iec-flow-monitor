@@ -395,7 +395,7 @@ export default function Invoices() {
                   <tr>
                     <td style="padding-right:10px; font-weight:600;">Reff</td>
                     <td style="padding-right:8px;">:</td>
-                    <td style="text-align:left;">(${data.contractNumber})</td>
+                    <td style="text-align:left;">${data.contractNumber}</td>
                   </tr>
                 </table>
               </div>
@@ -831,7 +831,7 @@ function InvoicePreview({
               <div className="flex items-center gap-2">
                 <span className="min-w-[86px] text-right font-semibold">Reff</span>
                 <span className="w-3 text-center">:</span>
-                <span>({data.contractNumber})</span>
+                <span>{data.contractNumber}</span>
               </div>
             </div>
           </div>

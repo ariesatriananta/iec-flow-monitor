@@ -74,8 +74,8 @@ import * as XLSX from 'xlsx';
 
 const letterTypeLabels: Record<LetterType, string> = {
   HRGA: 'HR/GA',
-  FINANCE: 'Finance',
-  SURAT_JALAN: 'Surat Jalan',
+  UMUM: 'Umum',
+  SURAT_TUGAS: 'Surat Tugas',
 };
 
 export default function Letters() {
@@ -166,8 +166,11 @@ export default function Letters() {
     setIsSubmitting(true);
 
     try {
-      const client = clients.find((c) => c.id === formData.clientId);
-      if (!client) {
+      const requiresClient = formData.letterType !== 'HRGA';
+      const client = formData.clientId
+        ? clients.find((c) => c.id === formData.clientId)
+        : undefined;
+      if (requiresClient && !client) {
         toast({
           title: 'Error',
           description: 'Pilih client terlebih dahulu',
@@ -178,7 +181,7 @@ export default function Letters() {
 
       const created = await createLetter({
         letterDate: formData.letterDate,
-        clientId: formData.clientId,
+        clientId: formData.clientId || undefined,
         letterType: formData.letterType,
         subject: formData.subject,
         status: 'ACTIVE',
@@ -283,9 +286,9 @@ export default function Letters() {
     switch (type) {
       case 'HRGA':
         return 'bg-primary/10 text-primary border-primary/20';
-      case 'FINANCE':
+      case 'UMUM':
         return 'bg-success/10 text-success border-success/20';
-      case 'SURAT_JALAN':
+      case 'SURAT_TUGAS':
         return 'bg-warning/10 text-warning border-warning/20';
       default:
         return '';
@@ -339,8 +342,8 @@ export default function Letters() {
               <SelectContent>
                 <SelectItem value="ALL">Semua Tipe</SelectItem>
                 <SelectItem value="HRGA">HR/GA</SelectItem>
-                <SelectItem value="FINANCE">Finance</SelectItem>
-                <SelectItem value="SURAT_JALAN">Surat Jalan</SelectItem>
+                <SelectItem value="UMUM">Umum</SelectItem>
+                <SelectItem value="SURAT_TUGAS">Surat Tugas</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -514,15 +517,44 @@ export default function Letters() {
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="letterType">Tipe Surat *</Label>
+                <Select
+                  value={formData.letterType}
+                  onValueChange={(value) =>
+                    setFormData({
+                      ...formData,
+                      letterType: value as LetterType,
+                      clientId: value === 'HRGA' ? '' : formData.clientId,
+                    })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="HRGA">HR/GA</SelectItem>
+                    <SelectItem value="UMUM">Umum</SelectItem>
+                    <SelectItem value="SURAT_TUGAS">Surat Tugas</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="client">Client *</Label>
+                  <Label htmlFor="client">
+                    Client {formData.letterType === 'HRGA' ? '(opsional)' : '*'}
+                  </Label>
                   <Select
                     value={formData.clientId}
                     onValueChange={(value) => setFormData({ ...formData, clientId: value })}
+                    disabled={formData.letterType === 'HRGA'}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder="Pilih Client" />
+                      <SelectValue
+                        placeholder={
+                          formData.letterType === 'HRGA' ? 'Tidak wajib' : 'Pilih Client'
+                        }
+                      />
                     </SelectTrigger>
                     <SelectContent>
                       {clients
@@ -565,24 +597,6 @@ export default function Letters() {
                     </PopoverContent>
                   </Popover>
                 </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="letterType">Tipe Surat *</Label>
-                <Select
-                  value={formData.letterType}
-                  onValueChange={(value) =>
-                    setFormData({ ...formData, letterType: value as LetterType })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="HRGA">HR/GA</SelectItem>
-                    <SelectItem value="FINANCE">Finance</SelectItem>
-                    <SelectItem value="SURAT_JALAN">Surat Jalan</SelectItem>
-                  </SelectContent>
-                </Select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="subject">Subject *</Label>

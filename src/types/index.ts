@@ -80,7 +80,7 @@ export interface Invoice {
 }
 
 // Letter Type
-export type LetterType = 'HRGA' | 'FINANCE' | 'SURAT_JALAN';
+export type LetterType = 'HRGA' | 'UMUM' | 'SURAT_TUGAS';
 
 // Letter Status
 export type LetterStatus = 'ACTIVE' | 'VOID' | 'CANCELLED';
@@ -89,7 +89,7 @@ export type LetterStatus = 'ACTIVE' | 'VOID' | 'CANCELLED';
 export interface Letter {
   id: string;
   letterDate: Date;
-  clientId: string;
+  clientId?: string;
   client?: Client;
   letterType: LetterType;
   subject: string;

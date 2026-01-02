@@ -10,7 +10,7 @@ export async function fetchLetters(): Promise<Letter[]> {
 }
 
 export async function createLetter(payload: {
-  clientId: string;
+  clientId?: string | null;
   letterDate: Date;
   letterType: string;
   subject: string;
@@ -21,6 +21,7 @@ export async function createLetter(payload: {
     method: "POST",
     body: JSON.stringify({
       ...payload,
+      clientId: payload.clientId ?? undefined,
       letterDate: payload.letterDate.toISOString(),
     }),
   });

@@ -24,15 +24,17 @@ export async function GET() {
 export async function POST(request: Request) {
   const body = await request.json();
 
-  if (
-    !body?.clientId ||
-    !body?.letterDate ||
-    !body?.letterType ||
-    !body?.subject ||
-    !body?.status
-  ) {
+  if (!body?.letterDate || !body?.letterType || !body?.subject || !body?.status) {
     return NextResponse.json(
       { error: "Data letter belum lengkap" },
+      { status: 400 }
+    );
+  }
+
+  const requiresClient = body.letterType !== "HRGA";
+  if (requiresClient && !body?.clientId) {
+    return NextResponse.json(
+      { error: "Client wajib diisi untuk tipe surat ini" },
       { status: 400 }
     );
   }
@@ -63,7 +65,7 @@ export async function POST(request: Request) {
     .values({
       id: crypto.randomUUID(),
       letterDate,
-      clientId: body.clientId,
+      clientId: body.clientId ?? null,
       letterType: body.letterType,
       subject: body.subject,
       seqNo,
