@@ -102,6 +102,27 @@ export interface Letter {
   notes?: string;
   createdAt: Date;
   updatedAt: Date;
+  assignment?: LetterAssignment;
+}
+
+export interface LetterAssignment {
+  id: string;
+  letterId: string;
+  title: string;
+  auditPeriodText: string;
+  createdAt: Date;
+  updatedAt: Date;
+  members?: LetterAssignmentMember[];
+}
+
+export interface LetterAssignmentMember {
+  id: string;
+  assignmentId: string;
+  name: string;
+  role: string;
+  order: number;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 // User Types

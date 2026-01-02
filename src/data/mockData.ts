@@ -1,4 +1,12 @@
-import type { Client, Contract, Termin, Invoice, Letter } from '@/types';
+import type {
+  Client,
+  Contract,
+  Termin,
+  Invoice,
+  Letter,
+  LetterAssignment,
+  LetterAssignmentMember,
+} from '@/types';
 
 // Sample Clients
 export const mockClients: Client[] = [
@@ -286,6 +294,65 @@ export const mockLetters: Letter[] = [
     createdAt: new Date('2024-12-20'),
     updatedAt: new Date('2024-12-20')
   }
+];
+
+export const mockLetterAssignments: LetterAssignment[] = [
+  {
+    id: '1',
+    letterId: '3',
+    title: 'Penugasan Jasa Audit Laporan Keuangan',
+    auditPeriodText: 'Untuk Tahun yang Berakhir 31 Desember 2024',
+    createdAt: new Date('2024-12-20'),
+    updatedAt: new Date('2024-12-20'),
+  },
+];
+
+export const mockLetterAssignmentMembers: LetterAssignmentMember[] = [
+  {
+    id: '1',
+    assignmentId: '1',
+    name: 'Nama',
+    role: 'Rekan Penanggung Jawab',
+    order: 1,
+    createdAt: new Date('2024-12-20'),
+    updatedAt: new Date('2024-12-20'),
+  },
+  {
+    id: '2',
+    assignmentId: '1',
+    name: 'Nama',
+    role: 'Manajer',
+    order: 2,
+    createdAt: new Date('2024-12-20'),
+    updatedAt: new Date('2024-12-20'),
+  },
+  {
+    id: '3',
+    assignmentId: '1',
+    name: 'Nama',
+    role: 'Ketua Tim',
+    order: 3,
+    createdAt: new Date('2024-12-20'),
+    updatedAt: new Date('2024-12-20'),
+  },
+  {
+    id: '4',
+    assignmentId: '1',
+    name: 'Nama',
+    role: 'Anggota Tim',
+    order: 4,
+    createdAt: new Date('2024-12-20'),
+    updatedAt: new Date('2024-12-20'),
+  },
+  {
+    id: '5',
+    assignmentId: '1',
+    name: 'Nama',
+    role: 'Anggota Tim',
+    order: 5,
+    createdAt: new Date('2024-12-20'),
+    updatedAt: new Date('2024-12-20'),
+  },
 ];
 
 // Dashboard KPI calculation

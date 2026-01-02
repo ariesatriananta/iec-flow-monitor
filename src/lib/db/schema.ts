@@ -128,6 +128,45 @@ export const letters = pgTable(
   })
 );
 
+export const letterAssignments = pgTable(
+  "letter_assignments",
+  {
+    id: text("id").primaryKey(),
+    letterId: text("letter_id")
+      .notNull()
+      .references(() => letters.id),
+    title: text("title").notNull(),
+    auditPeriodText: text("audit_period_text").notNull(),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date" }).notNull(),
+  },
+  (table) => ({
+    letterIdUnique: uniqueIndex("letter_assignments_letter_id_unique").on(
+      table.letterId
+    ),
+  })
+);
+
+export const letterAssignmentMembers = pgTable(
+  "letter_assignment_members",
+  {
+    id: text("id").primaryKey(),
+    assignmentId: text("assignment_id")
+      .notNull()
+      .references(() => letterAssignments.id),
+    name: text("name").notNull(),
+    role: text("role").notNull(),
+    order: integer("order").notNull(),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date" }).notNull(),
+  },
+  (table) => ({
+    assignmentIdIdx: index("letter_assignment_members_assignment_id_idx").on(
+      table.assignmentId
+    ),
+  })
+);
+
 export const users = pgTable(
   "users",
   {

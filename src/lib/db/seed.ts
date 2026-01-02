@@ -2,13 +2,25 @@ import "dotenv/config";
 import { eq, sql } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { getDb } from "./index";
-import { clients, contracts, termins, invoices, letters, users, settings } from "./schema";
+import {
+  clients,
+  contracts,
+  termins,
+  invoices,
+  letters,
+  letterAssignments,
+  letterAssignmentMembers,
+  users,
+  settings,
+} from "./schema";
 import {
   mockClients,
   mockContracts,
   mockTermins,
   mockInvoices,
   mockLetters,
+  mockLetterAssignments,
+  mockLetterAssignmentMembers,
 } from "../../data/mockData";
 import {
   generateInvoiceNumber,
@@ -598,27 +610,36 @@ async function seedLetters() {
     const resolvedClientId = letter.clientId
       ? await resolveClientId(db, letter.clientId)
       : null;
+    const conflict = await db
+      .select({ id: letters.id })
+      .from(letters)
+      .where(eq(letters.letterNumber, letter.letterNumber))
+      .limit(1);
+    const hasConflict = conflict.length > 0 && conflict[0].id !== letter.id;
     const existing = await db
       .select({ id: letters.id })
       .from(letters)
       .where(eq(letters.id, letter.id))
       .limit(1);
     if (existing.length > 0) {
+      const updateValues: Record<string, unknown> = {
+        letterDate: letter.letterDate,
+        clientId: resolvedClientId,
+        letterType: letter.letterType,
+        hrgaCategory: letter.hrgaCategory ?? null,
+        subject: letter.subject,
+        seqNo: letter.seqNo,
+        status: letter.status,
+        notes: letter.notes ?? null,
+        createdAt: letter.createdAt,
+        updatedAt: letter.updatedAt,
+      };
+      if (!hasConflict) {
+        updateValues.letterNumber = letter.letterNumber;
+      }
       await db
         .update(letters)
-        .set({
-          letterDate: letter.letterDate,
-          clientId: resolvedClientId,
-          letterType: letter.letterType,
-          hrgaCategory: letter.hrgaCategory ?? null,
-          subject: letter.subject,
-          seqNo: letter.seqNo,
-          letterNumber: letter.letterNumber,
-          status: letter.status,
-          notes: letter.notes ?? null,
-          createdAt: letter.createdAt,
-          updatedAt: letter.updatedAt,
-        })
+        .set(updateValues)
         .where(eq(letters.id, letter.id));
       continue;
     }
@@ -632,7 +653,7 @@ async function seedLetters() {
         hrgaCategory: letter.hrgaCategory ?? null,
         subject: letter.subject,
         seqNo: letter.seqNo,
-        letterNumber: letter.letterNumber,
+        letterNumber: hasConflict ? `TEMP-${letter.id}` : letter.letterNumber,
         status: letter.status,
         notes: letter.notes ?? null,
         createdAt: letter.createdAt,
@@ -657,6 +678,73 @@ async function seedLetters() {
   }
 }
 
+async function seedLetterAssignments() {
+  const db = getDb();
+  for (const assignment of mockLetterAssignments) {
+    const existing = await db
+      .select({ id: letterAssignments.id })
+      .from(letterAssignments)
+      .where(eq(letterAssignments.letterId, assignment.letterId))
+      .limit(1);
+    if (existing.length > 0) {
+      await db
+        .update(letterAssignments)
+        .set({
+          title: assignment.title,
+          auditPeriodText: assignment.auditPeriodText,
+          createdAt: assignment.createdAt,
+          updatedAt: assignment.updatedAt,
+        })
+        .where(eq(letterAssignments.letterId, assignment.letterId));
+    } else {
+      await db
+        .insert(letterAssignments)
+        .values({
+          id: assignment.id,
+          letterId: assignment.letterId,
+          title: assignment.title,
+          auditPeriodText: assignment.auditPeriodText,
+          createdAt: assignment.createdAt,
+          updatedAt: assignment.updatedAt,
+        })
+        .onConflictDoUpdate({
+          target: letterAssignments.letterId,
+          set: {
+            title: assignment.title,
+            auditPeriodText: assignment.auditPeriodText,
+            createdAt: assignment.createdAt,
+            updatedAt: assignment.updatedAt,
+          },
+        });
+    }
+  }
+
+  for (const member of mockLetterAssignmentMembers) {
+    await db
+      .insert(letterAssignmentMembers)
+      .values({
+        id: member.id,
+        assignmentId: member.assignmentId,
+        name: member.name,
+        role: member.role,
+        order: member.order,
+        createdAt: member.createdAt,
+        updatedAt: member.updatedAt,
+      })
+      .onConflictDoUpdate({
+        target: letterAssignmentMembers.id,
+        set: {
+          assignmentId: member.assignmentId,
+          name: member.name,
+          role: member.role,
+          order: member.order,
+          createdAt: member.createdAt,
+          updatedAt: member.updatedAt,
+        },
+      });
+  }
+}
+
 async function run() {
   await seedUsers();
   await seedSettings();
@@ -668,6 +756,7 @@ async function run() {
   await seedInvoices();
   await syncTerminInvoiceIds();
   await seedLetters();
+  await seedLetterAssignments();
   await migrateNumbering();
 }
 

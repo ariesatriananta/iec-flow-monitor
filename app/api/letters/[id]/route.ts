@@ -1,10 +1,58 @@
 export const dynamic = "force-dynamic"
 
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { letters } from "@/lib/db/schema";
+import {
+  clients,
+  letters,
+  letterAssignments,
+  letterAssignmentMembers,
+} from "@/lib/db/schema";
 import { generateLetterNumber, getJakartaMonthYear } from "@/lib/numbering";
+
+export async function GET(
+  _request: Request,
+  { params }: { params: { id: string } }
+) {
+  const db = getDb();
+  const [row] = await db
+    .select({ letter: letters, client: clients })
+    .from(letters)
+    .leftJoin(clients, eq(letters.clientId, clients.id))
+    .where(eq(letters.id, params.id))
+    .limit(1);
+
+  if (!row) {
+    return NextResponse.json({ error: "Letter tidak ditemukan" }, { status: 404 });
+  }
+
+  let assignment = undefined;
+  if (row.letter.letterType === "SURAT_TUGAS") {
+    const [assignmentRow] = await db
+      .select()
+      .from(letterAssignments)
+      .where(eq(letterAssignments.letterId, row.letter.id))
+      .limit(1);
+    if (assignmentRow) {
+      const members = await db
+        .select()
+        .from(letterAssignmentMembers)
+        .where(eq(letterAssignmentMembers.assignmentId, assignmentRow.id))
+        .orderBy(asc(letterAssignmentMembers.order));
+      assignment = {
+        ...assignmentRow,
+        members,
+      };
+    }
+  }
+
+  return NextResponse.json({
+    ...row.letter,
+    client: row.client ?? undefined,
+    assignment,
+  });
+}
 
 export async function PUT(
   request: Request,
@@ -55,11 +103,37 @@ export async function PUT(
       { status: 400 }
     );
   }
+  if (body.assignment && nextLetterType === "SURAT_TUGAS") {
+    const assignment = body.assignment;
+    if (!assignment?.title || !assignment?.auditPeriodText) {
+      return NextResponse.json(
+        { error: "Data surat tugas belum lengkap" },
+        { status: 400 }
+      );
+    }
+    if (!Array.isArray(assignment.members) || assignment.members.length === 0) {
+      return NextResponse.json(
+        { error: "Minimal satu anggota tim wajib diisi" },
+        { status: 400 }
+      );
+    }
+    const invalidMember = assignment.members.some(
+      (member: { name?: string; role?: string }) =>
+        !member?.name?.trim() || !member?.role?.trim()
+    );
+    if (invalidMember) {
+      return NextResponse.json(
+        { error: "Nama dan peran anggota tim wajib diisi" },
+        { status: 400 }
+      );
+    }
+  }
 
   const updateData: {
     letterDate?: Date;
     letterType?: string;
     hrgaCategory?: string | null;
+    clientId?: string | null;
     subject?: string;
     seqNo?: number;
     letterNumber?: string;
@@ -138,6 +212,70 @@ export async function PUT(
     });
     updateData.seqNo = seqNo;
     updateData.letterNumber = letterNumber;
+  }
+
+  if (body.assignment && nextLetterType === "SURAT_TUGAS") {
+    const assignmentPayload = body.assignment;
+    const now = new Date();
+    const updated = await db.transaction(async (tx) => {
+      const [saved] = await tx
+        .update(letters)
+        .set(updateData)
+        .where(eq(letters.id, params.id))
+        .returning();
+
+      const [existingAssignment] = await tx
+        .select({ id: letterAssignments.id })
+        .from(letterAssignments)
+        .where(eq(letterAssignments.letterId, params.id))
+        .limit(1);
+
+      const assignmentId = existingAssignment?.id ?? crypto.randomUUID();
+      if (existingAssignment) {
+        await tx
+          .update(letterAssignments)
+          .set({
+            title: assignmentPayload.title,
+            auditPeriodText: assignmentPayload.auditPeriodText,
+            updatedAt: now,
+          })
+          .where(eq(letterAssignments.id, assignmentId));
+      } else {
+        await tx.insert(letterAssignments).values({
+          id: assignmentId,
+          letterId: params.id,
+          title: assignmentPayload.title,
+          auditPeriodText: assignmentPayload.auditPeriodText,
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+
+      await tx
+        .delete(letterAssignmentMembers)
+        .where(eq(letterAssignmentMembers.assignmentId, assignmentId));
+
+      const members = Array.isArray(assignmentPayload.members)
+        ? assignmentPayload.members
+        : [];
+      if (members.length > 0) {
+        await tx.insert(letterAssignmentMembers).values(
+          members.map((member, index) => ({
+            id: crypto.randomUUID(),
+            assignmentId,
+            name: member.name,
+            role: member.role,
+            order: index + 1,
+            createdAt: now,
+            updatedAt: now,
+          }))
+        );
+      }
+
+      return saved;
+    });
+
+    return NextResponse.json(updated);
   }
 
   const [updated] = await db

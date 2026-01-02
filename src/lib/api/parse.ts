@@ -1,6 +1,14 @@
 "use client";
 
-import type { Client, Contract, Termin, Invoice, Letter } from "@/types";
+import type {
+  Client,
+  Contract,
+  Termin,
+  Invoice,
+  Letter,
+  LetterAssignment,
+  LetterAssignmentMember,
+} from "@/types";
 
 const toDate = (value: string | Date): Date => {
   return value instanceof Date ? value : new Date(value);
@@ -42,6 +50,22 @@ export const parseLetter = (data: Letter): Letter => ({
   createdAt: toDate(data.createdAt),
   updatedAt: toDate(data.updatedAt),
   client: data.client ? parseClient(data.client) : undefined,
+  assignment: data.assignment ? parseLetterAssignment(data.assignment) : undefined,
+});
+
+const parseLetterAssignmentMember = (
+  data: LetterAssignmentMember
+): LetterAssignmentMember => ({
+  ...data,
+  createdAt: toDate(data.createdAt),
+  updatedAt: toDate(data.updatedAt),
+});
+
+const parseLetterAssignment = (data: LetterAssignment): LetterAssignment => ({
+  ...data,
+  createdAt: toDate(data.createdAt),
+  updatedAt: toDate(data.updatedAt),
+  members: data.members ? data.members.map(parseLetterAssignmentMember) : undefined,
 });
 
 export const parseContract = (data: Contract): Contract => ({

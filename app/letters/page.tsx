@@ -61,15 +61,28 @@ import {
   Download,
   Filter,
   Mail,
+  Printer,
   CalendarIcon,
 } from 'lucide-react';
-import type { Client, Letter, LetterType, LetterStatus, HrgaCategory } from '@/types';
+import type {
+  Client,
+  Letter,
+  LetterType,
+  LetterStatus,
+  HrgaCategory,
+  LetterAssignment,
+} from '@/types';
 import { formatDate } from '@/lib/numbering';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { fetchClients } from '@/lib/api/clients';
-import { createLetter, fetchLetters, updateLetter } from '@/lib/api/letters';
+import {
+  createLetter,
+  fetchLetterDetail,
+  fetchLetters,
+  updateLetter,
+} from '@/lib/api/letters';
 import { fetchSettings, type SettingsPayload } from '@/lib/api/settings';
 import * as XLSX from 'xlsx';
 
@@ -78,6 +91,22 @@ const letterTypeLabels: Record<LetterType, string> = {
   UMUM: 'Umum',
   SURAT_TUGAS: 'Surat Tugas',
 };
+
+const createEmptyAssignment = () => ({
+  title: 'Penugasan Jasa Audit Laporan Keuangan.',
+  auditPeriodText: 'Untuk Tahun yang Berakhir .....',
+  members: [{ name: '', role: '' }],
+});
+
+const buildSuratTugasIntro = (
+  title: string,
+  clientName: string,
+  auditPeriodText: string
+) =>
+  `Sehubungan dengan pelaksanaan ${title} ${clientName} ${auditPeriodText}, dengan ini kami menugaskan Tim yang terdiri atas :`;
+
+const suratTugasClosingText =
+  'Demi kelancaran pelaksanaan pekerjaan, kami yakin manajemen akan mendukung dan bekerjasama dengan Tim tersebut di atas.';
 
 export default function Letters() {
   const { toast } = useToast();
@@ -94,6 +123,12 @@ export default function Letters() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [visibleCount, setVisibleCount] = useState(20);
   const [settings, setSettings] = useState<SettingsPayload | null>(null);
+  const [assignmentForm, setAssignmentForm] = useState(createEmptyAssignment());
+  const [isAssignmentLoading, setIsAssignmentLoading] = useState(false);
+  const [isPrintOpen, setIsPrintOpen] = useState(false);
+  const [printLetter, setPrintLetter] = useState<Letter | null>(null);
+  const [printAssignment, setPrintAssignment] = useState<LetterAssignment | null>(null);
+  const [headerDataUrl, setHeaderDataUrl] = useState<string>('');
 
   // Form state
   const [formData, setFormData] = useState({
@@ -147,6 +182,28 @@ export default function Letters() {
     setVisibleCount(20);
   }, [searchQuery, filterType]);
 
+  useEffect(() => {
+    let active = true;
+    const loadHeader = async () => {
+      try {
+        const response = await fetch('/invoice-header.jpg');
+        const blob = await response.blob();
+        const reader = new FileReader();
+        reader.onload = () => {
+          if (!active) return;
+          setHeaderDataUrl(typeof reader.result === 'string' ? reader.result : '');
+        };
+        reader.readAsDataURL(blob);
+      } catch (error) {
+        console.error(error);
+      }
+    };
+    loadHeader();
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const visibleLetters = filteredLetters.slice(0, visibleCount);
 
   const resetForm = () => {
@@ -158,10 +215,11 @@ export default function Letters() {
       subject: '',
       notes: '',
     });
+    setAssignmentForm(createEmptyAssignment());
     setEditingLetter(null);
   };
 
-  const handleOpenDialog = (letter?: Letter) => {
+  const handleOpenDialog = async (letter?: Letter) => {
     if (letter) {
       setEditingLetter(letter);
       setFormData({
@@ -172,10 +230,40 @@ export default function Letters() {
         subject: letter.subject,
         notes: letter.notes ?? '',
       });
+      setAssignmentForm(createEmptyAssignment());
+      setIsDialogOpen(true);
+
+      if (letter.letterType === 'SURAT_TUGAS') {
+        setIsAssignmentLoading(true);
+        try {
+          const detail = await fetchLetterDetail(letter.id);
+          if (detail.assignment) {
+            setAssignmentForm({
+              title: detail.assignment.title,
+              auditPeriodText: detail.assignment.auditPeriodText,
+              members:
+                detail.assignment.members?.map((member) => ({
+                  name: member.name,
+                  role: member.role,
+                })) ?? [{ name: '', role: '' }],
+            });
+          } else {
+            setAssignmentForm(createEmptyAssignment());
+          }
+        } catch (error) {
+          toast({
+            title: 'Error',
+            description: 'Gagal memuat detail surat tugas',
+            variant: 'destructive',
+          });
+        } finally {
+          setIsAssignmentLoading(false);
+        }
+      }
     } else {
       resetForm();
+      setIsDialogOpen(true);
     }
-    setIsDialogOpen(true);
   };
 
   const handleOpenDetail = (letter: Letter) => {
@@ -209,6 +297,27 @@ export default function Letters() {
         });
         return;
       }
+      if (formData.letterType === 'SURAT_TUGAS') {
+        const cleanedMembers = assignmentForm.members.filter(
+          (member) => member.name.trim() && member.role.trim()
+        );
+        if (!assignmentForm.title.trim() || !assignmentForm.auditPeriodText.trim()) {
+          toast({
+            title: 'Error',
+            description: 'Lengkapi data surat tugas terlebih dahulu',
+            variant: 'destructive',
+          });
+          return;
+        }
+        if (cleanedMembers.length === 0) {
+          toast({
+            title: 'Error',
+            description: 'Minimal satu anggota tim wajib diisi',
+            variant: 'destructive',
+          });
+          return;
+        }
+      }
 
       if (editingLetter) {
         const updated = await updateLetter(editingLetter.id, {
@@ -218,6 +327,19 @@ export default function Letters() {
           subject: formData.subject,
           notes: formData.notes,
           clientId: formData.clientId || null,
+          assignment:
+            formData.letterType === 'SURAT_TUGAS'
+              ? {
+                  title: assignmentForm.title,
+                  auditPeriodText: assignmentForm.auditPeriodText,
+                  members: assignmentForm.members
+                    .filter((member) => member.name.trim() && member.role.trim())
+                    .map((member) => ({
+                      name: member.name,
+                      role: member.role,
+                    })),
+                }
+              : undefined,
         });
         setLetters(
           letters.map((l) => (l.id === updated.id ? { ...updated, client } : l))
@@ -235,6 +357,19 @@ export default function Letters() {
           subject: formData.subject,
           status: 'ACTIVE',
           notes: formData.notes,
+          assignment:
+            formData.letterType === 'SURAT_TUGAS'
+              ? {
+                  title: assignmentForm.title,
+                  auditPeriodText: assignmentForm.auditPeriodText,
+                  members: assignmentForm.members
+                    .filter((member) => member.name.trim() && member.role.trim())
+                    .map((member) => ({
+                      name: member.name,
+                      role: member.role,
+                    })),
+                }
+              : undefined,
         });
         setLetters([...letters, { ...created, client }]);
         toast({
@@ -324,6 +459,173 @@ export default function Letters() {
       title: 'Export Excel',
       description: 'File Excel sudah diunduh.',
     });
+  };
+
+  const formatDateLong = (value: Date | string) =>
+    new Date(value).toLocaleDateString('id-ID', {
+      timeZone: 'Asia/Jakarta',
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+    });
+
+
+  const updateAssignmentField = (
+    field: 'title' | 'auditPeriodText',
+    value: string
+  ) => {
+    setAssignmentForm((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  const updateAssignmentMember = (
+    index: number,
+    field: 'name' | 'role',
+    value: string
+  ) => {
+    setAssignmentForm((prev) => {
+      const members = prev.members.map((member, memberIndex) =>
+        memberIndex === index ? { ...member, [field]: value } : member
+      );
+      return { ...prev, members };
+    });
+  };
+
+  const addAssignmentMember = () => {
+    setAssignmentForm((prev) => ({
+      ...prev,
+      members: [...prev.members, { name: '', role: '' }],
+    }));
+  };
+
+  const removeAssignmentMember = (index: number) => {
+    setAssignmentForm((prev) => {
+      const members = prev.members.filter((_, memberIndex) => memberIndex !== index);
+      return { ...prev, members: members.length ? members : [{ name: '', role: '' }] };
+    });
+  };
+
+  const handleOpenPrint = async (letter: Letter) => {
+    setIsPrintOpen(true);
+    setPrintLetter(null);
+    setPrintAssignment(null);
+    try {
+      const detail = await fetchLetterDetail(letter.id);
+      if (!detail.assignment) {
+        throw new Error('Detail surat tugas belum lengkap');
+      }
+      setPrintLetter(detail);
+      setPrintAssignment(detail.assignment);
+    } catch (error) {
+      toast({
+        title: 'Error',
+        description:
+          error instanceof Error
+            ? error.message
+            : 'Gagal memuat data surat tugas',
+        variant: 'destructive',
+      });
+      setIsPrintOpen(false);
+    }
+  };
+
+  const handlePrintSuratTugas = () => {
+    if (!printLetter || !printAssignment) return;
+    const printWindow = window.open('', '_blank', 'width=1000,height=800');
+    if (!printWindow) return;
+    const headerUrl = headerDataUrl || `${window.location.origin}/invoice-header.jpg`;
+    const letterDate = formatDateLong(printLetter.letterDate);
+    const clientName = printLetter.client?.name ?? 'PT xxx';
+    const clientAddress = printLetter.client?.address ?? 'Alamatxx';
+    const introText = buildSuratTugasIntro(
+      printAssignment.title,
+      clientName,
+      printAssignment.auditPeriodText
+    );
+    const members = printAssignment.members ?? [];
+    const membersHtml = members
+      .map(
+        (member) => `
+          <tr>
+            <td style="width: 24px;">*</td>
+            <td style="padding-right: 24px;">${member.name}</td>
+            <td>${member.role}</td>
+          </tr>
+        `
+      )
+      .join('');
+    const html = `
+      <!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>Surat Tugas ${printLetter.letterNumber}</title>
+          <style>
+            @page { size: A4; margin: 20mm; }
+            :root { --primary: #1e4e8c; --muted: #6b7280; }
+            body { font-family: "Segoe UI", Arial, sans-serif; color: #111; background: #fff; }
+            .header { position: relative; height: 180px; margin-bottom: 24px; }
+            .header-bg { position: absolute; inset: 0; background-image: url('${headerUrl}'); background-size: cover; background-position: top center; }
+            .content { font-size: 12px; line-height: 1.6; }
+            .meta { display: flex; justify-content: space-between; margin-bottom: 16px; }
+            .title { text-align: center; font-weight: 700; margin: 24px 0; }
+            .title-line { font-size: 16px; }
+            .title-client { font-size: 16px; }
+            .title-period { font-size: 16px; }
+            .title .line { text-decoration: underline; }
+            .signature { margin-top: 36px; }
+            .signature .name { margin-top: 64px; font-weight: 700; }
+            .members { margin: 16px 0 20px; }
+            table { width: 100%; border-collapse: collapse; }
+            @media print {
+              body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="header-bg"></div>
+          </div>
+          <div class="content">
+            <div class="meta">
+              <div>No. ${printLetter.letterNumber}</div>
+              <div>Jakarta, ${letterDate}</div>
+            </div>
+            <div style="margin-bottom: 16px;">
+              <div>Yang Terhormat,</div>
+              <div><strong>${clientName}</strong></div>
+              <div>${clientAddress}</div>
+            </div>
+            <div class="title">
+              <div class="line title-line">${printAssignment.title}</div>
+              <div class="line title-client">${clientName}</div>
+              <div class="line title-period">${printAssignment.auditPeriodText}</div>
+            </div>
+            <div>Dengan hormat,</div>
+            <p>${introText}</p>
+            <div class="members">
+              <table>
+                ${membersHtml}
+              </table>
+            </div>
+            <p>${suratTugasClosingText}</p>
+            <div class="signature">
+              <div>Hormat kami,</div>
+              <div>${settings?.companyName || 'KAP Krisnawan, Nugroho & Fahmy'}</div>
+              <div class="name">${settings?.defaultSignerName || 'Anita Rahman, CPA'}</div>
+              <div>Rekan Penanggung Jawab</div>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
   };
 
   const getLetterStatusColor = (status: LetterStatus) => {
@@ -472,6 +774,15 @@ export default function Letters() {
                               <Eye className="w-4 h-4 mr-2" />
                               View Detail
                             </DropdownMenuItem>
+                              {letter.letterType === 'SURAT_TUGAS' && (
+                                <>
+                                  <DropdownMenuItem onClick={() => handleOpenPrint(letter)}>
+                                    <Printer className="w-4 h-4 mr-2" />
+                                    Print
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                </>
+                              )}
                               {letter.status === 'ACTIVE' && (
                                 <>
                                   <DropdownMenuItem onClick={() => handleOpenDialog(letter)}>
@@ -548,6 +859,15 @@ export default function Letters() {
                           <Eye className="w-4 h-4 mr-2" />
                           View Detail
                         </DropdownMenuItem>
+                          {letter.letterType === 'SURAT_TUGAS' && (
+                            <>
+                              <DropdownMenuItem onClick={() => handleOpenPrint(letter)}>
+                                <Printer className="w-4 h-4 mr-2" />
+                                Print
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                            </>
+                          )}
                           {letter.status === 'ACTIVE' && (
                             <>
                               <DropdownMenuItem onClick={() => handleOpenDialog(letter)}>
@@ -587,7 +907,7 @@ export default function Letters() {
 
       {/* Create Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[500px] max-h-[85vh] overflow-y-auto">
           <form onSubmit={handleSubmit}>
             <DialogHeader>
               <DialogTitle>
@@ -605,12 +925,18 @@ export default function Letters() {
                 <Select
                   value={formData.letterType}
                   onValueChange={(value) =>
-                    setFormData({
-                      ...formData,
-                      letterType: value as LetterType,
-                      clientId: value === 'HRGA' ? '' : formData.clientId,
-                      hrgaCategory: value === 'HRGA' ? formData.hrgaCategory : '',
-                    })
+                    {
+                      const nextType = value as LetterType;
+                      setFormData({
+                        ...formData,
+                        letterType: nextType,
+                        clientId: nextType === 'HRGA' ? '' : formData.clientId,
+                        hrgaCategory: nextType === 'HRGA' ? formData.hrgaCategory : '',
+                      });
+                      if (nextType === 'SURAT_TUGAS') {
+                        setAssignmentForm(createEmptyAssignment());
+                      }
+                    }
                   }
                   disabled={!!editingLetter}
                 >
@@ -712,6 +1038,91 @@ export default function Letters() {
                   required
                 />
               </div>
+              {formData.letterType === 'SURAT_TUGAS' && (
+                <div className="space-y-4 rounded-lg border border-border/60 bg-muted/20 p-4">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold text-foreground">Detail Surat Tugas</p>
+                    {isAssignmentLoading && (
+                      <span className="text-xs text-muted-foreground">Memuat...</span>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="title">Judul Surat *</Label>
+                    <Textarea
+                      id="title"
+                      value={assignmentForm.title}
+                      onChange={(e) => updateAssignmentField('title', e.target.value)}
+                      placeholder="Penugasan Jasa Audit..."
+                      rows={2}
+                      disabled={isAssignmentLoading}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="auditPeriodText">Periode Audit *</Label>
+                    <Textarea
+                      id="auditPeriodText"
+                      value={assignmentForm.auditPeriodText}
+                      onChange={(e) =>
+                        updateAssignmentField('auditPeriodText', e.target.value)
+                      }
+                      placeholder="Untuk Tahun yang Berakhir..."
+                      rows={2}
+                      disabled={isAssignmentLoading}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Label>Anggota Tim *</Label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={addAssignmentMember}
+                        disabled={isAssignmentLoading}
+                      >
+                        Tambah
+                      </Button>
+                    </div>
+                    <div className="space-y-3">
+                      {assignmentForm.members.map((member, index) => (
+                        <div key={index} className="grid gap-3 md:grid-cols-[1fr_1fr_auto]">
+                          <Input
+                            value={member.name}
+                            onChange={(e) =>
+                              updateAssignmentMember(index, 'name', e.target.value)
+                            }
+                            placeholder="Nama anggota"
+                            disabled={isAssignmentLoading}
+                          />
+                          <Input
+                            value={member.role}
+                            onChange={(e) =>
+                              updateAssignmentMember(index, 'role', e.target.value)
+                            }
+                            placeholder="Peran"
+                            disabled={isAssignmentLoading}
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => removeAssignmentMember(index)}
+                            disabled={assignmentForm.members.length === 1 || isAssignmentLoading}
+                          >
+                            <XCircle className="h-4 w-4 text-muted-foreground" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="rounded-md border border-border/60 bg-background/80 p-3 text-xs text-muted-foreground">
+                    Nama/alamat penerima, kota, paragraf pembuka, dan penutup
+                    akan di-generate otomatis.
+                  </div>
+                </div>
+              )}
               <div className="space-y-2">
                 <Label htmlFor="notes">Notes</Label>
                 <Textarea
@@ -727,7 +1138,13 @@ export default function Letters() {
               <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
                 Batal
               </Button>
-              <Button type="submit" disabled={isSubmitting}>
+              <Button
+                type="submit"
+                disabled={
+                  isSubmitting ||
+                  (formData.letterType === 'SURAT_TUGAS' && isAssignmentLoading)
+                }
+              >
                 {isSubmitting ? (
                   <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
                 ) : (
@@ -881,7 +1298,131 @@ export default function Letters() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog
+        open={isPrintOpen}
+        onOpenChange={(open) => {
+          setIsPrintOpen(open);
+          if (!open) {
+            setPrintLetter(null);
+            setPrintAssignment(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-[900px] h-[85vh] bg-muted p-0 grid grid-rows-[auto,1fr,auto]">
+          <DialogHeader className="bg-muted/95 px-6 py-4 backdrop-blur">
+            <DialogTitle>Preview Surat Tugas</DialogTitle>
+            <DialogDescription>
+              Pastikan data sudah sesuai sebelum print.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="overflow-auto px-6 pb-6">
+            {(!printLetter || !printAssignment) && (
+              <div className="flex h-full min-h-[420px] items-center justify-center">
+                <span className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              </div>
+            )}
+            {printLetter && printAssignment && (
+              <SuratTugasPreview
+                letter={printLetter}
+                assignment={printAssignment}
+                headerSrc={headerDataUrl || "/invoice-header.jpg"}
+                signerName={settings?.defaultSignerName || "Anita Rahman, CPA"}
+                companyName={settings?.companyName || "KAP Krisnawan, Nugroho & Fahmy"}
+                formatDateLong={formatDateLong}
+              />
+            )}
+          </div>
+          <DialogFooter className="gap-2 bg-muted/95 px-6 py-4 backdrop-blur border-t">
+            <Button variant="outline" onClick={() => setIsPrintOpen(false)}>
+              Tutup
+            </Button>
+            <Button onClick={handlePrintSuratTugas} disabled={!printLetter || !printAssignment}>
+              Print
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AdminLayout>
+  );
+}
+
+function SuratTugasPreview({
+  letter,
+  assignment,
+  headerSrc,
+  signerName,
+  companyName,
+  formatDateLong,
+}: {
+  letter: Letter;
+  assignment: LetterAssignment;
+  headerSrc: string;
+  signerName: string;
+  companyName: string;
+  formatDateLong: (value: Date | string) => string;
+}) {
+  const members = assignment.members ?? [];
+  const clientName = letter.client?.name ?? 'PT xxx';
+  const clientAddress = letter.client?.address ?? 'Alamatxx';
+  const introText = buildSuratTugasIntro(
+    assignment.title,
+    clientName,
+    assignment.auditPeriodText
+  );
+  const closingText = suratTugasClosingText;
+  return (
+    <div className="space-y-6 rounded-md bg-white p-6 text-black">
+      <div className="relative h-44">
+        <div
+          className="absolute inset-0 bg-cover bg-top"
+          style={{ backgroundImage: `url(${headerSrc})` }}
+        />
+      </div>
+      <div className="flex flex-col gap-3 text-sm md:flex-row md:items-start md:justify-between">
+        <div>No. {letter.letterNumber}</div>
+        <div>
+          Jakarta, {formatDateLong(letter.letterDate)}
+        </div>
+      </div>
+      <div className="text-sm">
+        <p>Yang Terhormat,</p>
+        <p className="font-semibold">{clientName}</p>
+        <p>{clientAddress}</p>
+      </div>
+      <div className="text-center font-semibold">
+        <p className="underline text-base md:text-lg">{assignment.title}</p>
+        <p className="underline text-base md:text-lg">{clientName}</p>
+        <p className="underline text-base md:text-lg">{assignment.auditPeriodText}</p>
+      </div>
+      <div className="text-sm space-y-3">
+        <p>Dengan hormat,</p>
+        <p className="whitespace-pre-line">{introText}</p>
+      </div>
+      <div className="text-sm">
+        <table className="w-full border-collapse">
+          <tbody>
+            {members.map((member, index) => (
+              <tr key={`${member.id}-${index}`}>
+                <td className="w-6 align-top">*</td>
+                <td className="pr-8 align-top">{member.name}</td>
+                <td className="align-top">{member.role}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="text-sm space-y-3">
+        <p className="whitespace-pre-line">{closingText}</p>
+      </div>
+      <div className="text-sm">
+        <p>Hormat kami,</p>
+        <p>{companyName}</p>
+        <div className="h-20" />
+        <p className="font-semibold">{signerName}</p>
+        <p>Rekan Penanggung Jawab</p>
+      </div>
+    </div>
   );
 }
 

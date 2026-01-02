@@ -9,6 +9,13 @@ export async function fetchLetters(): Promise<Letter[]> {
   return data.map(parseLetter);
 }
 
+export async function fetchLetterDetail(id: string): Promise<Letter> {
+  const data = await requestJson<Letter>(`/api/letters/${id}`, {
+    cache: "no-store",
+  });
+  return parseLetter(data);
+}
+
 export async function createLetter(payload: {
   clientId?: string | null;
   letterDate: Date;
@@ -17,6 +24,11 @@ export async function createLetter(payload: {
   subject: string;
   status: string;
   notes?: string;
+  assignment?: {
+    title: string;
+    auditPeriodText: string;
+    members: Array<{ name: string; role: string }>;
+  };
 }): Promise<Letter> {
   const data = await requestJson<Letter>("/api/letters", {
     method: "POST",
@@ -41,6 +53,11 @@ export async function updateLetter(
     letterNumber?: string;
     status?: string;
     notes?: string | null;
+    assignment?: {
+      title: string;
+      auditPeriodText: string;
+      members: Array<{ name: string; role: string }>;
+    };
   }
 ): Promise<Letter> {
   const data = await requestJson<Letter>(`/api/letters/${id}`, {
