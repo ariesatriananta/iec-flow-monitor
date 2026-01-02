@@ -26,6 +26,16 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -34,7 +44,7 @@ import {
 import { Plus, Search, MoreHorizontal, Pencil, Trash2, Building2 } from 'lucide-react';
 import type { Client } from '@/types';
 import { useToast } from '@/hooks/use-toast';
-import { createClient, fetchClients, updateClient } from '@/lib/api/clients';
+import { createClient, fetchClients, updateClient, deleteClient } from '@/lib/api/clients';
 
 export default function Clients() {
   const [clients, setClients] = useState<Client[]>([]);
@@ -44,6 +54,8 @@ export default function Clients() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [togglingClientId, setTogglingClientId] = useState<string | null>(null);
+  const [deletingClientId, setDeletingClientId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Client | null>(null);
   const [visibleCount, setVisibleCount] = useState(20);
   const { toast } = useToast();
 
@@ -181,6 +193,31 @@ export default function Clients() {
       });
     } finally {
       setTogglingClientId(null);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    setDeletingClientId(deleteTarget.id);
+    try {
+      await deleteClient(deleteTarget.id);
+      setClients(clients.filter((c) => c.id !== deleteTarget.id));
+      toast({
+        title: 'Client dihapus',
+        description: 'Data client berhasil dihapus',
+      });
+      setDeleteTarget(null);
+    } catch (error) {
+      toast({
+        title: 'Gagal menghapus client',
+        description:
+          error instanceof Error && error.message
+            ? error.message
+            : 'Client sedang digunakan di data lain',
+        variant: 'destructive',
+      });
+    } finally {
+      setDeletingClientId(null);
     }
   };
 
@@ -358,9 +395,13 @@ export default function Clients() {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                disabled={togglingClientId === client.id}
+                                disabled={
+                                  togglingClientId === client.id ||
+                                  deletingClientId === client.id
+                                }
                               >
-                                {togglingClientId === client.id ? (
+                                {togglingClientId === client.id ||
+                                deletingClientId === client.id ? (
                                   <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
                                 ) : (
                                   <MoreHorizontal className="w-4 h-4" />
@@ -379,6 +420,13 @@ export default function Clients() {
                               >
                                 <Trash2 className="w-4 h-4 mr-2" />
                                 {client.isActive ? 'Deactivate' : 'Activate'}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive"
+                                onClick={() => setDeleteTarget(client)}
+                              >
+                                <Trash2 className="w-4 h-4 mr-2" />
+                                Hapus
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -424,9 +472,13 @@ export default function Clients() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            disabled={togglingClientId === client.id}
+                            disabled={
+                              togglingClientId === client.id ||
+                              deletingClientId === client.id
+                            }
                           >
-                            {togglingClientId === client.id ? (
+                            {togglingClientId === client.id ||
+                            deletingClientId === client.id ? (
                               <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
                             ) : (
                               <MoreHorizontal className="w-4 h-4" />
@@ -445,6 +497,13 @@ export default function Clients() {
                           >
                             <Trash2 className="w-4 h-4 mr-2" />
                             {client.isActive ? 'Deactivate' : 'Activate'}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={() => setDeleteTarget(client)}
+                          >
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Hapus
                           </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -466,6 +525,37 @@ export default function Clients() {
           </div>
         </CardContent>
       </Card>
+      <AlertDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus Client</AlertDialogTitle>
+            <AlertDialogDescription>
+              Client{' '}
+              <span className="font-medium text-foreground">
+                {deleteTarget?.name}
+              </span>{' '}
+              akan dihapus permanen. Lanjutkan?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingClientId !== null}>
+              Batal
+            </AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmDelete}>
+              {deletingClientId ? (
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+              ) : (
+                'Hapus'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AdminLayout>
   );
 }

@@ -48,3 +48,10 @@ export async function updateClient(
   });
   return parseClient(data);
 }
+
+export async function deleteClient(id: string): Promise<Client> {
+  const data = await requestJson<Client>(`/api/clients/${id}`, {
+    method: "DELETE",
+  });
+  return parseClient(data);
+}
