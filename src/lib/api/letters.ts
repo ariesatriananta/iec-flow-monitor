@@ -13,6 +13,7 @@ export async function createLetter(payload: {
   clientId?: string | null;
   letterDate: Date;
   letterType: string;
+  hrgaCategory?: string | null;
   subject: string;
   status: string;
   notes?: string;
@@ -33,6 +34,8 @@ export async function updateLetter(
   payload: {
     letterDate?: Date;
     letterType?: string;
+    hrgaCategory?: string | null;
+    clientId?: string | null;
     subject?: string;
     seqNo?: number;
     letterNumber?: string;
@@ -44,6 +47,7 @@ export async function updateLetter(
     method: "PUT",
     body: JSON.stringify({
       ...payload,
+      clientId: payload.clientId ?? undefined,
       letterDate: payload.letterDate ? payload.letterDate.toISOString() : undefined,
     }),
   });

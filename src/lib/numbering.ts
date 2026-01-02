@@ -101,10 +101,18 @@ export function generateInvoiceNumber(params: {
 export function generateLetterNumber(params: {
   seqNo: number;
   letterDate: Date;
+  letterType: 'HRGA' | 'UMUM' | 'SURAT_TUGAS';
+  hrgaCategory?: 'EMPLOYEE' | 'INTERNSHIP';
 }): string {
-  const { seqNo, letterDate } = params;
+  const { seqNo, letterDate, letterType, hrgaCategory } = params;
   const { month, year } = getJakartaMonthYear(letterDate);
-  
+
+  if (letterType === 'HRGA') {
+    const categoryLabel =
+      hrgaCategory === 'INTERNSHIP' ? 'Intern' : 'Employee';
+    return `${padSeq(seqNo)}/AP.2137/${categoryLabel}/${romanMonth(month)}/${year}`;
+  }
+
   return `L.${padSeq(seqNo)}/AP.2137/${romanMonth(month)}/${year}`;
 }
 

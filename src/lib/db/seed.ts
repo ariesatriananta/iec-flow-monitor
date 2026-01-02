@@ -396,14 +396,64 @@ async function migrateNumbering() {
     .update(letters)
     .set({ letterType: "SURAT_TUGAS", updatedAt: new Date() })
     .where(eq(letters.letterType, "SURAT_JALAN"));
-  const lettersByYear = new Map<number, typeof letterRows>();
+
+  const hrgaByYear = new Map<number, typeof letterRows>();
+  const nonHrgaByYear = new Map<number, typeof letterRows>();
   for (const letter of letterRows) {
     const { year } = getJakartaMonthYear(new Date(letter.letterDate));
-    const group = lettersByYear.get(year) ?? [];
-    group.push(letter);
-    lettersByYear.set(year, group);
+    if (letter.letterType === "HRGA") {
+      const group = hrgaByYear.get(year) ?? [];
+      group.push(letter);
+      hrgaByYear.set(year, group);
+    } else {
+      const group = nonHrgaByYear.get(year) ?? [];
+      group.push(letter);
+      nonHrgaByYear.set(year, group);
+    }
   }
-  for (const items of lettersByYear.values()) {
+
+  for (const items of hrgaByYear.values()) {
+    items.sort((a, b) => {
+      const timeDiff =
+        new Date(a.letterDate).getTime() - new Date(b.letterDate).getTime();
+      if (timeDiff !== 0) return timeDiff;
+      return a.id.localeCompare(b.id);
+    });
+
+    const groupedByCategory = new Map<string, typeof items>();
+    for (let index = 0; index < items.length; index += 1) {
+      const letter = items[index];
+      const hrgaCategory =
+        letter.hrgaCategory ?? (index % 2 === 0 ? "EMPLOYEE" : "INTERNSHIP");
+      const group = groupedByCategory.get(hrgaCategory) ?? [];
+      group.push(letter);
+      groupedByCategory.set(hrgaCategory, group);
+    }
+
+    for (const [hrgaCategory, group] of groupedByCategory.entries()) {
+      for (let index = 0; index < group.length; index += 1) {
+        const letter = group[index];
+        const seqNo = index + 1;
+        const letterNumber = generateLetterNumber({
+          seqNo,
+          letterDate: new Date(letter.letterDate),
+          letterType: "HRGA",
+          hrgaCategory: hrgaCategory as "EMPLOYEE" | "INTERNSHIP",
+        });
+        await db
+          .update(letters)
+          .set({
+            seqNo,
+            letterNumber,
+            hrgaCategory,
+            updatedAt: new Date(),
+          })
+          .where(eq(letters.id, letter.id));
+      }
+    }
+  }
+
+  for (const items of nonHrgaByYear.values()) {
     items.sort((a, b) => {
       const timeDiff =
         new Date(a.letterDate).getTime() - new Date(b.letterDate).getTime();
@@ -416,6 +466,7 @@ async function migrateNumbering() {
       const letterNumber = generateLetterNumber({
         seqNo,
         letterDate: new Date(letter.letterDate),
+        letterType: letter.letterType as "UMUM" | "SURAT_TUGAS",
       });
       await db
         .update(letters)
@@ -559,6 +610,7 @@ async function seedLetters() {
           letterDate: letter.letterDate,
           clientId: resolvedClientId,
           letterType: letter.letterType,
+          hrgaCategory: letter.hrgaCategory ?? null,
           subject: letter.subject,
           seqNo: letter.seqNo,
           letterNumber: letter.letterNumber,
@@ -577,6 +629,7 @@ async function seedLetters() {
         letterDate: letter.letterDate,
         clientId: resolvedClientId,
         letterType: letter.letterType,
+        hrgaCategory: letter.hrgaCategory ?? null,
         subject: letter.subject,
         seqNo: letter.seqNo,
         letterNumber: letter.letterNumber,
@@ -591,6 +644,7 @@ async function seedLetters() {
           letterDate: letter.letterDate,
           clientId: resolvedClientId,
           letterType: letter.letterType,
+          hrgaCategory: letter.hrgaCategory ?? null,
           subject: letter.subject,
           seqNo: letter.seqNo,
           letterNumber: letter.letterNumber,

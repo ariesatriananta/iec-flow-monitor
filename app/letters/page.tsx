@@ -56,13 +56,14 @@ import {
   Search,
   MoreHorizontal,
   Eye,
+  Pencil,
   XCircle,
   Download,
   Filter,
   Mail,
   CalendarIcon,
 } from 'lucide-react';
-import type { Client, Letter, LetterType, LetterStatus } from '@/types';
+import type { Client, Letter, LetterType, LetterStatus, HrgaCategory } from '@/types';
 import { formatDate } from '@/lib/numbering';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
@@ -87,6 +88,7 @@ export default function Letters() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [selectedLetter, setSelectedLetter] = useState<Letter | null>(null);
+  const [editingLetter, setEditingLetter] = useState<Letter | null>(null);
   const [confirmVoid, setConfirmVoid] = useState<Letter | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -98,6 +100,7 @@ export default function Letters() {
     clientId: '',
     letterDate: new Date(),
     letterType: 'HRGA' as LetterType,
+    hrgaCategory: '' as HrgaCategory | '',
     subject: '',
     notes: '',
   });
@@ -151,9 +154,28 @@ export default function Letters() {
       clientId: '',
       letterDate: new Date(),
       letterType: 'HRGA',
+      hrgaCategory: '',
       subject: '',
       notes: '',
     });
+    setEditingLetter(null);
+  };
+
+  const handleOpenDialog = (letter?: Letter) => {
+    if (letter) {
+      setEditingLetter(letter);
+      setFormData({
+        clientId: letter.clientId ?? '',
+        letterDate: new Date(letter.letterDate),
+        letterType: letter.letterType,
+        hrgaCategory: letter.hrgaCategory ?? '',
+        subject: letter.subject,
+        notes: letter.notes ?? '',
+      });
+    } else {
+      resetForm();
+    }
+    setIsDialogOpen(true);
   };
 
   const handleOpenDetail = (letter: Letter) => {
@@ -179,21 +201,50 @@ export default function Letters() {
         return;
       }
 
-      const created = await createLetter({
-        letterDate: formData.letterDate,
-        clientId: formData.clientId || undefined,
-        letterType: formData.letterType,
-        subject: formData.subject,
-        status: 'ACTIVE',
-        notes: formData.notes,
-      });
-      setLetters([...letters, { ...created, client }]);
+      if (formData.letterType === 'HRGA' && !formData.hrgaCategory) {
+        toast({
+          title: 'Error',
+          description: 'Pilih kategori HRGA terlebih dahulu',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      if (editingLetter) {
+        const updated = await updateLetter(editingLetter.id, {
+          letterDate: formData.letterDate,
+          letterType: formData.letterType,
+          hrgaCategory: formData.hrgaCategory || null,
+          subject: formData.subject,
+          notes: formData.notes,
+          clientId: formData.clientId || null,
+        });
+        setLetters(
+          letters.map((l) => (l.id === updated.id ? { ...updated, client } : l))
+        );
+        toast({
+          title: 'Success',
+          description: `Surat ${updated.letterNumber} berhasil diupdate`,
+        });
+      } else {
+        const created = await createLetter({
+          letterDate: formData.letterDate,
+          clientId: formData.clientId || undefined,
+          letterType: formData.letterType,
+          hrgaCategory: formData.hrgaCategory || undefined,
+          subject: formData.subject,
+          status: 'ACTIVE',
+          notes: formData.notes,
+        });
+        setLetters([...letters, { ...created, client }]);
+        toast({
+          title: 'Success',
+          description: `Surat ${created.letterNumber} berhasil dibuat`,
+        });
+      }
+
       setIsDialogOpen(false);
       resetForm();
-      toast({
-        title: 'Success',
-        description: `Surat ${created.letterNumber} berhasil dibuat`,
-      });
     } catch (error) {
       toast({
         title: 'Error',
@@ -251,6 +302,12 @@ export default function Letters() {
       'No. Surat': letter.letterNumber,
       'Tgl Surat': formatDate(new Date(letter.letterDate)),
       'Tipe Surat': letterTypeLabels[letter.letterType],
+      'Kategori HRGA':
+        letter.letterType === 'HRGA'
+          ? letter.hrgaCategory === 'INTERNSHIP'
+            ? 'Internship'
+            : 'Employee'
+          : '',
       Client: letter.client?.name ?? '',
       Subject: letter.subject,
       Status: letter.status,
@@ -313,7 +370,7 @@ export default function Letters() {
               <Download className="w-4 h-4 mr-2" />
               Export Excel
             </Button>
-            <Button onClick={() => setIsDialogOpen(true)} className="w-full">
+            <Button onClick={() => handleOpenDialog()} className="w-full">
               <Plus className="w-4 h-4 mr-2" />
               Buat Surat
             </Button>
@@ -381,13 +438,20 @@ export default function Letters() {
                         </TableCell>
                         <TableCell>{formatDate(new Date(letter.letterDate))}</TableCell>
                         <TableCell>
-                          <Badge variant="outline" className={getLetterTypeColor(letter.letterType)}>
-                            {letterTypeLabels[letter.letterType]}
-                          </Badge>
+                          <div className="flex flex-col gap-1">
+                            <Badge variant="outline" className={getLetterTypeColor(letter.letterType)}>
+                              {letterTypeLabels[letter.letterType]}
+                            </Badge>
+                            {letter.letterType === 'HRGA' && (
+                              <span className="text-xs text-muted-foreground">
+                                {letter.hrgaCategory === 'INTERNSHIP' ? 'Internship' : 'Employee'}
+                              </span>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell>
                           <div>
-                            <p className="font-medium">{letter.client?.name}</p>
+                            <p className="font-medium">{letter.client?.name ?? '-'}</p>
                           </div>
                         </TableCell>
                         <TableCell className="max-w-[200px] truncate">{letter.subject}</TableCell>
@@ -410,6 +474,10 @@ export default function Letters() {
                             </DropdownMenuItem>
                               {letter.status === 'ACTIVE' && (
                                 <>
+                                  <DropdownMenuItem onClick={() => handleOpenDialog(letter)}>
+                                    <Pencil className="w-4 h-4 mr-2" />
+                                    Edit
+                                  </DropdownMenuItem>
                                   <DropdownMenuSeparator />
                                 <DropdownMenuItem
                                   className="text-destructive"
@@ -445,14 +513,21 @@ export default function Letters() {
                           {letter.letterNumber}
                         </p>
                         <p className="text-xs text-muted-foreground mt-2">Client</p>
-                        <p className="text-sm">{letter.client?.name}</p>
+                        <p className="text-sm">{letter.client?.name ?? '-'}</p>
                         <p className="text-xs text-muted-foreground mt-2">Subject</p>
                         <p className="text-sm">{letter.subject}</p>
                       </div>
                       <div className="flex flex-col items-end gap-2">
-                        <Badge variant="outline" className={getLetterTypeColor(letter.letterType)}>
-                          {letterTypeLabels[letter.letterType]}
-                        </Badge>
+                        <div className="flex flex-col items-end gap-1">
+                          <Badge variant="outline" className={getLetterTypeColor(letter.letterType)}>
+                            {letterTypeLabels[letter.letterType]}
+                          </Badge>
+                          {letter.letterType === 'HRGA' && (
+                            <span className="text-xs text-muted-foreground">
+                              {letter.hrgaCategory === 'INTERNSHIP' ? 'Internship' : 'Employee'}
+                            </span>
+                          )}
+                        </div>
                         <Badge className={getLetterStatusColor(letter.status)}>
                           {letter.status}
                         </Badge>
@@ -475,6 +550,10 @@ export default function Letters() {
                         </DropdownMenuItem>
                           {letter.status === 'ACTIVE' && (
                             <>
+                              <DropdownMenuItem onClick={() => handleOpenDialog(letter)}>
+                                <Pencil className="w-4 h-4 mr-2" />
+                                Edit
+                              </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
                                 className="text-destructive"
@@ -511,9 +590,13 @@ export default function Letters() {
         <DialogContent className="sm:max-w-[500px]">
           <form onSubmit={handleSubmit}>
             <DialogHeader>
-              <DialogTitle>Buat Surat Baru</DialogTitle>
+              <DialogTitle>
+                {editingLetter ? 'Edit Surat' : 'Buat Surat Baru'}
+              </DialogTitle>
               <DialogDescription>
-                Nomor surat akan di-generate otomatis
+                {editingLetter
+                  ? 'Update informasi surat yang dipilih.'
+                  : 'Nomor surat akan di-generate otomatis'}
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
@@ -526,8 +609,10 @@ export default function Letters() {
                       ...formData,
                       letterType: value as LetterType,
                       clientId: value === 'HRGA' ? '' : formData.clientId,
+                      hrgaCategory: value === 'HRGA' ? formData.hrgaCategory : '',
                     })
                   }
+                  disabled={!!editingLetter}
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -539,16 +624,35 @@ export default function Letters() {
                   </SelectContent>
                 </Select>
               </div>
+              {formData.letterType === 'HRGA' && (
+                <div className="space-y-2">
+                  <Label htmlFor="hrgaCategory">Kategori HRGA *</Label>
+                  <Select
+                    value={formData.hrgaCategory}
+                    onValueChange={(value) =>
+                      setFormData({ ...formData, hrgaCategory: value as HrgaCategory })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Pilih kategori" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="EMPLOYEE">Employee</SelectItem>
+                      <SelectItem value="INTERNSHIP">Internship</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="client">
-                    Client {formData.letterType === 'HRGA' ? '(opsional)' : '*'}
-                  </Label>
-                  <Select
-                    value={formData.clientId}
-                    onValueChange={(value) => setFormData({ ...formData, clientId: value })}
-                    disabled={formData.letterType === 'HRGA'}
-                  >
+                <Label htmlFor="client">
+                  Client {formData.letterType === 'HRGA' ? '(opsional)' : '*'}
+                </Label>
+                <Select
+                  value={formData.clientId}
+                  onValueChange={(value) => setFormData({ ...formData, clientId: value })}
+                  disabled={formData.letterType === 'HRGA'}
+                >
                     <SelectTrigger>
                       <SelectValue
                         placeholder={
@@ -568,9 +672,9 @@ export default function Letters() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Tanggal Surat *</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
+                <Label>Tanggal Surat *</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
                       <Button
                         variant="outline"
                         className={cn(
@@ -627,7 +731,7 @@ export default function Letters() {
                 {isSubmitting ? (
                   <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
                 ) : (
-                  'Buat Surat'
+                  editingLetter ? 'Simpan Perubahan' : 'Buat Surat'
                 )}
               </Button>
             </DialogFooter>
@@ -714,6 +818,13 @@ export default function Letters() {
                         >
                           {letterTypeLabels[selectedLetter.letterType]}
                         </Badge>
+                        {selectedLetter.letterType === 'HRGA' && (
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            {selectedLetter.hrgaCategory === 'INTERNSHIP'
+                              ? 'Internship'
+                              : 'Employee'}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -742,6 +853,16 @@ export default function Letters() {
                   <p className="text-xs uppercase text-muted-foreground">Subject</p>
                   <p className="mt-2 text-sm">{selectedLetter.subject}</p>
                 </div>
+                {selectedLetter.letterType === 'HRGA' && (
+                  <div>
+                    <p className="text-xs uppercase text-muted-foreground">Kategori HRGA</p>
+                    <p className="mt-2 text-sm">
+                      {selectedLetter.hrgaCategory === 'INTERNSHIP'
+                        ? 'Internship'
+                        : 'Employee'}
+                    </p>
+                  </div>
+                )}
                 {selectedLetter.notes && (
                   <div>
                     <p className="text-xs uppercase text-muted-foreground">Notes</p>

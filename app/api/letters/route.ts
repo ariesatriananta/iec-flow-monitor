@@ -38,17 +38,37 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
+  if (body.letterType === "HRGA" && !body?.hrgaCategory) {
+    return NextResponse.json(
+      { error: "Kategori HRGA wajib diisi" },
+      { status: 400 }
+    );
+  }
 
   const now = new Date();
   const letterDate = new Date(body.letterDate);
   const { year } = getJakartaMonthYear(letterDate);
   const db = getDb();
   const existingLetters = await db
-    .select({ letterDate: letters.letterDate, seqNo: letters.seqNo })
+    .select({
+      letterDate: letters.letterDate,
+      seqNo: letters.seqNo,
+      letterType: letters.letterType,
+      hrgaCategory: letters.hrgaCategory,
+    })
     .from(letters);
+
+  const isHrga = body.letterType === "HRGA";
   const sameYearLetters = existingLetters.filter((letter) => {
     const letterYear = getJakartaMonthYear(new Date(letter.letterDate));
-    return letterYear.year === year;
+    if (letterYear.year !== year) return false;
+    if (isHrga) {
+      return (
+        letter.letterType === "HRGA" &&
+        letter.hrgaCategory === body.hrgaCategory
+      );
+    }
+    return letter.letterType !== "HRGA";
   });
   const maxSeq = sameYearLetters.reduce(
     (acc, letter) => Math.max(acc, letter.seqNo ?? 0),
@@ -58,6 +78,8 @@ export async function POST(request: Request) {
   const letterNumber = generateLetterNumber({
     seqNo,
     letterDate,
+    letterType: body.letterType,
+    hrgaCategory: body.hrgaCategory,
   });
 
   const [created] = await db
@@ -67,6 +89,7 @@ export async function POST(request: Request) {
       letterDate,
       clientId: body.clientId ?? null,
       letterType: body.letterType,
+      hrgaCategory: body.hrgaCategory ?? null,
       subject: body.subject,
       seqNo,
       letterNumber,

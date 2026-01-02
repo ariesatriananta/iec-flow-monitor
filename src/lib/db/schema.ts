@@ -111,6 +111,7 @@ export const letters = pgTable(
     letterDate: timestamp("letter_date", { mode: "date" }).notNull(),
     clientId: text("client_id").references(() => clients.id),
     letterType: text("letter_type").notNull(),
+    hrgaCategory: text("hrga_category"),
     subject: text("subject").notNull(),
     seqNo: integer("seq_no").notNull(),
     letterNumber: text("letter_number").notNull(),

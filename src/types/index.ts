@@ -82,6 +82,8 @@ export interface Invoice {
 // Letter Type
 export type LetterType = 'HRGA' | 'UMUM' | 'SURAT_TUGAS';
 
+export type HrgaCategory = 'EMPLOYEE' | 'INTERNSHIP';
+
 // Letter Status
 export type LetterStatus = 'ACTIVE' | 'VOID' | 'CANCELLED';
 
@@ -92,6 +94,7 @@ export interface Letter {
   clientId?: string;
   client?: Client;
   letterType: LetterType;
+  hrgaCategory?: HrgaCategory | null;
   subject: string;
   seqNo: number;
   letterNumber: string;
