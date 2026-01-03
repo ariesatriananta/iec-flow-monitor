@@ -204,7 +204,7 @@ export default function Clients() {
       setClients(clients.filter((c) => c.id !== deleteTarget.id));
       toast({
         title: 'Client dihapus',
-        description: 'Data client berhasil dihapus',
+        description: 'Client dan seluruh data terkait berhasil dihapus',
       });
       setDeleteTarget(null);
     } catch (error) {
@@ -539,7 +539,8 @@ export default function Clients() {
               <span className="font-medium text-foreground">
                 {deleteTarget?.name}
               </span>{' '}
-              akan dihapus permanen. Lanjutkan?
+              akan dihapus permanen beserta seluruh data terkait (kontrak,
+              termin, invoice, surat). Lanjutkan?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

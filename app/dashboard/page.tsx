@@ -16,10 +16,10 @@ import {
 } from '@/components/ui/table';
 import { FileText, Receipt, TrendingUp, Clock, ArrowRight, Plus } from 'lucide-react';
 import { formatCurrency } from '@/lib/numbering';
-import { fetchDashboardKPI } from '@/lib/api/dashboard';
+import { fetchDashboardKPI, fetchDashboardMonthly } from '@/lib/api/dashboard';
 import { fetchContracts } from '@/lib/api/contracts';
 import { fetchInvoices } from '@/lib/api/invoices';
-import type { Contract, DashboardKPI, Invoice } from '@/types';
+import type { Contract, DashboardKPI, DashboardMonthlyDatum, Invoice } from '@/types';
 import { useRouter } from 'next/navigation';
 import {
   BarChart,
@@ -33,20 +33,12 @@ import {
   Line,
 } from 'recharts';
 
-const monthlyData = [
-  { month: 'Jul', contracts: 8, payments: 450000000 },
-  { month: 'Aug', contracts: 12, payments: 680000000 },
-  { month: 'Sep', contracts: 10, payments: 520000000 },
-  { month: 'Oct', contracts: 15, payments: 890000000 },
-  { month: 'Nov', contracts: 11, payments: 720000000 },
-  { month: 'Dec', contracts: 14, payments: 950000000 },
-];
-
 export default function Dashboard() {
   const router = useRouter();
   const [kpi, setKpi] = useState<DashboardKPI | null>(null);
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [monthlyData, setMonthlyData] = useState<DashboardMonthlyDatum[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [quickActionLoading, setQuickActionLoading] = useState<string | null>(null);
 
@@ -54,15 +46,17 @@ export default function Dashboard() {
     let active = true;
     const loadData = async () => {
       try {
-        const [kpiData, contractData, invoiceData] = await Promise.all([
+        const [kpiData, contractData, invoiceData, monthlyData] = await Promise.all([
           fetchDashboardKPI(),
           fetchContracts(),
           fetchInvoices(),
+          fetchDashboardMonthly(),
         ]);
         if (!active) return;
         setKpi(kpiData);
         setContracts(contractData);
         setInvoices(invoiceData);
+        setMonthlyData(monthlyData);
       } catch (error) {
         console.error(error);
       } finally {

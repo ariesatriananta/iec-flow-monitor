@@ -143,6 +143,12 @@ export interface DashboardKPI {
   pendingPayments: number;
 }
 
+export interface DashboardMonthlyDatum {
+  month: string;
+  contracts: number;
+  payments: number;
+}
+
 // Activity Types for Dashboard
 export interface RecentActivity {
   id: string;

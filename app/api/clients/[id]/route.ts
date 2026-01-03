@@ -1,9 +1,17 @@
 export const dynamic = "force-dynamic"
 
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { clients, contracts, invoices, letters, termins } from "@/lib/db/schema";
+import {
+  clients,
+  contracts,
+  invoices,
+  letters,
+  letterAssignments,
+  letterAssignmentMembers,
+  termins,
+} from "@/lib/db/schema";
 
 export async function GET(
   _request: Request,
@@ -74,68 +82,59 @@ export async function DELETE(
     return NextResponse.json({ error: "Client tidak ditemukan" }, { status: 404 });
   }
 
-  const [contract] = await db
-    .select({ id: contracts.id })
-    .from(contracts)
-    .where(eq(contracts.clientId, params.id))
-    .limit(1);
+  const result = await db.transaction(async (tx) => {
+    const contractRows = await tx
+      .select({ id: contracts.id })
+      .from(contracts)
+      .where(eq(contracts.clientId, params.id));
+    const contractIds = contractRows.map((row) => row.id);
 
-  if (contract) {
-    return NextResponse.json(
-      { error: "Sedang digunakan di data Contracts" },
-      { status: 400 }
-    );
-  }
+    if (contractIds.length > 0) {
+      await tx
+        .delete(invoices)
+        .where(inArray(invoices.contractId, contractIds));
+      await tx
+        .delete(termins)
+        .where(inArray(termins.contractId, contractIds));
+      await tx
+        .delete(contracts)
+        .where(inArray(contracts.id, contractIds));
+    }
 
-  const [letter] = await db
-    .select({ id: letters.id })
-    .from(letters)
-    .where(eq(letters.clientId, params.id))
-    .limit(1);
+    const letterRows = await tx
+      .select({ id: letters.id })
+      .from(letters)
+      .where(eq(letters.clientId, params.id));
+    const letterIds = letterRows.map((row) => row.id);
 
-  if (letter) {
-    return NextResponse.json(
-      { error: "Sedang digunakan di data Letters" },
-      { status: 400 }
-    );
-  }
+    if (letterIds.length > 0) {
+      const assignmentRows = await tx
+        .select({ id: letterAssignments.id })
+        .from(letterAssignments)
+        .where(inArray(letterAssignments.letterId, letterIds));
+      const assignmentIds = assignmentRows.map((row) => row.id);
+      if (assignmentIds.length > 0) {
+        await tx
+          .delete(letterAssignmentMembers)
+          .where(inArray(letterAssignmentMembers.assignmentId, assignmentIds));
+        await tx
+          .delete(letterAssignments)
+          .where(inArray(letterAssignments.id, assignmentIds));
+      }
+      await tx.delete(letters).where(inArray(letters.id, letterIds));
+    }
 
-  const [termin] = await db
-    .select({ id: termins.id })
-    .from(termins)
-    .innerJoin(contracts, eq(termins.contractId, contracts.id))
-    .where(eq(contracts.clientId, params.id))
-    .limit(1);
+    const [deleted] = await tx
+      .delete(clients)
+      .where(eq(clients.id, params.id))
+      .returning();
 
-  if (termin) {
-    return NextResponse.json(
-      { error: "Sedang digunakan di data Termins" },
-      { status: 400 }
-    );
-  }
+    return deleted;
+  });
 
-  const [invoice] = await db
-    .select({ id: invoices.id })
-    .from(invoices)
-    .innerJoin(contracts, eq(invoices.contractId, contracts.id))
-    .where(eq(contracts.clientId, params.id))
-    .limit(1);
-
-  if (invoice) {
-    return NextResponse.json(
-      { error: "Sedang digunakan di data Invoices" },
-      { status: 400 }
-    );
-  }
-
-  const [deleted] = await db
-    .delete(clients)
-    .where(eq(clients.id, params.id))
-    .returning();
-
-  if (!deleted) {
+  if (!result) {
     return NextResponse.json({ error: "Client tidak ditemukan" }, { status: 404 });
   }
 
-  return NextResponse.json(deleted);
+  return NextResponse.json(result);
 }
