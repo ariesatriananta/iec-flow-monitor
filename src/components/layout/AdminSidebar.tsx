@@ -12,10 +12,13 @@ import {
   UserCog,
   ChevronLeft,
   ChevronRight,
-  Building2
+  Building2,
+  Pause,
+  Play
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useRouteLoading } from '@/contexts/RouteLoadingContext';
+import { useGlobalAudio } from '@/contexts/GlobalAudioContext';
 
 const navItems = [
   {
@@ -60,6 +63,7 @@ export function AdminSidebar({ variant = 'default', onNavigate }: AdminSidebarPr
   const [collapsed, setCollapsed] = useState(false);
   const pathname = usePathname();
   const { loadingHref, setRouteLoading } = useRouteLoading();
+  const { isPlaying, progress, toggle, seek } = useGlobalAudio();
 
   const isCollapsed = allowCollapse ? collapsed : false;
 
@@ -152,16 +156,59 @@ export function AdminSidebar({ variant = 'default', onNavigate }: AdminSidebarPr
       </nav>
 
       {/* Footer */}
-      <div className="p-4 border-t border-sidebar-border text-xs text-muted-foreground">
+      <div className="border-t border-sidebar-border px-4 py-3">
+        {isCollapsed ? (
+          <button
+            onClick={toggle}
+            className="mx-auto flex h-9 w-9 items-center justify-center rounded-full border border-sidebar-border text-sidebar-foreground/80 transition hover:text-sidebar-foreground"
+            aria-label={isPlaying ? 'Pause audio' : 'Play audio'}
+          >
+            {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+          </button>
+        ) : (
+          <div className="flex items-center gap-2 rounded-full border border-sidebar-border/60 bg-sidebar-accent/30 px-2 py-1 text-xs text-sidebar-foreground/80">
+            <button
+              onClick={toggle}
+              className="flex h-7 w-7 items-center justify-center rounded-full border border-sidebar-border text-sidebar-foreground/80 transition hover:text-sidebar-foreground"
+              aria-label={isPlaying ? 'Pause audio' : 'Play audio'}
+            >
+              {isPlaying ? (
+                <Pause className="h-3.5 w-3.5" />
+              ) : (
+                <Play className="h-3.5 w-3.5" />
+              )}
+            </button>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={0.5}
+              value={progress}
+              onInput={(event) => seek(Number(event.currentTarget.value))}
+              className="h-1 w-full accent-primary"
+              aria-label="Audio seekbar"
+            />
+          </div>
+        )}
+      </div>
+      <div className="px-4 pb-4 text-[11px] text-sidebar-foreground/70">
         {!isCollapsed ? (
-          <div className="flex items-center justify-between">
-            <span>© {new Date().getFullYear()} IECNET</span>
-            <span>All rights reserved</span>
+          <div className="rounded-md border border-sidebar-border/60 bg-sidebar-accent/20 px-3 py-2">
+            <div className="flex items-center justify-between font-medium text-sidebar-foreground/80">
+              <span>IECNET</span>
+              <span>© {new Date().getFullYear()}</span>
+            </div>
+            <div className="mt-1 text-[10px] uppercase tracking-[0.2em] text-sidebar-foreground/60">
+              All rights reserved
+            </div>
           </div>
         ) : (
-          <span>©</span>
+          <div className="rounded-md border border-sidebar-border/60 bg-sidebar-accent/20 px-2 py-2 text-center">
+            ©
+          </div>
         )}
       </div>
     </aside>
   );
 }
+

@@ -8,6 +8,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider } from "next-themes";
 import { RouteLoadingProvider } from "@/contexts/RouteLoadingContext";
+import { GlobalAudioProvider } from "@/contexts/GlobalAudioContext";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient());
@@ -18,9 +19,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem>
           <RouteLoadingProvider>
             <AuthProvider>
-              <Toaster />
-              <Sonner />
-              {children}
+              <GlobalAudioProvider>
+                <Toaster />
+                <Sonner />
+                {children}
+              </GlobalAudioProvider>
             </AuthProvider>
           </RouteLoadingProvider>
         </ThemeProvider>
