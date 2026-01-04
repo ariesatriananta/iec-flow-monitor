@@ -300,3 +300,49 @@ export async function PUT(
 
   return NextResponse.json(updated);
 }
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: { id: string } }
+) {
+  const db = getDb();
+  const [existing] = await db
+    .select({ id: letters.id, letterType: letters.letterType })
+    .from(letters)
+    .where(eq(letters.id, params.id))
+    .limit(1);
+
+  if (!existing) {
+    return NextResponse.json({ error: "Letter tidak ditemukan" }, { status: 404 });
+  }
+
+  const deleted = await db.transaction(async (tx) => {
+    if (existing.letterType === "SURAT_TUGAS") {
+      const [assignmentRow] = await tx
+        .select({ id: letterAssignments.id })
+        .from(letterAssignments)
+        .where(eq(letterAssignments.letterId, params.id))
+        .limit(1);
+      if (assignmentRow) {
+        await tx
+          .delete(letterAssignmentMembers)
+          .where(eq(letterAssignmentMembers.assignmentId, assignmentRow.id));
+        await tx
+          .delete(letterAssignments)
+          .where(eq(letterAssignments.id, assignmentRow.id));
+      }
+    }
+
+    const [removed] = await tx
+      .delete(letters)
+      .where(eq(letters.id, params.id))
+      .returning();
+    return removed;
+  });
+
+  if (!deleted) {
+    return NextResponse.json({ error: "Letter tidak ditemukan" }, { status: 404 });
+  }
+
+  return NextResponse.json(deleted);
+}

@@ -32,6 +32,7 @@ const getJakartaDate = (date: Date) =>
 export async function GET() {
   const db = getDb();
   const jakartaNow = getJakartaDate(new Date());
+  const currentYear = jakartaNow.getFullYear();
   const months: Array<{
     key: string;
     month: string;
@@ -39,15 +40,9 @@ export async function GET() {
     payments: number;
   }> = [];
 
-  for (let offset = 5; offset >= 0; offset -= 1) {
-    const base = new Date(
-      jakartaNow.getFullYear(),
-      jakartaNow.getMonth() - offset,
-      1
-    );
-    const { month, year } = getJakartaMonthYear(base);
+  for (let month = 1; month <= 12; month += 1) {
     months.push({
-      key: `${year}-${month}`,
+      key: `${currentYear}-${month}`,
       month: MONTH_LABELS[month - 1] ?? "",
       contracts: 0,
       payments: 0,

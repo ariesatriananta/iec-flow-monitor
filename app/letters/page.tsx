@@ -79,6 +79,7 @@ import { cn } from '@/lib/utils';
 import { fetchClients } from '@/lib/api/clients';
 import {
   createLetter,
+  deleteLetter,
   fetchLetterDetail,
   fetchLetters,
   updateLetter,
@@ -125,8 +126,10 @@ export default function Letters() {
   const [selectedLetter, setSelectedLetter] = useState<Letter | null>(null);
   const [editingLetter, setEditingLetter] = useState<Letter | null>(null);
   const [confirmVoid, setConfirmVoid] = useState<Letter | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<Letter | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [visibleCount, setVisibleCount] = useState(20);
   const [settings, setSettings] = useState<SettingsPayload | null>(null);
   const [assignmentForm, setAssignmentForm] = useState(createEmptyAssignment());
@@ -192,7 +195,7 @@ export default function Letters() {
     let active = true;
     const loadHeader = async () => {
       try {
-        const response = await fetch('/invoice-header.jpg');
+        const response = await fetch('/invoice-header.png');
         const blob = await response.blob();
         const reader = new FileReader();
         reader.onload = () => {
@@ -425,6 +428,32 @@ export default function Letters() {
     await handleVoidLetter(letter);
   };
 
+  const handleConfirmDelete = async () => {
+    if (!confirmDelete) return;
+    const letter = confirmDelete;
+    setIsDeleting(true);
+    try {
+      await deleteLetter(letter.id);
+      setLetters(letters.filter((item) => item.id !== letter.id));
+      toast({
+        title: 'Surat dihapus',
+        description: `Surat ${letter.letterNumber} berhasil dihapus`,
+      });
+    } catch (error) {
+      toast({
+        title: 'Gagal menghapus surat',
+        description:
+          error instanceof Error && error.message
+            ? error.message
+            : 'Terjadi kesalahan saat menghapus surat',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDeleting(false);
+      setConfirmDelete(null);
+    }
+  };
+
   const handleExportExcel = () => {
     const formatDateTime = (value: Date | string) =>
       new Date(value)
@@ -539,7 +568,7 @@ export default function Letters() {
     if (!printLetter || !printAssignment) return;
     const printWindow = window.open('', '_blank', 'width=1000,height=800');
     if (!printWindow) return;
-    const headerUrl = headerDataUrl || `${window.location.origin}/invoice-header.jpg`;
+    const headerUrl = headerDataUrl || `${window.location.origin}/invoice-header.png`;
     const letterDate = formatDateLong(printLetter.letterDate);
     const clientName = printLetter.client?.name ?? 'PT xxx';
     const clientAddress = printLetter.client?.address ?? 'Alamatxx';
@@ -796,15 +825,23 @@ export default function Letters() {
                                     Edit
                                   </DropdownMenuItem>
                                   <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                  className="text-destructive"
-                                  onClick={() => setConfirmVoid(letter)}
-                                >
-                                  <XCircle className="w-4 h-4 mr-2" />
-                                  Void Surat
-                                </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    className="text-destructive"
+                                    onClick={() => setConfirmVoid(letter)}
+                                  >
+                                    <XCircle className="w-4 h-4 mr-2" />
+                                    Void Surat
+                                  </DropdownMenuItem>
                                 </>
                               )}
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                className="text-destructive"
+                                onClick={() => setConfirmDelete(letter)}
+                              >
+                                <XCircle className="w-4 h-4 mr-2" />
+                                Hapus Surat
+                              </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </TableCell>
@@ -892,6 +929,14 @@ export default function Letters() {
                               </DropdownMenuItem>
                             </>
                           )}
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="text-destructive"
+                            onClick={() => setConfirmDelete(letter)}
+                          >
+                            <XCircle className="w-4 h-4 mr-2" />
+                            Hapus Surat
+                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
@@ -1183,6 +1228,28 @@ export default function Letters() {
         </AlertDialogContent>
       </AlertDialog>
 
+      <AlertDialog open={confirmDelete !== null} onOpenChange={() => setConfirmDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus Surat</AlertDialogTitle>
+            <AlertDialogDescription>
+              Surat{" "}
+              <span className="font-mono">{confirmDelete?.letterNumber}</span> akan dihapus permanen. Lanjutkan?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmDelete} disabled={isDeleting}>
+              {isDeleting ? (
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+              ) : (
+                'Hapus'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Detail Dialog */}
       <Dialog
         open={isDetailOpen}
@@ -1335,7 +1402,7 @@ export default function Letters() {
               <SuratTugasPreview
                 letter={printLetter}
                 assignment={printAssignment}
-                headerSrc={headerDataUrl || "/invoice-header.jpg"}
+                headerSrc={headerDataUrl || "/invoice-header.png"}
                 signerName={settings?.defaultSignerName || "Anita Rahman, CPA"}
                 companyName={settings?.companyName || "KAP Krisnawan, Nugroho & Fahmy"}
                 formatDateLong={formatDateLong}

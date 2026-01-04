@@ -153,7 +153,7 @@ export default function Invoices() {
     let active = true;
     const loadHeader = async () => {
       try {
-        const response = await fetch('/invoice-header.jpg');
+        const response = await fetch('/invoice-header.png');
         const blob = await response.blob();
         const reader = new FileReader();
         reader.onload = () => {
@@ -308,7 +308,7 @@ export default function Invoices() {
     const data = getInvoicePreviewData(selectedInvoice);
     const printWindow = window.open('', '_blank', 'width=1000,height=800');
     if (!printWindow) return;
-    const headerUrl = headerDataUrl || `${window.location.origin}/invoice-header.jpg`;
+    const headerUrl = headerDataUrl || `${window.location.origin}/invoice-header.png`;
     const logoUrl = data.companyLogoUrl || `${window.location.origin}/logo-1.png`;
     const descriptionHtml = data.description.replace(/\n/g, '<br/>');
     const html = `
@@ -757,7 +757,7 @@ export default function Invoices() {
               <InvoicePreview
                 invoice={selectedInvoice}
                 data={getInvoicePreviewData(selectedInvoice)}
-                headerSrc={headerDataUrl || "/invoice-header.jpg"}
+                headerSrc={headerDataUrl || "/invoice-header.png"}
               />
             )}
           </div>

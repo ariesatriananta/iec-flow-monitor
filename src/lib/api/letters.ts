@@ -70,3 +70,10 @@ export async function updateLetter(
   });
   return parseLetter(data);
 }
+
+export async function deleteLetter(id: string): Promise<Letter> {
+  const data = await requestJson<Letter>(`/api/letters/${id}`, {
+    method: "DELETE",
+  });
+  return parseLetter(data);
+}

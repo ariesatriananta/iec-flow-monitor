@@ -143,7 +143,7 @@ export default function Dashboard() {
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Contracts per Month</CardTitle>
-            <CardDescription>Jumlah kontrak 6 bulan terakhir</CardDescription>
+            <CardDescription>Jumlah kontrak tahun ini</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="h-56 md:h-64">
@@ -170,7 +170,7 @@ export default function Dashboard() {
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Payment Trend</CardTitle>
-            <CardDescription>Trend pembayaran 6 bulan terakhir</CardDescription>
+            <CardDescription>Trend pembayaran tahun ini</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="h-56 md:h-64">

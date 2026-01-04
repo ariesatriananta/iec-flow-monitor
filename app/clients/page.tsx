@@ -59,9 +59,24 @@ export default function Clients() {
   const [visibleCount, setVisibleCount] = useState(20);
   const { toast } = useToast();
 
+  const npwpPattern = /^\d{2}\.\d{3}\.\d{3}\.\d-\d{3}\.\d{3}$/;
+
+  const formatNpwp = (value: string) => {
+    const digits = value.replace(/\D/g, '').slice(0, 15);
+    if (!digits) return '';
+    let result = digits.slice(0, 2);
+    if (digits.length > 2) result += `.${digits.slice(2, 5)}`;
+    if (digits.length > 5) result += `.${digits.slice(5, 8)}`;
+    if (digits.length > 8) result += `.${digits.slice(8, 9)}`;
+    if (digits.length > 9) result += `-${digits.slice(9, 12)}`;
+    if (digits.length > 12) result += `.${digits.slice(12, 15)}`;
+    return result;
+  };
+
   // Form state
   const [formData, setFormData] = useState({
     name: '',
+    npwp: '',
     address: '',
     picName: '',
     email: '',
@@ -103,6 +118,7 @@ export default function Clients() {
   const resetForm = () => {
     setFormData({
       name: '',
+      npwp: '',
       address: '',
       picName: '',
       email: '',
@@ -116,6 +132,7 @@ export default function Clients() {
       setEditingClient(client);
       setFormData({
         name: client.name,
+        npwp: client.npwp || '',
         address: client.address || '',
         picName: client.picName || '',
         email: client.email || '',
@@ -129,6 +146,14 @@ export default function Clients() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (formData.npwp && !npwpPattern.test(formData.npwp)) {
+      toast({
+        title: 'Format NPWP tidak valid',
+        description: 'Gunakan format 12.345.678.9-012.345',
+        variant: 'destructive',
+      });
+      return;
+    }
     setIsSubmitting(true);
     
     try {
@@ -174,6 +199,7 @@ export default function Clients() {
     try {
       const updated = await updateClient(client.id, {
         name: client.name,
+        npwp: client.npwp,
         address: client.address,
         picName: client.picName,
         email: client.email,
@@ -267,6 +293,24 @@ export default function Clients() {
                     />
                   </div>
                   <div className="space-y-2">
+                    <Label htmlFor="npwp">NPWP</Label>
+                    <Input
+                      id="npwp"
+                      value={formData.npwp}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          npwp: formatNpwp(e.target.value),
+                        })
+                      }
+                      placeholder="12.345.678.9-012.345"
+                      inputMode="numeric"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Format: 12.345.678.9-012.345
+                    </p>
+                  </div>
+                  <div className="space-y-2">
                     <Label htmlFor="address">Alamat</Label>
                     <Input
                       id="address"
@@ -355,6 +399,7 @@ export default function Clients() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Nama Perusahaan</TableHead>
+                    <TableHead>NPWP</TableHead>
                     <TableHead>PIC</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Status</TableHead>
@@ -364,7 +409,7 @@ export default function Clients() {
                 <TableBody>
                   {filteredClients.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center py-8">
+                      <TableCell colSpan={6} className="text-center py-8">
                         <div className="flex flex-col items-center gap-2 text-muted-foreground">
                           <Building2 className="w-8 h-8" />
                           <p>Tidak ada client ditemukan</p>
@@ -375,6 +420,7 @@ export default function Clients() {
                   visibleClients.map((client) => (
                     <TableRow key={client.id}>
                         <TableCell>{client.name}</TableCell>
+                        <TableCell>{client.npwp || '-'}</TableCell>
                         <TableCell>{client.picName || '-'}</TableCell>
                         <TableCell>{client.email || '-'}</TableCell>
                         <TableCell>
@@ -450,6 +496,8 @@ export default function Clients() {
                       <div>
                         <p className="text-xs text-muted-foreground">Nama Perusahaan</p>
                         <p className="font-medium">{client.name}</p>
+                        <p className="text-xs text-muted-foreground mt-2">NPWP</p>
+                        <p className="text-sm">{client.npwp || '-'}</p>
                         <p className="text-xs text-muted-foreground mt-2">PIC</p>
                         <p className="text-sm">{client.picName || '-'}</p>
                         <p className="text-xs text-muted-foreground mt-2">Email</p>

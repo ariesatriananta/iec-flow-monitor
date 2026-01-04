@@ -138,6 +138,7 @@ async function seedClients() {
         .set({
           name: client.name,
           code: client.code,
+          npwp: client.npwp ?? null,
           address: client.address ?? null,
           picName: client.picName ?? null,
           email: client.email ?? null,
@@ -155,6 +156,7 @@ async function seedClients() {
         id: client.id,
         name: client.name,
         code: client.code,
+        npwp: client.npwp ?? null,
         address: client.address ?? null,
         picName: client.picName ?? null,
         email: client.email ?? null,
@@ -168,6 +170,7 @@ async function seedClients() {
         set: {
           name: client.name,
           code: client.code,
+          npwp: client.npwp ?? null,
           address: client.address ?? null,
           picName: client.picName ?? null,
           email: client.email ?? null,

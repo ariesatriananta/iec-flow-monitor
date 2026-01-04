@@ -36,10 +36,18 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   const body = await request.json();
+  const npwp = typeof body?.npwp === "string" ? body.npwp.trim() : "";
 
   if (!body?.name) {
     return NextResponse.json(
       { error: "name wajib diisi" },
+      { status: 400 }
+    );
+  }
+
+  if (npwp && !/^\d{2}\.\d{3}\.\d{3}\.\d-\d{3}\.\d{3}$/.test(npwp)) {
+    return NextResponse.json(
+      { error: "Format NPWP tidak valid" },
       { status: 400 }
     );
   }
@@ -49,6 +57,7 @@ export async function PUT(
     .update(clients)
     .set({
       name: body.name,
+      npwp: npwp || null,
       address: body.address ?? null,
       picName: body.picName ?? null,
       email: body.email ?? null,

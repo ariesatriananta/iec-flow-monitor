@@ -3,6 +3,7 @@ export interface Client {
   id: string;
   name: string;
   code: string;
+  npwp?: string;
   address?: string;
   picName?: string;
   email?: string;

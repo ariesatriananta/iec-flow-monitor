@@ -15,6 +15,7 @@ export const clients = pgTable(
     id: text("id").primaryKey(),
     name: text("name").notNull(),
     code: text("code").notNull(),
+    npwp: text("npwp"),
     address: text("address"),
     picName: text("pic_name"),
     email: text("email"),
