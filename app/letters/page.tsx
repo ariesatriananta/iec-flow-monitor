@@ -92,6 +92,12 @@ const letterTypeLabels: Record<LetterType, string> = {
   SURAT_TUGAS: 'Surat Tugas',
 };
 
+const hrgaCategoryLabels: Record<HrgaCategory, string> = {
+  PERMANEN: 'Permanen',
+  NON_PERMANEN: 'Non-Permanen',
+  INTERNSHIP: 'Internship',
+};
+
 const createEmptyAssignment = () => ({
   title: 'Penugasan Jasa Audit Laporan Keuangan.',
   auditPeriodText: 'Untuk Tahun yang Berakhir .....',
@@ -439,9 +445,7 @@ export default function Letters() {
       'Tipe Surat': letterTypeLabels[letter.letterType],
       'Kategori HRGA':
         letter.letterType === 'HRGA'
-          ? letter.hrgaCategory === 'INTERNSHIP'
-            ? 'Internship'
-            : 'Employee'
+          ? hrgaCategoryLabels[letter.hrgaCategory ?? 'PERMANEN']
           : '',
       Client: letter.client?.name ?? '',
       Subject: letter.subject,
@@ -565,18 +569,18 @@ export default function Letters() {
           <style>
             @page { size: A4; margin: 20mm; }
             :root { --primary: #1e4e8c; --muted: #6b7280; }
-            body { font-family: "Segoe UI", Arial, sans-serif; color: #111; background: #fff; }
+            body { font-family: Arial, sans-serif; color: #111; background: #fff; }
             .header { position: relative; height: 180px; margin-bottom: 24px; }
             .header-bg { position: absolute; inset: 0; background-image: url('${headerUrl}'); background-size: cover; background-position: top center; }
-            .content { font-size: 12px; line-height: 1.6; }
+            .content { font-size: 14px; line-height: 1.6; }
             .meta { display: flex; justify-content: space-between; margin-bottom: 16px; }
             .title { text-align: center; font-weight: 700; margin: 24px 0; }
-            .title-line { font-size: 16px; }
-            .title-client { font-size: 16px; }
-            .title-period { font-size: 16px; }
+            .title-line { font-size: 15px; }
+            .title-client { font-size: 15px; }
+            .title-period { font-size: 15px; }
             .title .line { text-decoration: underline; }
             .signature { margin-top: 36px; }
-            .signature .name { margin-top: 64px; font-weight: 700; }
+            .signature .name { margin-top: 90px; font-weight: 700; }
             .members { margin: 16px 0 20px; }
             table { width: 100%; border-collapse: collapse; }
             @media print {
@@ -599,9 +603,9 @@ export default function Letters() {
               <div>${clientAddress}</div>
             </div>
             <div class="title">
-              <div class="line title-line">${printAssignment.title}</div>
-              <div class="line title-client">${clientName}</div>
-              <div class="line title-period">${printAssignment.auditPeriodText}</div>
+              <div class="title-line">${printAssignment.title}</div>
+              <div class="title-client">${clientName}</div>
+              <div class="title-period">${printAssignment.auditPeriodText}</div>
             </div>
             <div>Dengan hormat,</div>
             <p>${introText}</p>
@@ -746,7 +750,9 @@ export default function Letters() {
                             </Badge>
                             {letter.letterType === 'HRGA' && (
                               <span className="text-xs text-muted-foreground">
-                                {letter.hrgaCategory === 'INTERNSHIP' ? 'Internship' : 'Employee'}
+                                {letter.hrgaCategory
+                                  ? hrgaCategoryLabels[letter.hrgaCategory]
+                                  : 'Permanen'}
                               </span>
                             )}
                           </div>
@@ -835,7 +841,9 @@ export default function Letters() {
                           </Badge>
                           {letter.letterType === 'HRGA' && (
                             <span className="text-xs text-muted-foreground">
-                              {letter.hrgaCategory === 'INTERNSHIP' ? 'Internship' : 'Employee'}
+                              {letter.hrgaCategory
+                                ? hrgaCategoryLabels[letter.hrgaCategory]
+                                : 'Permanen'}
                             </span>
                           )}
                         </div>
@@ -962,12 +970,13 @@ export default function Letters() {
                     <SelectTrigger>
                       <SelectValue placeholder="Pilih kategori" />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="EMPLOYEE">Employee</SelectItem>
-                      <SelectItem value="INTERNSHIP">Internship</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                  <SelectContent>
+                    <SelectItem value="PERMANEN">Permanen</SelectItem>
+                    <SelectItem value="NON_PERMANEN">Non-Permanen</SelectItem>
+                    <SelectItem value="INTERNSHIP">Internship</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               )}
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="space-y-2">
@@ -1237,9 +1246,9 @@ export default function Letters() {
                         </Badge>
                         {selectedLetter.letterType === 'HRGA' && (
                           <p className="mt-2 text-xs text-muted-foreground">
-                            {selectedLetter.hrgaCategory === 'INTERNSHIP'
-                              ? 'Internship'
-                              : 'Employee'}
+                            {selectedLetter.hrgaCategory
+                              ? hrgaCategoryLabels[selectedLetter.hrgaCategory]
+                              : 'Permanen'}
                           </p>
                         )}
                       </div>
@@ -1274,9 +1283,9 @@ export default function Letters() {
                   <div>
                     <p className="text-xs uppercase text-muted-foreground">Kategori HRGA</p>
                     <p className="mt-2 text-sm">
-                      {selectedLetter.hrgaCategory === 'INTERNSHIP'
-                        ? 'Internship'
-                        : 'Employee'}
+                      {selectedLetter.hrgaCategory
+                        ? hrgaCategoryLabels[selectedLetter.hrgaCategory]
+                        : 'Permanen'}
                     </p>
                   </div>
                 )}
@@ -1372,7 +1381,7 @@ function SuratTugasPreview({
   );
   const closingText = suratTugasClosingText;
   return (
-    <div className="space-y-6 rounded-md bg-white p-6 text-black">
+    <div className="space-y-6 rounded-md bg-white p-6 text-black font-[Arial]">
       <div className="relative h-44">
         <div
           className="absolute inset-0 bg-cover bg-top"
@@ -1391,9 +1400,9 @@ function SuratTugasPreview({
         <p>{clientAddress}</p>
       </div>
       <div className="text-center font-semibold">
-        <p className="underline text-base md:text-lg">{assignment.title}</p>
-        <p className="underline text-base md:text-lg">{clientName}</p>
-        <p className="underline text-base md:text-lg">{assignment.auditPeriodText}</p>
+        <p className="text-base ">{assignment.title}</p>
+        <p className="text-base ">{clientName}</p>
+        <p className="text-base ">{assignment.auditPeriodText}</p>
       </div>
       <div className="text-sm space-y-3">
         <p>Dengan hormat,</p>
@@ -1418,7 +1427,7 @@ function SuratTugasPreview({
       <div className="text-sm">
         <p>Hormat kami,</p>
         <p>{companyName}</p>
-        <div className="h-20" />
+        <div className="h-32" />
         <p className="font-semibold">{signerName}</p>
         <p>Rekan Penanggung Jawab</p>
       </div>

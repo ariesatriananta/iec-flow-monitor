@@ -102,14 +102,18 @@ export function generateLetterNumber(params: {
   seqNo: number;
   letterDate: Date;
   letterType: 'HRGA' | 'UMUM' | 'SURAT_TUGAS';
-  hrgaCategory?: 'EMPLOYEE' | 'INTERNSHIP';
+  hrgaCategory?: 'PERMANEN' | 'NON_PERMANEN' | 'INTERNSHIP';
 }): string {
   const { seqNo, letterDate, letterType, hrgaCategory } = params;
   const { month, year } = getJakartaMonthYear(letterDate);
 
   if (letterType === 'HRGA') {
     const categoryLabel =
-      hrgaCategory === 'INTERNSHIP' ? 'Intern' : 'Employee';
+      hrgaCategory === 'NON_PERMANEN'
+        ? 'Employee-B'
+        : hrgaCategory === 'INTERNSHIP'
+        ? 'Employee-C'
+        : 'Employee-A';
     return `${padSeq(seqNo)}/AP.2137/${categoryLabel}/${romanMonth(month)}/${year}`;
   }
 

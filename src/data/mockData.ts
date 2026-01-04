@@ -260,7 +260,7 @@ export const mockLetters: Letter[] = [
     clientId: '1',
     client: mockClients[0],
     letterType: 'HRGA',
-    hrgaCategory: 'EMPLOYEE',
+    hrgaCategory: 'PERMANEN',
     subject: 'Surat Penugasan Tim Audit',
     seqNo: 1,
     letterNumber: 'L.001/AP.2137/XII/2024',

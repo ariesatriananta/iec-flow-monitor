@@ -88,10 +88,7 @@ export async function POST(request: Request) {
     const letterYear = getJakartaMonthYear(new Date(letter.letterDate));
     if (letterYear.year !== year) return false;
     if (isHrga) {
-      return (
-        letter.letterType === "HRGA" &&
-        letter.hrgaCategory === body.hrgaCategory
-      );
+      return letter.letterType === "HRGA";
     }
     return letter.letterType !== "HRGA";
   });

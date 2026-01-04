@@ -82,7 +82,7 @@ export interface Invoice {
 // Letter Type
 export type LetterType = 'HRGA' | 'UMUM' | 'SURAT_TUGAS';
 
-export type HrgaCategory = 'EMPLOYEE' | 'INTERNSHIP';
+export type HrgaCategory = 'PERMANEN' | 'NON_PERMANEN' | 'INTERNSHIP';
 
 // Letter Status
 export type LetterStatus = 'ACTIVE' | 'VOID' | 'CANCELLED';

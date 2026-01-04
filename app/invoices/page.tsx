@@ -368,7 +368,7 @@ export default function Invoices() {
               .kw-label { width: 180px; }
               .kw-box { border: 0.5px solid var(--border); padding: 6px 10px; display: inline-block; }
             .kw-amount { font-size: 14px; font-weight: 700; }
-            .spacer { height: 100px; }
+            .spacer { height: 120px; }
           </style>
         </head>
         <body>
@@ -443,8 +443,8 @@ export default function Invoices() {
                   <div>KAP KRISNAWAN, NUGROHO & FAHMY</div>
                   <div>BANK MANDIRI</div>
                   <div>KCP JAKARTA LEBAK BULUS</div>
-                  <div>Bukti transfer email office.rasunasaid@knfdts.id</div>
                   <div>No. Rekening 101-00-1469009-1</div>
+                  <div>Bukti transfer email office.rasunasaid@knfdts.id</div>
                 </td>
                 <td class="sign" style="width: 176px;">
                   <div>Jakarta, ${data.invoiceDate}</div>
@@ -894,12 +894,12 @@ function InvoicePreview({
                   <p>KAP KRISNAWAN, NUGROHO & FAHMY</p>
                   <p>BANK MANDIRI</p>
                   <p>KCP JAKARTA LEBAK BULUS</p>
-                  <p>Bukti transfer email ke office.rasunasaid@knfdts.id</p>
                   <p>No. Rekening 101-00-1469009-1</p>
+                  <p>Bukti transfer email ke office.rasunasaid@knfdts.id</p>
                 </td>
                   <td className="border-b border-slate-300 p-3 align-top text-right w-[40%]">
                     <p>Jakarta, {data.invoiceDate}</p>
-                  <div className="h-28" />
+                  <div className="h-32" />
                   <p>{data.signerName}</p>
                 </td>
               </tr>

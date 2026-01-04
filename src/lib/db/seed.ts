@@ -431,37 +431,33 @@ async function migrateNumbering() {
       if (timeDiff !== 0) return timeDiff;
       return a.id.localeCompare(b.id);
     });
-
-    const groupedByCategory = new Map<string, typeof items>();
     for (let index = 0; index < items.length; index += 1) {
       const letter = items[index];
+      const rawCategory = letter.hrgaCategory ?? "";
       const hrgaCategory =
-        letter.hrgaCategory ?? (index % 2 === 0 ? "EMPLOYEE" : "INTERNSHIP");
-      const group = groupedByCategory.get(hrgaCategory) ?? [];
-      group.push(letter);
-      groupedByCategory.set(hrgaCategory, group);
-    }
-
-    for (const [hrgaCategory, group] of groupedByCategory.entries()) {
-      for (let index = 0; index < group.length; index += 1) {
-        const letter = group[index];
-        const seqNo = index + 1;
-        const letterNumber = generateLetterNumber({
+        rawCategory === "NON_PERMANEN" || rawCategory === "PERMANEN" || rawCategory === "INTERNSHIP"
+          ? rawCategory
+          : rawCategory === "EMPLOYEE"
+          ? "PERMANEN"
+          : rawCategory === "INTERNSHIP"
+          ? "INTERNSHIP"
+          : "PERMANEN";
+      const seqNo = index + 1;
+      const letterNumber = generateLetterNumber({
+        seqNo,
+        letterDate: new Date(letter.letterDate),
+        letterType: "HRGA",
+        hrgaCategory: hrgaCategory as "PERMANEN" | "NON_PERMANEN" | "INTERNSHIP",
+      });
+      await db
+        .update(letters)
+        .set({
           seqNo,
-          letterDate: new Date(letter.letterDate),
-          letterType: "HRGA",
-          hrgaCategory: hrgaCategory as "EMPLOYEE" | "INTERNSHIP",
-        });
-        await db
-          .update(letters)
-          .set({
-            seqNo,
-            letterNumber,
-            hrgaCategory,
-            updatedAt: new Date(),
-          })
-          .where(eq(letters.id, letter.id));
-      }
+          letterNumber,
+          hrgaCategory,
+          updatedAt: new Date(),
+        })
+        .where(eq(letters.id, letter.id));
     }
   }
 

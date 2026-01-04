@@ -209,10 +209,7 @@ export async function PUT(
       const letterYear = getJakartaMonthYear(new Date(letter.letterDate)).year;
       if (letterYear !== year) return false;
       if (nextLetterType === "HRGA") {
-        return (
-          letter.letterType === "HRGA" &&
-          letter.hrgaCategory === nextHrgaCategory
-        );
+        return letter.letterType === "HRGA";
       }
       return letter.letterType !== "HRGA";
     });
