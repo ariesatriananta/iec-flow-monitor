@@ -106,7 +106,8 @@ export async function PUT(
   const nextLetterDate = body.letterDate
     ? new Date(body.letterDate)
     : new Date(existing.letterDate);
-  const nextClientId = body.clientId ?? existing.clientId;
+  const nextClientId =
+    body.clientId !== undefined ? body.clientId : existing.clientId;
 
   if (nextLetterType === "HRGA" && !nextHrgaCategory) {
     return NextResponse.json(
@@ -114,7 +115,7 @@ export async function PUT(
       { status: 400 }
     );
   }
-  if (nextLetterType !== "HRGA" && !nextClientId) {
+  if (nextLetterType === "SURAT_TUGAS" && !nextClientId) {
     return NextResponse.json(
       { error: "Client wajib diisi untuk tipe surat ini" },
       { status: 400 }

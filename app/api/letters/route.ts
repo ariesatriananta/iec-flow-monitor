@@ -31,7 +31,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const requiresClient = body.letterType !== "HRGA";
+  const requiresClient = body.letterType === "SURAT_TUGAS";
   if (requiresClient && !body?.clientId) {
     return NextResponse.json(
       { error: "Client wajib diisi untuk tipe surat ini" },

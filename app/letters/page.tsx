@@ -285,7 +285,7 @@ export default function Letters() {
     setIsSubmitting(true);
 
     try {
-      const requiresClient = formData.letterType !== 'HRGA';
+      const requiresClient = formData.letterType === 'SURAT_TUGAS';
       const client = formData.clientId
         ? clients.find((c) => c.id === formData.clientId)
         : undefined;
@@ -983,7 +983,8 @@ export default function Letters() {
                       setFormData({
                         ...formData,
                         letterType: nextType,
-                        clientId: nextType === 'HRGA' ? '' : formData.clientId,
+                        clientId:
+                          nextType === 'SURAT_TUGAS' ? formData.clientId : '',
                         hrgaCategory: nextType === 'HRGA' ? formData.hrgaCategory : '',
                       });
                       if (nextType === 'SURAT_TUGAS') {
@@ -1026,7 +1027,12 @@ export default function Letters() {
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                 <Label htmlFor="client">
-                  Client {formData.letterType === 'HRGA' ? '(opsional)' : '*'}
+                  Client{' '}
+                  {formData.letterType === 'SURAT_TUGAS' ? (
+                    <span className="text-destructive">*</span>
+                  ) : (
+                    '(opsional)'
+                  )}
                 </Label>
                 <Select
                   value={formData.clientId}
@@ -1036,7 +1042,9 @@ export default function Letters() {
                     <SelectTrigger>
                       <SelectValue
                         placeholder={
-                          formData.letterType === 'HRGA' ? 'Tidak wajib' : 'Pilih Client'
+                          formData.letterType === 'SURAT_TUGAS'
+                            ? 'Pilih Client'
+                            : 'Tidak wajib'
                         }
                       />
                     </SelectTrigger>
@@ -1258,13 +1266,14 @@ export default function Letters() {
           if (!open) setSelectedLetter(null);
         }}
       >
-        <DialogContent className="sm:max-w-[640px] p-0">
+        <DialogContent className="sm:max-w-[640px] max-h-[85vh] p-0 flex flex-col">
           <DialogHeader className="border-b border-border/60 px-6 py-5">
             <DialogTitle>Detail Surat</DialogTitle>
             <DialogDescription>Ringkasan informasi surat terpilih</DialogDescription>
           </DialogHeader>
           {selectedLetter && (
-            <div className="px-6 pb-6 pt-4 space-y-5">
+            <div className="flex-1 overflow-y-auto">
+              <div className="px-6 pb-6 pt-4 space-y-5">
               {(settings?.companyLogoUrl || settings?.companyName || settings?.companyAddress) && (
                 <div className="rounded-xl border border-border/60 bg-muted/40 p-4">
                   <div className="flex items-center gap-4">
@@ -1364,6 +1373,7 @@ export default function Letters() {
                     </p>
                   </div>
                 )}
+              </div>
               </div>
             </div>
           )}
