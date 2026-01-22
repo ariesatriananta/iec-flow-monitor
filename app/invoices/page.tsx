@@ -291,7 +291,7 @@ export default function Invoices() {
       ppn,
       ppnRate,
       total,
-      terbilang: terbilang(total).toUpperCase(),
+      terbilang: `${terbilang(total).toUpperCase()} RUPIAH`,
       signerName: settings?.defaultSignerName || 'Anita Rahman, CPA',
       companyName: settings?.companyName || '',
       companyAddress: settings?.companyAddress || '',
