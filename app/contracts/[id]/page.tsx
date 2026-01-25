@@ -118,6 +118,10 @@ export default function ContractDetail() {
     () => termins.filter((t) => t.status === 'PAID').reduce((sum, t) => sum + t.terminAmount, 0),
     [termins]
   );
+  const totalTerminAmount = useMemo(
+    () => termins.reduce((sum, t) => sum + t.terminAmount, 0),
+    [termins]
+  );
 
   const paymentProgress = useMemo(
     () => (contract ? calculatePercentage(totalPaid, contract.contractValue) : 0),
@@ -178,10 +182,27 @@ export default function ContractDetail() {
 
     try {
       const amount = parseFloat(terminFormData.terminAmount.replace(/[^0-9]/g, ''));
+      const remaining = contract.contractValue - totalTerminAmount;
       if (isNaN(amount) || amount <= 0) {
         toast({
           title: 'Error',
           description: 'Masukkan nominal yang valid',
+          variant: 'destructive',
+        });
+        return;
+      }
+      if (contract.contractValue > 0 && totalTerminAmount >= contract.contractValue) {
+        toast({
+          title: 'Error',
+          description: 'Nilai kontrak sudah terpenuhi, tidak bisa tambah termin lagi',
+          variant: 'destructive',
+        });
+        return;
+      }
+      if (contract.contractValue > 0 && amount > remaining) {
+        toast({
+          title: 'Error',
+          description: 'Nominal termin melebihi sisa nilai kontrak',
           variant: 'destructive',
         });
         return;
@@ -582,7 +603,14 @@ export default function ContractDetail() {
                 <CardDescription>Daftar pembayaran bertahap</CardDescription>
               </div>
               {contract.status === 'ACTIVE' && (
-                <Button onClick={() => setIsTerminDialogOpen(true)} className="w-full md:w-auto">
+                <Button
+                  onClick={() => setIsTerminDialogOpen(true)}
+                  className="w-full md:w-auto"
+                  disabled={
+                    contract.contractValue > 0 &&
+                    totalTerminAmount >= contract.contractValue
+                  }
+                >
                   <Plus className="w-4 h-4 mr-2" />
                   Tambah Termin
                 </Button>
