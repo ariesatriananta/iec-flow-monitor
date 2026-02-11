@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, type ComponentType } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -10,6 +10,13 @@ import {
   Receipt,
   Mail,
   UserCog,
+  Calendar,
+  FileCheck,
+  Plane,
+  Wallet,
+  GitBranch,
+  Clock3,
+  Scale,
   ChevronLeft,
   ChevronRight,
   Building2,
@@ -20,37 +27,103 @@ import { cn } from '@/lib/utils';
 import { useRouteLoading } from '@/contexts/RouteLoadingContext';
 import { useGlobalAudio } from '@/contexts/GlobalAudioContext';
 
-const navItems = [
+type NavItem = {
+  title: string;
+  href: string;
+  icon: ComponentType<{ className?: string }>;
+};
+
+type NavSection = {
+  title: string;
+  items: NavItem[];
+};
+
+const navSections: NavSection[] = [
   {
-    title: 'Dashboard',
-    href: '/dashboard',
-    icon: LayoutDashboard
+    title: 'Business Operations',
+    items: [
+      {
+        title: 'Dashboard',
+        href: '/dashboard',
+        icon: LayoutDashboard
+      },
+      {
+        title: 'Clients',
+        href: '/clients',
+        icon: Building2
+      },
+      {
+        title: 'Contracts',
+        href: '/contracts',
+        icon: FileText
+      },
+      {
+        title: 'Invoices',
+        href: '/invoices',
+        icon: Receipt
+      },
+      {
+        title: 'Letters',
+        href: '/letters',
+        icon: Mail
+      },
+    ],
   },
   {
-    title: 'Clients',
-    href: '/clients',
-    icon: Building2
+    title: 'Human Resources',
+    items: [
+      {
+        title: 'Employees',
+        href: '/employees',
+        icon: Users
+      },
+      {
+        title: 'Attendance',
+        href: '/attendance',
+        icon: Calendar
+      },
+      {
+        title: 'Leave Management',
+        href: '/leave-management',
+        icon: FileCheck
+      },
+      {
+        title: 'Business Trip',
+        href: '/business-trip',
+        icon: Plane
+      },
+      {
+        title: 'Reimbursement',
+        href: '/reimbursement',
+        icon: Wallet
+      },
+    ],
   },
   {
-    title: 'Contracts',
-    href: '/contracts',
-    icon: FileText
+    title: 'Settings',
+    items: [
+      {
+        title: 'Users',
+        href: '/users',
+        icon: UserCog
+      },
+      {
+        title: 'Approval Flow',
+        href: '/settings/approval-flow',
+        icon: GitBranch
+      },
+      {
+        title: 'Work Schedule',
+        href: '/settings/work-schedule',
+        icon: Clock3
+      },
+      {
+        title: 'Reimbursement Limit',
+        href: '/settings/reimbursement-limit',
+        icon: Scale
+      },
+    ],
   },
-  {
-    title: 'Invoices',
-    href: '/invoices',
-    icon: Receipt
-  },
-  {
-    title: 'Letters',
-    href: '/letters',
-    icon: Mail
-  },
-  {
-    title: 'Users',
-    href: '/users',
-    icon: UserCog
-  }
 ];
 
 interface AdminSidebarProps {
@@ -119,40 +192,51 @@ export function AdminSidebar({ variant = 'default', onNavigate }: AdminSidebarPr
 
       {/* Navigation */}
       <nav className="flex-1 py-4 overflow-y-auto">
-        <ul className="space-y-1 px-2">
-          {navItems.map((item) => {
-            const isActive =
-              pathname === item.href ||
-              (item.href !== '/dashboard' && pathname.startsWith(item.href));
-            const isLoading = loadingHref === item.href;
-            
-            return (
-              <li key={item.href}>
-                <Link
-                  href={item.href}
-                  className={cn(
-                    'flex items-center gap-3 px-3 py-2.5 rounded-md transition-colors',
-                    'hover:bg-sidebar-accent',
-                    isActive && 'bg-sidebar-accent font-medium'
-                  )}
-                  onClick={() => {
-                    if (!isActive) {
-                      setRouteLoading(item.href);
-                    }
-                    onNavigate?.();
-                  }}
-                  title={isCollapsed ? item.title : undefined}
-                >
-                  <item.icon className="w-5 h-5 flex-shrink-0" />
-                  {!isCollapsed && <span className="flex-1">{item.title}</span>}
-                  {!isCollapsed && isLoading && (
-                    <span className="ml-auto h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                  )}
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+        <div className="space-y-4 px-2">
+          {navSections.map((section) => (
+            <div key={section.title}>
+              {!isCollapsed && (
+                <p className="px-3 pb-1 text-[11px] uppercase tracking-[0.16em] text-sidebar-foreground/65">
+                  {section.title}
+                </p>
+              )}
+              <ul className="space-y-1">
+                {section.items.map((item) => {
+                  const isActive =
+                    pathname === item.href ||
+                    (item.href !== '/dashboard' && pathname.startsWith(item.href));
+                  const isLoading = loadingHref === item.href;
+
+                  return (
+                    <li key={item.href}>
+                      <Link
+                        href={item.href}
+                        className={cn(
+                          'flex items-center gap-3 px-3 py-2.5 rounded-md transition-colors',
+                          'hover:bg-sidebar-accent',
+                          isActive && 'bg-sidebar-accent font-medium'
+                        )}
+                        onClick={() => {
+                          if (!isActive) {
+                            setRouteLoading(item.href);
+                          }
+                          onNavigate?.();
+                        }}
+                        title={isCollapsed ? item.title : undefined}
+                      >
+                        <item.icon className="w-5 h-5 flex-shrink-0" />
+                        {!isCollapsed && <span className="flex-1">{item.title}</span>}
+                        {!isCollapsed && isLoading && (
+                          <span className="ml-auto h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                        )}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+        </div>
       </nav>
 
       {/* Footer */}
