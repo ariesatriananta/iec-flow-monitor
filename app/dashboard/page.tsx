@@ -21,6 +21,7 @@ import { fetchContracts } from '@/lib/api/contracts';
 import { fetchInvoices } from '@/lib/api/invoices';
 import type { Contract, DashboardKPI, DashboardMonthlyDatum, Invoice } from '@/types';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   BarChart,
   Bar,
@@ -35,6 +36,7 @@ import {
 
 export default function Dashboard() {
   const router = useRouter();
+  const { user } = useAuth();
   const [kpi, setKpi] = useState<DashboardKPI | null>(null);
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -46,17 +48,26 @@ export default function Dashboard() {
     let active = true;
     const loadData = async () => {
       try {
-        const [kpiData, contractData, invoiceData, monthlyData] = await Promise.all([
+        const [kpiData, monthly] = await Promise.all([
           fetchDashboardKPI(),
-          fetchContracts(),
-          fetchInvoices(),
           fetchDashboardMonthly(),
         ]);
         if (!active) return;
         setKpi(kpiData);
-        setContracts(contractData);
-        setInvoices(invoiceData);
-        setMonthlyData(monthlyData);
+        setMonthlyData(monthly);
+
+        if (user?.role === 'ADMIN') {
+          const [contractData, invoiceData] = await Promise.all([
+            fetchContracts(),
+            fetchInvoices(),
+          ]);
+          if (!active) return;
+          setContracts(contractData);
+          setInvoices(invoiceData);
+        } else {
+          setContracts([]);
+          setInvoices([]);
+        }
       } catch (error) {
         console.error(error);
       } finally {
@@ -67,7 +78,7 @@ export default function Dashboard() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [user?.role]);
 
   const kpiSafe: DashboardKPI = kpi ?? {
     totalContracts: 0,
@@ -205,6 +216,7 @@ export default function Dashboard() {
       </div>
 
       {/* Quick Actions */}
+      {user?.role === 'ADMIN' && (
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <Button
           variant="outline"
@@ -261,8 +273,10 @@ export default function Dashboard() {
           <ArrowRight className="w-4 h-4 text-muted-foreground" />
         </Button>
       </div>
+      )}
 
       {/* Recent Activities */}
+      {user?.role === 'ADMIN' ? (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Recent Contracts */}
         <Card>
@@ -436,6 +450,7 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+      ) : null}
     </AdminLayout>
   );
 }

@@ -8,6 +8,11 @@ import type {
   Letter,
   LetterAssignment,
   LetterAssignmentMember,
+  Employee,
+  AttendanceRecord,
+  LeaveRequest,
+  BusinessTrip,
+  Reimbursement,
 } from "@/types";
 
 const toDate = (value: string | Date): Date => {
@@ -76,4 +81,46 @@ export const parseContract = (data: Contract): Contract => ({
   updatedAt: toDate(data.updatedAt),
   client: data.client ? parseClient(data.client) : undefined,
   termins: data.termins ? data.termins.map(parseTermin) : undefined,
+});
+
+export const parseEmployee = (data: Employee): Employee => ({
+  ...data,
+  createdAt: toDate(data.createdAt),
+  updatedAt: toDate(data.updatedAt),
+});
+
+export const parseAttendanceRecord = (data: AttendanceRecord): AttendanceRecord => ({
+  ...data,
+  attendanceDate: toDate(data.attendanceDate),
+  checkInAt: data.checkInAt ? toDate(data.checkInAt) : null,
+  checkOutAt: data.checkOutAt ? toDate(data.checkOutAt) : null,
+  createdAt: toDate(data.createdAt),
+  updatedAt: toDate(data.updatedAt),
+});
+
+export const parseLeaveRequest = (data: LeaveRequest): LeaveRequest => ({
+  ...data,
+  startDate: toDate(data.startDate),
+  endDate: toDate(data.endDate),
+  approvedAt: data.approvedAt ? toDate(data.approvedAt) : null,
+  createdAt: toDate(data.createdAt),
+  updatedAt: toDate(data.updatedAt),
+});
+
+export const parseBusinessTrip = (data: BusinessTrip): BusinessTrip => ({
+  ...data,
+  startDate: toDate(data.startDate),
+  endDate: toDate(data.endDate),
+  approvedAt: data.approvedAt ? toDate(data.approvedAt) : null,
+  createdAt: toDate(data.createdAt),
+  updatedAt: toDate(data.updatedAt),
+});
+
+export const parseReimbursement = (data: Reimbursement): Reimbursement => ({
+  ...data,
+  amount: toNumber(data.amount),
+  approvedAt: data.approvedAt ? toDate(data.approvedAt) : null,
+  paidAt: data.paidAt ? toDate(data.paidAt) : null,
+  createdAt: toDate(data.createdAt),
+  updatedAt: toDate(data.updatedAt),
 });

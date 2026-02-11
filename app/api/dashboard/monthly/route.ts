@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { contracts, termins } from "@/lib/db/schema";
+import { requireSessionUser } from "@/lib/auth/server";
 import { getJakartaMonthYear } from "@/lib/numbering";
 
 const MONTH_LABELS = [
@@ -30,6 +31,9 @@ const getJakartaDate = (date: Date) =>
   new Date(date.toLocaleString("en-US", { timeZone: "Asia/Jakarta" }));
 
 export async function GET() {
+  const auth = await requireSessionUser();
+  if ("response" in auth) return auth.response;
+
   const db = getDb();
   const jakartaNow = getJakartaDate(new Date());
   const currentYear = jakartaNow.getFullYear();
@@ -50,6 +54,9 @@ export async function GET() {
   }
 
   const monthMap = new Map(months.map((item) => [item.key, item]));
+  if (auth.user.role !== "ADMIN") {
+    return NextResponse.json(months);
+  }
 
   const contractRows = await db
     .select({ proposalDate: contracts.proposalDate })

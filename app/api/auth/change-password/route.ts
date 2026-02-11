@@ -1,15 +1,17 @@
 export const dynamic = "force-dynamic"
 
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { getDb } from "@/lib/db";
 import { users } from "@/lib/db/schema";
+import { parseSessionToken, SESSION_COOKIE_NAME } from "@/lib/auth/session";
 
 export async function POST(request: Request) {
   const body = await request.json();
 
-  if (!body?.username || !body?.currentPassword || !body?.newPassword) {
+  if (!body?.currentPassword || !body?.newPassword) {
     return NextResponse.json(
       { error: "Data belum lengkap" },
       { status: 400 }
@@ -23,11 +25,20 @@ export async function POST(request: Request) {
     );
   }
 
+  const token = cookies().get(SESSION_COOKIE_NAME)?.value;
+  const session = parseSessionToken(token);
+  if (!session) {
+    return NextResponse.json(
+      { error: "Sesi login tidak valid" },
+      { status: 401 }
+    );
+  }
+
   const db = getDb();
   const [user] = await db
     .select()
     .from(users)
-    .where(eq(users.username, body.username))
+    .where(eq(users.id, session.sub))
     .limit(1);
 
   if (!user) {

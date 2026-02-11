@@ -26,8 +26,8 @@ export function AdminHeader({ title, onOpenSidebar }: AdminHeaderProps) {
   const { theme, setTheme } = useTheme();
   const isDark = theme === 'dark';
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     router.push('/login');
   };
 

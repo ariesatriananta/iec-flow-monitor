@@ -5,8 +5,12 @@ import { and, eq, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { clients, contracts } from "@/lib/db/schema";
 import { generateProposalNumber } from "@/lib/numbering";
+import { requireAdmin } from "@/lib/auth/server";
 
 export async function GET() {
+  const auth = await requireAdmin();
+  if ("response" in auth) return auth.response;
+
   const db = getDb();
   const rows = await db
     .select({ contract: contracts, client: clients })
@@ -22,6 +26,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const auth = await requireAdmin();
+  if ("response" in auth) return auth.response;
+
   const body = await request.json();
 
   if (

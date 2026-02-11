@@ -29,6 +29,7 @@ Placeholder untuk Neon Postgres (belum dipakai sekarang):
 
 ```env
 DATABASE_URL=""
+SESSION_SECRET=""
 ```
 
 ## Database (Neon + Drizzle)

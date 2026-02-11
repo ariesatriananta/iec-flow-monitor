@@ -4,11 +4,15 @@ import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { invoices } from "@/lib/db/schema";
+import { requireAdmin } from "@/lib/auth/server";
 
 export async function PUT(
   request: Request,
   { params }: { params: { id: string } }
 ) {
+  const auth = await requireAdmin();
+  if ("response" in auth) return auth.response;
+
   const body = await request.json();
 
   if (!body) {

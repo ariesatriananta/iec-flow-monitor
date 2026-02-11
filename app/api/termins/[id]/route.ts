@@ -6,6 +6,7 @@ import { getDb } from "@/lib/db";
 import { contracts, termins } from "@/lib/db/schema";
 import { invoices } from "@/lib/db/schema";
 import { generateInvoiceNumber, getJakartaMonthYear } from "@/lib/numbering";
+import { requireAdmin } from "@/lib/auth/server";
 
 async function updateContractPaymentStatus(db: ReturnType<typeof getDb>, contractId: string) {
   const [contract] = await db
@@ -43,6 +44,9 @@ export async function PUT(
   request: Request,
   { params }: { params: { id: string } }
 ) {
+  const auth = await requireAdmin();
+  if ("response" in auth) return auth.response;
+
   const body = await request.json();
 
   if (!body) {
@@ -169,6 +173,9 @@ export async function DELETE(
   _request: Request,
   { params }: { params: { id: string } }
 ) {
+  const auth = await requireAdmin();
+  if ("response" in auth) return auth.response;
+
   const db = getDb();
   const [existing] = await db
     .select({ contractId: termins.contractId })

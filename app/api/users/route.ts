@@ -5,8 +5,12 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import bcrypt from "bcryptjs";
+import { requireAdmin } from "@/lib/auth/server";
 
 export async function GET() {
+  const auth = await requireAdmin();
+  if ("response" in auth) return auth.response;
+
   const db = getDb();
   const rows = await db
     .select({
@@ -22,6 +26,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const auth = await requireAdmin();
+  if ("response" in auth) return auth.response;
+
   const body = await request.json();
 
   if (!body?.username || !body?.name || !body?.password) {
@@ -46,6 +53,7 @@ export async function POST(request: Request) {
   }
 
   const now = new Date();
+  const role = body.role === "STAFF" ? "STAFF" : "ADMIN";
   const passwordHash = await bcrypt.hash(body.password, 10);
   const [created] = await db
     .insert(users)
@@ -53,7 +61,7 @@ export async function POST(request: Request) {
       id: crypto.randomUUID(),
       username: body.username,
       name: body.name,
-      role: "ADMIN",
+      role,
       passwordHash,
       createdAt: now,
       updatedAt: now,

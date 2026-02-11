@@ -1,10 +1,16 @@
 export const dynamic = "force-dynamic"
 
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { getDb } from "@/lib/db";
 import { users } from "@/lib/db/schema";
+import {
+  createSessionToken,
+  sessionCookieOptions,
+  SESSION_COOKIE_NAME,
+} from "@/lib/auth/session";
 
 export async function POST(request: Request) {
   const body = await request.json();
@@ -38,11 +44,19 @@ export async function POST(request: Request) {
     );
   }
 
+  const role = user.role === "STAFF" ? "STAFF" : "ADMIN";
+  const token = createSessionToken({
+    userId: user.id,
+    role,
+  });
+
+  cookies().set(SESSION_COOKIE_NAME, token, sessionCookieOptions);
+
   return NextResponse.json({
     id: user.id,
     username: user.username,
     name: user.name,
-    role: user.role,
+    role,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
   });

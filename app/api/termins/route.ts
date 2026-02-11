@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { and, eq, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { contracts, termins } from "@/lib/db/schema";
+import { requireAdmin } from "@/lib/auth/server";
 
 async function updateContractPaymentStatus(db: ReturnType<typeof getDb>, contractId: string) {
   const [contract] = await db
@@ -38,6 +39,9 @@ async function updateContractPaymentStatus(db: ReturnType<typeof getDb>, contrac
 }
 
 export async function GET(request: Request) {
+  const auth = await requireAdmin();
+  if ("response" in auth) return auth.response;
+
   const { searchParams } = new URL(request.url);
   const contractId = searchParams.get("contractId");
 
@@ -54,6 +58,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const auth = await requireAdmin();
+  if ("response" in auth) return auth.response;
+
   const body = await request.json();
 
   if (!body?.contractId || !body?.terminName || body?.terminAmount === undefined) {

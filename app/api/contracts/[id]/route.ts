@@ -4,11 +4,15 @@ import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { clients, contracts, termins } from "@/lib/db/schema";
+import { requireAdmin } from "@/lib/auth/server";
 
 export async function GET(
   _request: Request,
   { params }: { params: { id: string } }
 ) {
+  const auth = await requireAdmin();
+  if ("response" in auth) return auth.response;
+
   const db = getDb();
   const [row] = await db
     .select({ contract: contracts, client: clients })
@@ -37,6 +41,9 @@ export async function PUT(
   request: Request,
   { params }: { params: { id: string } }
 ) {
+  const auth = await requireAdmin();
+  if ("response" in auth) return auth.response;
+
   const body = await request.json();
 
   if (!body) {

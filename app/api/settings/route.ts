@@ -4,14 +4,21 @@ import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { settings } from "@/lib/db/schema";
+import { requireAdmin } from "@/lib/auth/server";
 
 export async function GET() {
+  const auth = await requireAdmin();
+  if ("response" in auth) return auth.response;
+
   const db = getDb();
   const [row] = await db.select().from(settings).limit(1);
   return NextResponse.json(row ?? null);
 }
 
 export async function PUT(request: Request) {
+  const auth = await requireAdmin();
+  if ("response" in auth) return auth.response;
+
   const body = await request.json();
 
   if (!body) {

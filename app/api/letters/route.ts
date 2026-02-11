@@ -5,8 +5,12 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { clients, letters, letterAssignments, letterAssignmentMembers } from "@/lib/db/schema";
 import { generateLetterNumber, getJakartaMonthYear } from "@/lib/numbering";
+import { requireAdmin } from "@/lib/auth/server";
 
 export async function GET() {
+  const auth = await requireAdmin();
+  if ("response" in auth) return auth.response;
+
   const db = getDb();
   const rows = await db
     .select({ letter: letters, client: clients })
@@ -22,6 +26,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const auth = await requireAdmin();
+  if ("response" in auth) return auth.response;
+
   const body = await request.json();
 
   if (!body?.letterDate || !body?.letterType || !body?.subject || !body?.status) {

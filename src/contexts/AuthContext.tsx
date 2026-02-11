@@ -8,7 +8,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (username: string, password: string) => Promise<boolean>;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -18,12 +18,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check for existing session
-    const storedUser = localStorage.getItem('iecnet_user');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-    setIsLoading(false);
+    let active = true;
+
+    const restoreSession = async () => {
+      try {
+        const response = await fetch('/api/auth/me', {
+          method: 'GET',
+          cache: 'no-store',
+        });
+
+        if (!response.ok) {
+          if (active) setUser(null);
+          localStorage.removeItem('iecnet_user');
+          return;
+        }
+
+        const data: User = await response.json();
+        if (!active) return;
+        setUser(data);
+        localStorage.setItem('iecnet_user', JSON.stringify(data));
+      } catch (_error) {
+        if (active) setUser(null);
+        localStorage.removeItem('iecnet_user');
+      } finally {
+        if (active) setIsLoading(false);
+      }
+    };
+
+    restoreSession();
+    return () => {
+      active = false;
+    };
   }, []);
 
   const login = async (username: string, password: string): Promise<boolean> => {
@@ -45,9 +70,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('iecnet_user');
+  const logout = async () => {
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+      });
+    } catch (_error) {
+      // no-op; clear local state regardless of API response
+    } finally {
+      setUser(null);
+      localStorage.removeItem('iecnet_user');
+    }
   };
 
   return (

@@ -131,7 +131,7 @@ export interface User {
   id: string;
   username: string;
   name: string;
-  role: 'ADMIN';
+  role: 'ADMIN' | 'STAFF';
   createdAt: Date;
   updatedAt: Date;
 }
@@ -158,4 +158,95 @@ export interface RecentActivity {
   clientName: string;
   date: Date;
   status: string;
+}
+
+export interface Employee {
+  id: string;
+  userId: string;
+  employeeCode: string;
+  position?: string;
+  department?: string;
+  workLocation?: string;
+  phone?: string;
+  email?: string;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  user?: Pick<User, "id" | "username" | "name" | "role">;
+}
+
+export type AttendanceStatus = "PRESENT" | "SICK" | "LEAVE" | "ABSENT";
+
+export interface AttendanceRecord {
+  id: string;
+  userId: string;
+  attendanceDate: Date;
+  checkInAt?: Date | null;
+  checkOutAt?: Date | null;
+  checkInLocation?: string | null;
+  checkOutLocation?: string | null;
+  status: AttendanceStatus | string;
+  notes?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  user?: Pick<User, "id" | "username" | "name" | "role">;
+}
+
+export type WorkflowStatus =
+  | "DRAFT"
+  | "SUBMITTED"
+  | "APPROVED"
+  | "REJECTED"
+  | "CANCELLED"
+  | "PAID";
+
+export interface LeaveRequest {
+  id: string;
+  userId: string;
+  leaveType: string;
+  reason: string;
+  startDate: Date;
+  endDate: Date;
+  status: WorkflowStatus | string;
+  adminNote?: string | null;
+  approvedBy?: string | null;
+  approvedAt?: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  user?: Pick<User, "id" | "username" | "name" | "role">;
+}
+
+export interface BusinessTrip {
+  id: string;
+  userId: string;
+  destinationCity: string;
+  companyName: string;
+  purpose?: string | null;
+  startDate: Date;
+  endDate: Date;
+  status: WorkflowStatus | string;
+  adminNote?: string | null;
+  approvedBy?: string | null;
+  approvedAt?: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  user?: Pick<User, "id" | "username" | "name" | "role">;
+}
+
+export interface Reimbursement {
+  id: string;
+  userId: string;
+  category: string;
+  amount: number;
+  description?: string | null;
+  receiptUrl?: string | null;
+  status: WorkflowStatus | string;
+  adminNote?: string | null;
+  approvedBy?: string | null;
+  approvedAt?: Date | null;
+  paidAt?: Date | null;
+  paidProofUrl?: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+  user?: Pick<User, "id" | "username" | "name" | "role">;
 }

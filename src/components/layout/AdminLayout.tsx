@@ -1,11 +1,12 @@
 "use client";
 
 import { ReactNode, useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { AdminSidebar } from './AdminSidebar';
 import { AdminHeader } from './AdminHeader';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
+import { canAccessPath } from '@/lib/auth/rbac';
 
 interface AdminLayoutProps {
   children: ReactNode;
@@ -13,8 +14,9 @@ interface AdminLayoutProps {
 }
 
 export function AdminLayout({ children, title }: AdminLayoutProps) {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   useEffect(() => {
@@ -22,6 +24,12 @@ export function AdminLayout({ children, title }: AdminLayoutProps) {
       router.replace('/login');
     }
   }, [isAuthenticated, isLoading, router]);
+
+  useEffect(() => {
+    if (!isLoading && isAuthenticated && user && !canAccessPath(user.role, pathname)) {
+      router.replace('/dashboard');
+    }
+  }, [isAuthenticated, isLoading, pathname, router, user]);
 
   useEffect(() => {
     if (title) {

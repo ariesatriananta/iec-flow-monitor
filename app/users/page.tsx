@@ -30,6 +30,13 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Plus, Search, MoreHorizontal, Pencil, Trash2, UserCog, Eye, EyeOff } from 'lucide-react';
 import type { User } from '@/types';
 import { formatDate } from '@/lib/numbering';
@@ -52,6 +59,7 @@ export default function Users() {
     name: '',
     username: '',
     password: '',
+    role: 'ADMIN' as User['role'],
   });
 
   const filteredUsers = users
@@ -90,7 +98,7 @@ export default function Users() {
   const visibleUsers = filteredUsers.slice(0, visibleCount);
 
   const resetForm = () => {
-    setFormData({ name: '', username: '', password: '' });
+    setFormData({ name: '', username: '', password: '', role: 'ADMIN' });
     setEditingUser(null);
     setShowPassword(false);
   };
@@ -102,6 +110,7 @@ export default function Users() {
         name: user.name,
         username: user.username,
         password: '',
+        role: user.role,
       });
     } else {
       resetForm();
@@ -132,6 +141,7 @@ export default function Users() {
         const updated = await updateUser(editingUser.id, {
           name: formData.name,
           username: formData.username,
+          role: formData.role,
           password: formData.password || undefined,
         });
         setUsers(users.map((u) => (u.id === updated.id ? updated : u)));
@@ -154,6 +164,7 @@ export default function Users() {
           name: formData.name,
           username: formData.username,
           password: formData.password,
+          role: formData.role,
         });
         setUsers([...users, created]);
         toast({
@@ -393,6 +404,23 @@ export default function Users() {
                   placeholder="admin"
                   required
                 />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="role">Role *</Label>
+                <Select
+                  value={formData.role}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, role: value as User['role'] })
+                  }
+                >
+                  <SelectTrigger id="role">
+                    <SelectValue placeholder="Pilih role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ADMIN">ADMIN</SelectItem>
+                    <SelectItem value="STAFF">STAFF</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="password">

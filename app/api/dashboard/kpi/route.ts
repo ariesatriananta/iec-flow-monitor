@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { eq, inArray } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { contracts, termins } from "@/lib/db/schema";
+import { requireSessionUser } from "@/lib/auth/server";
 
 const toNumber = (value: string | number | null) => {
   if (value === null || value === undefined) return 0;
@@ -11,6 +12,17 @@ const toNumber = (value: string | number | null) => {
 };
 
 export async function GET() {
+  const auth = await requireSessionUser();
+  if ("response" in auth) return auth.response;
+  if (auth.user.role !== "ADMIN") {
+    return NextResponse.json({
+      totalContracts: 0,
+      totalContractValue: 0,
+      totalPaymentReceived: 0,
+      pendingPayments: 0,
+    });
+  }
+
   const db = getDb();
   const activeContracts = await db
     .select()

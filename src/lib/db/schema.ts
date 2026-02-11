@@ -7,6 +7,7 @@ import {
   timestamp,
   index,
   uniqueIndex,
+  pgEnum,
 } from "drizzle-orm/pg-core";
 
 export const clients = pgTable(
@@ -168,13 +169,15 @@ export const letterAssignmentMembers = pgTable(
   })
 );
 
+export const userRoleEnum = pgEnum("user_role", ["ADMIN", "STAFF"]);
+
 export const users = pgTable(
   "users",
   {
     id: text("id").primaryKey(),
     username: text("username").notNull(),
     name: text("name").notNull(),
-    role: text("role").notNull(),
+    role: userRoleEnum("role").notNull().default("ADMIN"),
     passwordHash: text("password_hash").notNull(),
     createdAt: timestamp("created_at", { mode: "date" }).notNull(),
     updatedAt: timestamp("updated_at", { mode: "date" }).notNull(),
@@ -198,3 +201,129 @@ export const settings = pgTable("settings", {
   createdAt: timestamp("created_at", { mode: "date" }).notNull(),
   updatedAt: timestamp("updated_at", { mode: "date" }).notNull(),
 });
+
+export const employees = pgTable(
+  "employees",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    employeeCode: text("employee_code").notNull(),
+    position: text("position"),
+    department: text("department"),
+    workLocation: text("work_location"),
+    phone: text("phone"),
+    email: text("email"),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date" }).notNull(),
+  },
+  (table) => ({
+    userIdUnique: uniqueIndex("employees_user_id_unique").on(table.userId),
+    employeeCodeUnique: uniqueIndex("employees_employee_code_unique").on(table.employeeCode),
+    emailUnique: uniqueIndex("employees_email_unique").on(table.email),
+  })
+);
+
+export const attendanceRecords = pgTable(
+  "attendance_records",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    attendanceDate: timestamp("attendance_date", { mode: "date" }).notNull(),
+    checkInAt: timestamp("check_in_at", { mode: "date" }),
+    checkOutAt: timestamp("check_out_at", { mode: "date" }),
+    checkInLocation: text("check_in_location"),
+    checkOutLocation: text("check_out_location"),
+    status: text("status").notNull().default("PRESENT"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date" }).notNull(),
+  },
+  (table) => ({
+    attendanceUnique: uniqueIndex("attendance_records_user_date_unique").on(
+      table.userId,
+      table.attendanceDate
+    ),
+    userIdIdx: index("attendance_records_user_id_idx").on(table.userId),
+    dateIdx: index("attendance_records_date_idx").on(table.attendanceDate),
+  })
+);
+
+export const leaveRequests = pgTable(
+  "leave_requests",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    leaveType: text("leave_type").notNull(),
+    reason: text("reason").notNull(),
+    startDate: timestamp("start_date", { mode: "date" }).notNull(),
+    endDate: timestamp("end_date", { mode: "date" }).notNull(),
+    status: text("status").notNull().default("SUBMITTED"),
+    adminNote: text("admin_note"),
+    approvedBy: text("approved_by").references(() => users.id),
+    approvedAt: timestamp("approved_at", { mode: "date" }),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date" }).notNull(),
+  },
+  (table) => ({
+    userIdIdx: index("leave_requests_user_id_idx").on(table.userId),
+    statusIdx: index("leave_requests_status_idx").on(table.status),
+  })
+);
+
+export const businessTrips = pgTable(
+  "business_trips",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    destinationCity: text("destination_city").notNull(),
+    companyName: text("company_name").notNull(),
+    purpose: text("purpose"),
+    startDate: timestamp("start_date", { mode: "date" }).notNull(),
+    endDate: timestamp("end_date", { mode: "date" }).notNull(),
+    status: text("status").notNull().default("SUBMITTED"),
+    adminNote: text("admin_note"),
+    approvedBy: text("approved_by").references(() => users.id),
+    approvedAt: timestamp("approved_at", { mode: "date" }),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date" }).notNull(),
+  },
+  (table) => ({
+    userIdIdx: index("business_trips_user_id_idx").on(table.userId),
+    statusIdx: index("business_trips_status_idx").on(table.status),
+  })
+);
+
+export const reimbursements = pgTable(
+  "reimbursements",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    category: text("category").notNull(),
+    amount: numeric("amount", { precision: 15, scale: 0 }).notNull(),
+    description: text("description"),
+    receiptUrl: text("receipt_url"),
+    status: text("status").notNull().default("SUBMITTED"),
+    adminNote: text("admin_note"),
+    approvedBy: text("approved_by").references(() => users.id),
+    approvedAt: timestamp("approved_at", { mode: "date" }),
+    paidAt: timestamp("paid_at", { mode: "date" }),
+    paidProofUrl: text("paid_proof_url"),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date" }).notNull(),
+  },
+  (table) => ({
+    userIdIdx: index("reimbursements_user_id_idx").on(table.userId),
+    statusIdx: index("reimbursements_status_idx").on(table.status),
+  })
+);

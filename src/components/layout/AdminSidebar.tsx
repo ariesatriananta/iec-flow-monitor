@@ -26,11 +26,14 @@ import {
 import { cn } from '@/lib/utils';
 import { useRouteLoading } from '@/contexts/RouteLoadingContext';
 import { useGlobalAudio } from '@/contexts/GlobalAudioContext';
+import { useAuth } from '@/contexts/AuthContext';
+import type { User } from '@/types';
 
 type NavItem = {
   title: string;
   href: string;
   icon: ComponentType<{ className?: string }>;
+  roles: User['role'][];
 };
 
 type NavSection = {
@@ -45,27 +48,32 @@ const navSections: NavSection[] = [
       {
         title: 'Dashboard',
         href: '/dashboard',
-        icon: LayoutDashboard
+        icon: LayoutDashboard,
+        roles: ['ADMIN', 'STAFF']
       },
       {
         title: 'Clients',
         href: '/clients',
-        icon: Building2
+        icon: Building2,
+        roles: ['ADMIN']
       },
       {
         title: 'Contracts',
         href: '/contracts',
-        icon: FileText
+        icon: FileText,
+        roles: ['ADMIN']
       },
       {
         title: 'Invoices',
         href: '/invoices',
-        icon: Receipt
+        icon: Receipt,
+        roles: ['ADMIN']
       },
       {
         title: 'Letters',
         href: '/letters',
-        icon: Mail
+        icon: Mail,
+        roles: ['ADMIN']
       },
     ],
   },
@@ -75,27 +83,32 @@ const navSections: NavSection[] = [
       {
         title: 'Employees',
         href: '/employees',
-        icon: Users
+        icon: Users,
+        roles: ['ADMIN', 'STAFF']
       },
       {
         title: 'Attendance',
         href: '/attendance',
-        icon: Calendar
+        icon: Calendar,
+        roles: ['ADMIN', 'STAFF']
       },
       {
         title: 'Leave Management',
         href: '/leave-management',
-        icon: FileCheck
+        icon: FileCheck,
+        roles: ['ADMIN', 'STAFF']
       },
       {
         title: 'Business Trip',
         href: '/business-trip',
-        icon: Plane
+        icon: Plane,
+        roles: ['ADMIN', 'STAFF']
       },
       {
         title: 'Reimbursement',
         href: '/reimbursement',
-        icon: Wallet
+        icon: Wallet,
+        roles: ['ADMIN', 'STAFF']
       },
     ],
   },
@@ -105,22 +118,26 @@ const navSections: NavSection[] = [
       {
         title: 'Users',
         href: '/users',
-        icon: UserCog
+        icon: UserCog,
+        roles: ['ADMIN']
       },
       {
         title: 'Approval Flow',
         href: '/settings/approval-flow',
-        icon: GitBranch
+        icon: GitBranch,
+        roles: ['ADMIN']
       },
       {
         title: 'Work Schedule',
         href: '/settings/work-schedule',
-        icon: Clock3
+        icon: Clock3,
+        roles: ['ADMIN']
       },
       {
         title: 'Reimbursement Limit',
         href: '/settings/reimbursement-limit',
-        icon: Scale
+        icon: Scale,
+        roles: ['ADMIN']
       },
     ],
   },
@@ -135,10 +152,19 @@ export function AdminSidebar({ variant = 'default', onNavigate }: AdminSidebarPr
   const allowCollapse = variant === 'default';
   const [collapsed, setCollapsed] = useState(false);
   const pathname = usePathname();
+  const { user } = useAuth();
   const { loadingHref, setRouteLoading } = useRouteLoading();
   const { isPlaying, progress, toggle, seek } = useGlobalAudio();
 
   const isCollapsed = allowCollapse ? collapsed : false;
+  const userRole: User['role'] = user?.role === 'STAFF' ? 'STAFF' : 'ADMIN';
+
+  const visibleSections = navSections
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => item.roles.includes(userRole)),
+    }))
+    .filter((section) => section.items.length > 0);
 
   return (
     <aside
@@ -193,7 +219,7 @@ export function AdminSidebar({ variant = 'default', onNavigate }: AdminSidebarPr
       {/* Navigation */}
       <nav className="flex-1 py-4 overflow-y-auto">
         <div className="space-y-4 px-2">
-          {navSections.map((section) => (
+          {visibleSections.map((section) => (
             <div key={section.title}>
               {!isCollapsed && (
                 <p className="px-3 pb-1 text-[11px] uppercase tracking-[0.16em] text-sidebar-foreground/65">

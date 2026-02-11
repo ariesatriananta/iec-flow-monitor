@@ -5,11 +5,15 @@ import { and, eq, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { users } from "@/lib/db/schema";
 import bcrypt from "bcryptjs";
+import { requireAdmin } from "@/lib/auth/server";
 
 export async function PUT(
   request: Request,
   { params }: { params: { id: string } }
 ) {
+  const auth = await requireAdmin();
+  if ("response" in auth) return auth.response;
+
   const body = await request.json();
 
   if (!body) {
@@ -43,6 +47,9 @@ export async function PUT(
 
   if (body.username !== undefined) updateData.username = body.username;
   if (body.name !== undefined) updateData.name = body.name;
+  if (body.role !== undefined) {
+    updateData.role = body.role === "STAFF" ? "STAFF" : "ADMIN";
+  }
   if (body.password) {
     updateData.passwordHash = await bcrypt.hash(body.password, 10);
   }
@@ -71,6 +78,9 @@ export async function DELETE(
   _request: Request,
   { params }: { params: { id: string } }
 ) {
+  const auth = await requireAdmin();
+  if ("response" in auth) return auth.response;
+
   const db = getDb();
   const total = await db
     .select({ count: sql<number>`count(*)` })

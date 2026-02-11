@@ -62,22 +62,12 @@
        return;
      }
  
-     if (!user?.username) {
-       toast({
-         title: "Error",
-         description: "User tidak ditemukan.",
-         variant: "destructive",
-       });
-       return;
-     }
- 
      setIsSubmitting(true);
      try {
        const response = await fetch("/api/auth/change-password", {
          method: "POST",
          headers: { "Content-Type": "application/json" },
          body: JSON.stringify({
-           username: user.username,
            currentPassword,
            newPassword,
          }),
