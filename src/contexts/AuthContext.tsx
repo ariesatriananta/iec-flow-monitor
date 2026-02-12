@@ -61,11 +61,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!response.ok) {
         return false;
       }
-      const data: User = await response.json();
+
+      // Re-validate session using /api/auth/me so redirect only happens
+      // when cookie session is truly active in the browser.
+      const meResponse = await fetch('/api/auth/me', {
+        method: 'GET',
+        cache: 'no-store',
+      });
+      if (!meResponse.ok) {
+        setUser(null);
+        localStorage.removeItem('iecnet_user');
+        return false;
+      }
+
+      const data: User = await meResponse.json();
       setUser(data);
       localStorage.setItem('iecnet_user', JSON.stringify(data));
       return true;
-    } catch (error) {
+    } catch (_error) {
       return false;
     }
   };

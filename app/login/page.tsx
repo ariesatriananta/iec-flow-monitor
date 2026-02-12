@@ -15,6 +15,7 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioProgress, setAudioProgress] = useState(0);
   const [audioDuration, setAudioDuration] = useState(0);
@@ -25,8 +26,11 @@ export default function Login() {
 
   useEffect(() => {
     document.title = 'IECNET - Login';
+    router.prefetch('/dashboard');
     if (isAuthenticated) {
-      router.push('/dashboard');
+      setIsRedirecting(true);
+      router.replace('/dashboard');
+      router.refresh();
     }
   }, [isAuthenticated, router]);
 
@@ -113,16 +117,19 @@ export default function Login() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isRedirecting) return;
     setIsLoading(true);
 
     try {
       const success = await login(username, password);
       if (success) {
+        setIsRedirecting(true);
         toast({
           title: 'Login berhasil',
-          description: 'Selamat datang di IECNET Admin System',
+          description: 'Sedang masuk ke dashboard...',
         });
-        router.push('/dashboard');
+        router.replace('/dashboard');
+        router.refresh();
       } else {
         toast({
           title: 'Login gagal',
@@ -258,9 +265,12 @@ export default function Login() {
                         </button>
                         </div>
                     </div>
-              <Button type="submit" className="w-full" disabled={isLoading}>
-                {isLoading ? (
-                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+              <Button type="submit" className="w-full" disabled={isLoading || isRedirecting}>
+                {isLoading || isRedirecting ? (
+                  <span className="flex items-center gap-2">
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+                    {isRedirecting ? 'Masuk ke dashboard...' : 'Memproses...'}
+                  </span>
                 ) : (
                   <span className="flex items-center gap-2">
                     <LogIn className="w-4 h-4" />
