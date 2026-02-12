@@ -1,38 +1,113 @@
 ﻿export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { and, desc, eq, or, sql, type SQL } from "drizzle-orm";
+import { z } from "zod";
 import { getDb } from "@/lib/db";
 import { employees, users } from "@/lib/db/schema";
 import { requireAdmin, requireSessionUser } from "@/lib/auth/server";
 
-export async function GET() {
+const querySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).optional().default(20),
+  offset: z.coerce.number().int().min(0).optional().default(0),
+  q: z.string().trim().max(100).optional(),
+});
+
+const formatZodError = (error: z.ZodError) =>
+  error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; ");
+
+export async function GET(request: Request) {
   const auth = await requireSessionUser();
   if ("response" in auth) return auth.response;
 
-  const db = getDb();
-  const rows = await db
-    .select({ employee: employees, user: users })
-    .from(employees)
-    .leftJoin(users, eq(employees.userId, users.id));
+  const url = new URL(request.url);
+  const parsedQuery = querySchema.safeParse({
+    limit: url.searchParams.get("limit") ?? undefined,
+    offset: url.searchParams.get("offset") ?? undefined,
+    q: url.searchParams.get("q") ?? undefined,
+  });
+  if (!parsedQuery.success) {
+    return NextResponse.json(
+      { error: `Query tidak valid: ${formatZodError(parsedQuery.error)}` },
+      { status: 400 }
+    );
+  }
 
-  const filtered =
-    auth.user.role === "ADMIN"
-      ? rows
-      : rows.filter((row) => row.employee.userId === auth.user.id);
+  const { limit, offset, q } = parsedQuery.data;
+  const db = getDb();
+  const conditions: SQL[] = [];
+  if (auth.user.role !== "ADMIN") {
+    conditions.push(eq(employees.userId, auth.user.id));
+  }
+
+  const search = q?.trim().toLowerCase();
+  if (search) {
+    const like = `%${search}%`;
+    conditions.push(
+      or(
+        sql`lower(${employees.employeeCode}) like ${like}`,
+        sql`lower(coalesce(${employees.department}, '')) like ${like}`,
+        sql`lower(coalesce(${employees.position}, '')) like ${like}`,
+        sql`lower(coalesce(${employees.workLocation}, '')) like ${like}`,
+        sql`lower(coalesce(${users.name}, '')) like ${like}`,
+        sql`lower(coalesce(${users.username}, '')) like ${like}`
+      ) as SQL
+    );
+  }
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  const totalResult = whereClause
+    ? await db
+        .select({ count: sql<string>`count(*)` })
+        .from(employees)
+        .leftJoin(users, eq(employees.userId, users.id))
+        .where(whereClause)
+    : await db
+        .select({ count: sql<string>`count(*)` })
+        .from(employees)
+        .leftJoin(users, eq(employees.userId, users.id));
+  const total = Number(totalResult[0]?.count ?? 0);
+
+  const rows = whereClause
+    ? await db
+        .select({ employee: employees, user: users })
+        .from(employees)
+        .leftJoin(users, eq(employees.userId, users.id))
+        .where(whereClause)
+        .orderBy(desc(employees.updatedAt))
+        .limit(limit)
+        .offset(offset)
+    : await db
+        .select({ employee: employees, user: users })
+        .from(employees)
+        .leftJoin(users, eq(employees.userId, users.id))
+        .orderBy(desc(employees.updatedAt))
+        .limit(limit)
+        .offset(offset);
+
+  const items = rows.map(({ employee, user }) => ({
+    ...employee,
+    user: user
+      ? {
+          id: user.id,
+          username: user.username,
+          name: user.name,
+          role: user.role,
+        }
+      : undefined,
+  }));
+
+  const hasMore = offset + items.length < total;
 
   return NextResponse.json(
-    filtered.map(({ employee, user }) => ({
-      ...employee,
-      user: user
-        ? {
-            id: user.id,
-            username: user.username,
-            name: user.name,
-            role: user.role,
-          }
-        : undefined,
-    }))
+    {
+      items,
+      total,
+      limit,
+      offset,
+      hasMore,
+      nextOffset: hasMore ? offset + items.length : null,
+    }
   );
 }
 

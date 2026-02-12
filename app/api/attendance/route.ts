@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
-import { and, eq, gte, lte, type SQL } from "drizzle-orm";
+import { and, desc, eq, gte, lte, or, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/lib/db";
 import { attendanceRecords, users } from "@/lib/db/schema";
@@ -17,6 +17,10 @@ const querySchema = z.object({
   userId: z.string().trim().min(1).max(128).optional(),
   from: dateStringSchema.optional(),
   to: dateStringSchema.optional(),
+  status: z.enum(["PRESENT", "SICK", "LEAVE", "ABSENT"]).optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(20),
+  offset: z.coerce.number().int().min(0).optional().default(0),
+  q: z.string().trim().max(100).optional(),
 });
 
 const actionSchema = z.object({
@@ -38,6 +42,10 @@ export async function GET(request: Request) {
     userId: url.searchParams.get("userId") ?? undefined,
     from: url.searchParams.get("from") ?? undefined,
     to: url.searchParams.get("to") ?? undefined,
+    status: url.searchParams.get("status") ?? undefined,
+    limit: url.searchParams.get("limit") ?? undefined,
+    offset: url.searchParams.get("offset") ?? undefined,
+    q: url.searchParams.get("q") ?? undefined,
   });
   if (!parsedQuery.success) {
     return NextResponse.json(
@@ -46,36 +54,81 @@ export async function GET(request: Request) {
     );
   }
 
-  const { userId, from, to } = parsedQuery.data;
+  const { userId, from, to, status, limit, offset, q } = parsedQuery.data;
   const targetUserId = auth.user.role === "ADMIN" ? userId : auth.user.id;
 
   const conditions: SQL[] = [];
   if (targetUserId) conditions.push(eq(attendanceRecords.userId, targetUserId));
   if (from) conditions.push(gte(attendanceRecords.attendanceDate, new Date(from)));
   if (to) conditions.push(lte(attendanceRecords.attendanceDate, new Date(to)));
+  if (status) conditions.push(eq(attendanceRecords.status, status));
+
+  const search = q?.trim().toLowerCase();
+  if (search) {
+    const like = `%${search}%`;
+    conditions.push(
+      or(
+        sql`lower(coalesce(${users.name}, '')) like ${like}`,
+        sql`lower(coalesce(${attendanceRecords.checkInLocation}, '')) like ${like}`,
+        sql`lower(coalesce(${attendanceRecords.checkOutLocation}, '')) like ${like}`,
+        sql`lower(${attendanceRecords.status}) like ${like}`
+      ) as SQL
+    );
+  }
 
   const db = getDb();
-  const baseQuery = db
-    .select({ attendance: attendanceRecords, user: users })
-    .from(attendanceRecords)
-    .leftJoin(users, eq(attendanceRecords.userId, users.id));
-  const rows =
-    conditions.length > 0
-      ? await baseQuery.where(and(...conditions))
-      : await baseQuery;
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+  const totalResult = whereClause
+    ? await db
+        .select({ count: sql<string>`count(*)` })
+        .from(attendanceRecords)
+        .leftJoin(users, eq(attendanceRecords.userId, users.id))
+        .where(whereClause)
+    : await db
+        .select({ count: sql<string>`count(*)` })
+        .from(attendanceRecords)
+        .leftJoin(users, eq(attendanceRecords.userId, users.id));
+  const total = Number(totalResult[0]?.count ?? 0);
+
+  const rows = whereClause
+    ? await db
+        .select({ attendance: attendanceRecords, user: users })
+        .from(attendanceRecords)
+        .leftJoin(users, eq(attendanceRecords.userId, users.id))
+        .where(whereClause)
+        .orderBy(desc(attendanceRecords.attendanceDate), desc(attendanceRecords.updatedAt))
+        .limit(limit)
+        .offset(offset)
+    : await db
+        .select({ attendance: attendanceRecords, user: users })
+        .from(attendanceRecords)
+        .leftJoin(users, eq(attendanceRecords.userId, users.id))
+        .orderBy(desc(attendanceRecords.attendanceDate), desc(attendanceRecords.updatedAt))
+        .limit(limit)
+        .offset(offset);
+
+  const items = rows.map(({ attendance, user }) => ({
+    ...attendance,
+    user: user
+      ? {
+          id: user.id,
+          username: user.username,
+          name: user.name,
+          role: user.role,
+        }
+      : undefined,
+  }));
+  const hasMore = offset + items.length < total;
 
   return NextResponse.json(
-    rows.map(({ attendance, user }) => ({
-      ...attendance,
-      user: user
-        ? {
-            id: user.id,
-            username: user.username,
-            name: user.name,
-            role: user.role,
-          }
-        : undefined,
-    }))
+    {
+      items,
+      total,
+      limit,
+      offset,
+      hasMore,
+      nextOffset: hasMore ? offset + items.length : null,
+    }
   );
 }
 
@@ -189,4 +242,3 @@ export async function POST(request: Request) {
 
   return NextResponse.json(updated);
 }
-

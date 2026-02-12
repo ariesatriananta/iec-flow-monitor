@@ -1,6 +1,7 @@
 import type { Reimbursement } from "@/types";
 import { requestJson } from "@/lib/api/request";
 import { parseReimbursement } from "@/lib/api/parse";
+import type { PaginatedResult } from "@/lib/api/pagination";
 
 export interface ReimbursementAttachmentInput {
   url: string;
@@ -10,12 +11,26 @@ export interface ReimbursementAttachmentInput {
   size?: number;
 }
 
-export async function fetchReimbursements(status?: string): Promise<Reimbursement[]> {
-  const url = status
-    ? `/api/reimbursement?status=${encodeURIComponent(status)}`
-    : "/api/reimbursement";
-  const data = await requestJson<Reimbursement[]>(url, { cache: "no-store" });
-  return data.map(parseReimbursement);
+export async function fetchReimbursements(params?: {
+  status?: string;
+  limit?: number;
+  offset?: number;
+  q?: string;
+}): Promise<PaginatedResult<Reimbursement>> {
+  const search = new URLSearchParams();
+  if (params?.status) search.set("status", params.status);
+  if (params?.limit) search.set("limit", String(params.limit));
+  if (params?.offset) search.set("offset", String(params.offset));
+  if (params?.q) search.set("q", params.q);
+  const query = search.toString();
+  const url = query ? `/api/reimbursement?${query}` : "/api/reimbursement";
+  const data = await requestJson<PaginatedResult<Reimbursement>>(url, {
+    cache: "no-store",
+  });
+  return {
+    ...data,
+    items: data.items.map(parseReimbursement),
+  };
 }
 
 export async function createReimbursement(payload: {

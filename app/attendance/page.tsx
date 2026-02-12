@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { fetchAttendance, submitAttendance } from "@/lib/api/attendance";
 import { fetchUsers } from "@/lib/api/users";
 import { formatDate } from "@/lib/numbering";
@@ -65,6 +66,31 @@ export default function AttendancePage() {
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [todayRecord, setTodayRecord] = useState<AttendanceRecord | undefined>(undefined);
+  const PAGE_SIZE = 20;
+  const debouncedSearch = useDebouncedValue(searchQuery.trim(), 400);
+
+  const refreshTodayRecord = useCallback(async () => {
+    if (isAdmin && selectedUserId === "ALL") {
+      setTodayRecord(undefined);
+      return;
+    }
+    const day = toDayKey(new Date());
+    try {
+      const data = await fetchAttendance({
+        userId: isAdmin && selectedUserId !== "ALL" ? selectedUserId : undefined,
+        from: day,
+        to: day,
+        limit: 1,
+        offset: 0,
+      });
+      setTodayRecord(data.items[0]);
+    } catch (error) {
+      setTodayRecord(undefined);
+    }
+  }, [isAdmin, selectedUserId]);
 
   const loadAttendance = async () => {
     setIsLoading(true);
@@ -73,13 +99,13 @@ export default function AttendancePage() {
         userId: isAdmin && selectedUserId !== "ALL" ? selectedUserId : undefined,
         from: dateFrom || undefined,
         to: dateTo || undefined,
+        status: statusFilter !== "ALL" ? statusFilter : undefined,
+        q: debouncedSearch.length >= 2 ? debouncedSearch : undefined,
+        limit: PAGE_SIZE,
+        offset: (page - 1) * PAGE_SIZE,
       });
-      setRows(
-        [...data].sort(
-          (a, b) =>
-            new Date(b.attendanceDate).getTime() - new Date(a.attendanceDate).getTime()
-        )
-      );
+      setRows(data.items);
+      setTotal(data.total);
       if (isAdmin && users.length === 0) {
         const userRows = await fetchUsers();
         setUsers(userRows);
@@ -98,31 +124,15 @@ export default function AttendancePage() {
 
   useEffect(() => {
     void loadAttendance();
-  }, [isAdmin, selectedUserId, dateFrom, dateTo]);
+  }, [isAdmin, selectedUserId, dateFrom, dateTo, statusFilter, debouncedSearch, page]);
 
-  const todayRecord = useMemo(() => {
-    if (isAdmin && selectedUserId === "ALL") return undefined;
-    const todayKey = toDayKey(new Date());
-    return rows.find((item) => toDayKey(new Date(item.attendanceDate)) === todayKey);
-  }, [isAdmin, rows, selectedUserId]);
+  useEffect(() => {
+    setPage(1);
+  }, [selectedUserId, dateFrom, dateTo, statusFilter, debouncedSearch]);
 
-  const filteredRows = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    return rows.filter((row) => {
-      if (statusFilter !== "ALL" && row.status !== statusFilter) return false;
-      if (!q) return true;
-      const haystack = [
-        row.user?.name ?? "",
-        formatDate(new Date(row.attendanceDate)),
-        row.checkInLocation ?? "",
-        row.checkOutLocation ?? "",
-        row.status,
-      ]
-        .join(" ")
-        .toLowerCase();
-      return haystack.includes(q);
-    });
-  }, [rows, searchQuery, statusFilter]);
+  useEffect(() => {
+    void refreshTodayRecord();
+  }, [refreshTodayRecord]);
 
   const handleSubmit = async (action: "CHECK_IN" | "CHECK_OUT") => {
     setIsSubmitting(true);
@@ -138,7 +148,7 @@ export default function AttendancePage() {
         description: action === "CHECK_IN" ? "Check-in berhasil" : "Check-out berhasil",
       });
       setNotes("");
-      await loadAttendance();
+      await Promise.all([loadAttendance(), refreshTodayRecord()]);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Aksi absensi gagal";
       toast({
@@ -255,12 +265,21 @@ export default function AttendancePage() {
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
+                  onChange={(event) => {
+                    setSearchQuery(event.target.value);
+                    setPage(1);
+                  }}
                   placeholder="Cari riwayat..."
                   className="pl-9"
                 />
               </div>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <Select
+                value={statusFilter}
+                onValueChange={(value) => {
+                  setStatusFilter(value);
+                  setPage(1);
+                }}
+              >
                 <SelectTrigger className="w-full md:w-[160px]">
                   <SelectValue />
                 </SelectTrigger>
@@ -272,18 +291,24 @@ export default function AttendancePage() {
                   <SelectItem value="ABSENT">ABSENT</SelectItem>
                 </SelectContent>
               </Select>
-              <Input
-                type="date"
-                value={dateFrom}
-                onChange={(event) => setDateFrom(event.target.value)}
-                className="w-full md:w-[150px]"
-              />
-              <Input
-                type="date"
-                value={dateTo}
-                onChange={(event) => setDateTo(event.target.value)}
-                className="w-full md:w-[150px]"
-              />
+                <Input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(event) => {
+                    setDateFrom(event.target.value);
+                    setPage(1);
+                  }}
+                  className="w-full md:w-[150px]"
+                />
+                <Input
+                  type="date"
+                  value={dateTo}
+                  onChange={(event) => {
+                    setDateTo(event.target.value);
+                    setPage(1);
+                  }}
+                  className="w-full md:w-[150px]"
+                />
             </div>
           </CardHeader>
           <CardContent>
@@ -309,7 +334,7 @@ export default function AttendancePage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredRows.length === 0 ? (
+                      {rows.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={isAdmin ? 7 : 6} className="py-8 text-center text-muted-foreground">
                             <div className="flex flex-col items-center gap-2">
@@ -319,7 +344,7 @@ export default function AttendancePage() {
                           </TableCell>
                         </TableRow>
                       ) : (
-                        filteredRows.map((row) => (
+                        rows.map((row) => (
                           <TableRow key={row.id}>
                             {isAdmin && <TableCell>{row.user?.name ?? "-"}</TableCell>}
                             <TableCell>{formatDate(new Date(row.attendanceDate))}</TableCell>
@@ -340,13 +365,13 @@ export default function AttendancePage() {
                 </div>
 
                 <div className="space-y-3 md:hidden">
-                  {filteredRows.length === 0 ? (
+                  {rows.length === 0 ? (
                     <div className="flex flex-col items-center gap-2 rounded-md border py-8 text-muted-foreground">
                       <CalendarCheck2 className="h-8 w-8" />
                       <p>Belum ada data absensi</p>
                     </div>
                   ) : (
-                    filteredRows.map((row) => (
+                    rows.map((row) => (
                       <div key={row.id} className="rounded-md border p-4">
                         <div className="flex items-start justify-between gap-3">
                           <div>
@@ -369,6 +394,32 @@ export default function AttendancePage() {
                     ))
                   )}
                 </div>
+                <div className="mt-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    {total === 0
+                      ? "Menampilkan 0 dari 0 data"
+                      : `Menampilkan ${(page - 1) * PAGE_SIZE + 1}-${Math.min(
+                          page * PAGE_SIZE,
+                          total
+                        )} dari ${total} data`}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                      disabled={page <= 1}
+                    >
+                      Prev
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setPage((prev) => prev + 1)}
+                      disabled={page * PAGE_SIZE >= total}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
               </>
             )}
           </CardContent>
@@ -377,3 +428,4 @@ export default function AttendancePage() {
     </AdminLayout>
   );
 }
+

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import {
   createBusinessTrip,
   fetchBusinessTrips,
@@ -60,7 +61,11 @@ export default function BusinessTripPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [searchQuery, setSearchQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  const PAGE_SIZE = 20;
+  const debouncedSearch = useDebouncedValue(searchQuery.trim(), 400);
 
   const [destinationCity, setDestinationCity] = useState("");
   const [companyName, setCompanyName] = useState("");
@@ -71,12 +76,14 @@ export default function BusinessTripPage() {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const data = await fetchBusinessTrips(statusFilter === "ALL" ? undefined : statusFilter);
-      setRows(
-        [...data].sort(
-          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        )
-      );
+      const data = await fetchBusinessTrips({
+        status: statusFilter === "ALL" ? undefined : statusFilter,
+        q: debouncedSearch.length >= 2 ? debouncedSearch : undefined,
+        limit: PAGE_SIZE,
+        offset: (page - 1) * PAGE_SIZE,
+      });
+      setRows(data.items);
+      setTotal(data.total);
     } catch (error) {
       console.error(error);
       toast({
@@ -91,24 +98,11 @@ export default function BusinessTripPage() {
 
   useEffect(() => {
     void loadData();
-  }, [statusFilter]);
+  }, [statusFilter, debouncedSearch, page]);
 
-  const filteredRows = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter((row) => {
-      const haystack = [
-        row.user?.name ?? "",
-        row.destinationCity,
-        row.companyName,
-        row.purpose ?? "",
-        row.status,
-      ]
-        .join(" ")
-        .toLowerCase();
-      return haystack.includes(q);
-    });
-  }, [rows, searchQuery]);
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter, debouncedSearch]);
 
   const handleCreate = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -123,19 +117,23 @@ export default function BusinessTripPage() {
 
     setIsSaving(true);
     try {
-      const created = await createBusinessTrip({
+      await createBusinessTrip({
         destinationCity,
         companyName,
         purpose: purpose || undefined,
         startDate,
         endDate,
       });
-      setRows((prev) => [created, ...prev]);
       setDestinationCity("");
       setCompanyName("");
       setPurpose("");
       setStartDate("");
       setEndDate("");
+      if (page === 1) {
+        await loadData();
+      } else {
+        setPage(1);
+      }
       toast({ title: "Berhasil", description: "Pengajuan perjalanan dinas berhasil dibuat" });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Gagal membuat pengajuan";
@@ -227,12 +225,21 @@ export default function BusinessTripPage() {
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
+                  onChange={(event) => {
+                    setSearchQuery(event.target.value);
+                    setPage(1);
+                  }}
                   placeholder="Cari pengajuan..."
                   className="pl-9"
                 />
               </div>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <Select
+                value={statusFilter}
+                onValueChange={(value) => {
+                  setStatusFilter(value);
+                  setPage(1);
+                }}
+              >
                 <SelectTrigger className="w-full md:w-[180px]">
                   <SelectValue />
                 </SelectTrigger>
@@ -269,7 +276,7 @@ export default function BusinessTripPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredRows.length === 0 ? (
+                      {rows.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={isAdmin ? 7 : 6} className="py-8 text-center text-muted-foreground">
                             <div className="flex flex-col items-center gap-2">
@@ -279,7 +286,7 @@ export default function BusinessTripPage() {
                           </TableCell>
                         </TableRow>
                       ) : (
-                        filteredRows.map((row) => (
+                        rows.map((row) => (
                           <TableRow key={row.id}>
                             {isAdmin && <TableCell>{row.user?.name ?? "-"}</TableCell>}
                             <TableCell>{row.destinationCity}</TableCell>
@@ -320,13 +327,13 @@ export default function BusinessTripPage() {
                 </div>
 
                 <div className="space-y-3 md:hidden">
-                  {filteredRows.length === 0 ? (
+                  {rows.length === 0 ? (
                     <div className="flex flex-col items-center gap-2 rounded-md border py-8 text-muted-foreground">
                       <PlaneTakeoff className="h-8 w-8" />
                       <p>Belum ada pengajuan perjalanan dinas</p>
                     </div>
                   ) : (
-                    filteredRows.map((row) => (
+                    rows.map((row) => (
                       <div key={row.id} className="rounded-md border p-4">
                         <div className="flex items-start justify-between gap-3">
                           <div>
@@ -362,6 +369,32 @@ export default function BusinessTripPage() {
                     ))
                   )}
                 </div>
+                <div className="mt-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    {total === 0
+                      ? "Menampilkan 0 dari 0 data"
+                      : `Menampilkan ${(page - 1) * PAGE_SIZE + 1}-${Math.min(
+                          page * PAGE_SIZE,
+                          total
+                        )} dari ${total} data`}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                      disabled={page <= 1}
+                    >
+                      Prev
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setPage((prev) => prev + 1)}
+                      disabled={page * PAGE_SIZE >= total}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
               </>
             )}
           </CardContent>
@@ -386,3 +419,4 @@ export default function BusinessTripPage() {
     </AdminLayout>
   );
 }
+

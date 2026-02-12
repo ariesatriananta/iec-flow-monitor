@@ -1,11 +1,28 @@
-﻿import type { BusinessTrip } from "@/types";
+import type { BusinessTrip } from "@/types";
 import { requestJson } from "@/lib/api/request";
 import { parseBusinessTrip } from "@/lib/api/parse";
+import type { PaginatedResult } from "@/lib/api/pagination";
 
-export async function fetchBusinessTrips(status?: string): Promise<BusinessTrip[]> {
-  const url = status ? `/api/business-trip?status=${encodeURIComponent(status)}` : "/api/business-trip";
-  const data = await requestJson<BusinessTrip[]>(url, { cache: "no-store" });
-  return data.map(parseBusinessTrip);
+export async function fetchBusinessTrips(params?: {
+  status?: string;
+  limit?: number;
+  offset?: number;
+  q?: string;
+}): Promise<PaginatedResult<BusinessTrip>> {
+  const search = new URLSearchParams();
+  if (params?.status) search.set("status", params.status);
+  if (params?.limit) search.set("limit", String(params.limit));
+  if (params?.offset) search.set("offset", String(params.offset));
+  if (params?.q) search.set("q", params.q);
+  const query = search.toString();
+  const url = query ? `/api/business-trip?${query}` : "/api/business-trip";
+  const data = await requestJson<PaginatedResult<BusinessTrip>>(url, {
+    cache: "no-store",
+  });
+  return {
+    ...data,
+    items: data.items.map(parseBusinessTrip),
+  };
 }
 
 export async function createBusinessTrip(payload: {

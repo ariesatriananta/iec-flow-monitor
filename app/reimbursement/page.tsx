@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import {
   createReimbursement,
   deleteReimbursementAttachment,
@@ -80,7 +81,11 @@ export default function ReimbursementPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [searchQuery, setSearchQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  const PAGE_SIZE = 20;
+  const debouncedSearch = useDebouncedValue(searchQuery.trim(), 400);
 
   const [category, setCategory] = useState("TRANSPORT");
   const [amount, setAmount] = useState("");
@@ -101,12 +106,14 @@ export default function ReimbursementPage() {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const data = await fetchReimbursements(statusFilter === "ALL" ? undefined : statusFilter);
-      setRows(
-        [...data].sort(
-          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        )
-      );
+      const data = await fetchReimbursements({
+        status: statusFilter === "ALL" ? undefined : statusFilter,
+        q: debouncedSearch.length >= 2 ? debouncedSearch : undefined,
+        limit: PAGE_SIZE,
+        offset: (page - 1) * PAGE_SIZE,
+      });
+      setRows(data.items);
+      setTotal(data.total);
     } catch (error) {
       console.error(error);
       toast({
@@ -121,24 +128,11 @@ export default function ReimbursementPage() {
 
   useEffect(() => {
     void loadData();
-  }, [statusFilter]);
+  }, [statusFilter, debouncedSearch, page]);
 
-  const filteredRows = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter((row) => {
-      const haystack = [
-        row.user?.name ?? "",
-        row.category,
-        row.description ?? "",
-        row.status,
-        String(row.amount),
-      ]
-        .join(" ")
-        .toLowerCase();
-      return haystack.includes(q);
-    });
-  }, [rows, searchQuery]);
+  useEffect(() => {
+    setPage(1);
+  }, [statusFilter, debouncedSearch]);
 
   const getReceiptAttachments = (row: Reimbursement) => {
     const attachments = row.attachments?.filter((item) => isPurpose(item, "RECEIPT")) ?? [];
@@ -200,7 +194,7 @@ export default function ReimbursementPage() {
 
     setIsSaving(true);
     try {
-      const created = await createReimbursement({
+      await createReimbursement({
         category,
         amount: numericAmount,
         description: description || undefined,
@@ -208,12 +202,16 @@ export default function ReimbursementPage() {
         attachments: uploadedReceipts.map(mapUploadToPayload),
       });
 
-      setRows((prev) => [created, ...prev]);
       setAmount("");
       setDescription("");
       setCategory("TRANSPORT");
       setReceiptFiles([]);
       setUploadedReceipts([]);
+      if (page === 1) {
+        await loadData();
+      } else {
+        setPage(1);
+      }
       toast({ title: "Berhasil", description: "Reimbursement berhasil diajukan" });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Gagal mengajukan reimbursement";
@@ -534,12 +532,21 @@ export default function ReimbursementPage() {
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
                   value={searchQuery}
-                  onChange={(event) => setSearchQuery(event.target.value)}
+                  onChange={(event) => {
+                    setSearchQuery(event.target.value);
+                    setPage(1);
+                  }}
                   placeholder="Cari reimbursement..."
                   className="pl-9"
                 />
               </div>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <Select
+                value={statusFilter}
+                onValueChange={(value) => {
+                  setStatusFilter(value);
+                  setPage(1);
+                }}
+              >
                 <SelectTrigger className="w-full md:w-[180px]">
                   <SelectValue />
                 </SelectTrigger>
@@ -578,7 +585,7 @@ export default function ReimbursementPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredRows.length === 0 ? (
+                      {rows.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={isAdmin ? 9 : 8} className="py-8 text-center text-muted-foreground">
                             <div className="flex flex-col items-center gap-2">
@@ -588,7 +595,7 @@ export default function ReimbursementPage() {
                           </TableCell>
                         </TableRow>
                       ) : (
-                        filteredRows.map((row) => {
+                        rows.map((row) => {
                           const receiptAttachments = getReceiptAttachments(row);
                           const paidProofAttachments = getPaidProofAttachments(row);
                           const paidProofDraftCount = paidProofDrafts[row.id]?.length ?? 0;
@@ -681,13 +688,13 @@ export default function ReimbursementPage() {
                 </div>
 
                 <div className="space-y-3 md:hidden">
-                  {filteredRows.length === 0 ? (
+                  {rows.length === 0 ? (
                     <div className="flex flex-col items-center gap-2 rounded-md border py-8 text-muted-foreground">
                       <Wallet className="h-8 w-8" />
                       <p>Belum ada data reimbursement</p>
                     </div>
                   ) : (
-                    filteredRows.map((row) => {
+                    rows.map((row) => {
                       const receiptAttachments = getReceiptAttachments(row);
                       const paidProofAttachments = getPaidProofAttachments(row);
                       const paidProofDraftCount = paidProofDrafts[row.id]?.length ?? 0;
@@ -785,6 +792,32 @@ export default function ReimbursementPage() {
                     })
                   )}
                 </div>
+                <div className="mt-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    {total === 0
+                      ? "Menampilkan 0 dari 0 data"
+                      : `Menampilkan ${(page - 1) * PAGE_SIZE + 1}-${Math.min(
+                          page * PAGE_SIZE,
+                          total
+                        )} dari ${total} data`}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                      disabled={page <= 1}
+                    >
+                      Prev
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setPage((prev) => prev + 1)}
+                      disabled={page * PAGE_SIZE >= total}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
               </>
             )}
           </CardContent>
@@ -809,3 +842,4 @@ export default function ReimbursementPage() {
     </AdminLayout>
   );
 }
+

@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
-import { and, eq, inArray, type SQL } from "drizzle-orm";
+import { and, desc, eq, inArray, or, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/lib/db";
 import {
@@ -29,6 +29,9 @@ const attachmentSchema = z.object({
 
 const querySchema = z.object({
   status: workflowStatusSchema.optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(20),
+  offset: z.coerce.number().int().min(0).optional().default(0),
+  q: z.string().trim().max(100).optional(),
 });
 
 const createSchema = z.object({
@@ -50,6 +53,9 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const parsedQuery = querySchema.safeParse({
     status: url.searchParams.get("status") ?? undefined,
+    limit: url.searchParams.get("limit") ?? undefined,
+    offset: url.searchParams.get("offset") ?? undefined,
+    q: url.searchParams.get("q") ?? undefined,
   });
   if (!parsedQuery.success) {
     return NextResponse.json(
@@ -58,7 +64,7 @@ export async function GET(request: Request) {
     );
   }
 
-  const { status } = parsedQuery.data;
+  const { status, limit, offset, q } = parsedQuery.data;
   const conditions: SQL[] = [];
 
   if (auth.user.role !== "ADMIN") {
@@ -67,16 +73,51 @@ export async function GET(request: Request) {
   if (status) {
     conditions.push(eq(reimbursements.status, status));
   }
+  const search = q?.trim().toLowerCase();
+  if (search) {
+    const like = `%${search}%`;
+    conditions.push(
+      or(
+        sql`lower(coalesce(${users.name}, '')) like ${like}`,
+        sql`lower(${reimbursements.category}) like ${like}`,
+        sql`lower(coalesce(${reimbursements.description}, '')) like ${like}`,
+        sql`lower(${reimbursements.status}) like ${like}`,
+        sql`cast(${reimbursements.amount} as text) like ${like}`
+      ) as SQL
+    );
+  }
 
   const db = getDb();
-  const baseQuery = db
-    .select({ reimbursement: reimbursements, user: users })
-    .from(reimbursements)
-    .leftJoin(users, eq(reimbursements.userId, users.id));
-  const rows =
-    conditions.length > 0
-      ? await baseQuery.where(and(...conditions))
-      : await baseQuery;
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  const totalResult = whereClause
+    ? await db
+        .select({ count: sql<string>`count(*)` })
+        .from(reimbursements)
+        .leftJoin(users, eq(reimbursements.userId, users.id))
+        .where(whereClause)
+    : await db
+        .select({ count: sql<string>`count(*)` })
+        .from(reimbursements)
+        .leftJoin(users, eq(reimbursements.userId, users.id));
+  const total = Number(totalResult[0]?.count ?? 0);
+
+  const rows = whereClause
+    ? await db
+        .select({ reimbursement: reimbursements, user: users })
+        .from(reimbursements)
+        .leftJoin(users, eq(reimbursements.userId, users.id))
+        .where(whereClause)
+        .orderBy(desc(reimbursements.createdAt))
+        .limit(limit)
+        .offset(offset)
+    : await db
+        .select({ reimbursement: reimbursements, user: users })
+        .from(reimbursements)
+        .leftJoin(users, eq(reimbursements.userId, users.id))
+        .orderBy(desc(reimbursements.createdAt))
+        .limit(limit)
+        .offset(offset);
 
   const reimbursementIds = rows.map(({ reimbursement }) => reimbursement.id);
   const attachments =
@@ -97,20 +138,28 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json(
-    rows.map(({ reimbursement, user }) => ({
-      ...reimbursement,
-      attachments: attachmentsByReimbursementId.get(reimbursement.id) ?? [],
-      user: user
-        ? {
-            id: user.id,
-            username: user.username,
-            name: user.name,
-            role: user.role,
-          }
-        : undefined,
-    }))
-  );
+  const items = rows.map(({ reimbursement, user }) => ({
+    ...reimbursement,
+    attachments: attachmentsByReimbursementId.get(reimbursement.id) ?? [],
+    user: user
+      ? {
+          id: user.id,
+          username: user.username,
+          name: user.name,
+          role: user.role,
+        }
+      : undefined,
+  }));
+  const hasMore = offset + items.length < total;
+
+  return NextResponse.json({
+    items,
+    total,
+    limit,
+    offset,
+    hasMore,
+    nextOffset: hasMore ? offset + items.length : null,
+  });
 }
 
 export async function POST(request: Request) {
@@ -187,4 +236,3 @@ export async function POST(request: Request) {
 
   return NextResponse.json({ ...created, attachments }, { status: 201 });
 }
-

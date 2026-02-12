@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
-import { and, eq, type SQL } from "drizzle-orm";
+import { and, desc, eq, or, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/lib/db";
 import { leaveRequests, users } from "@/lib/db/schema";
@@ -21,6 +21,9 @@ const dateStringSchema = z
 
 const querySchema = z.object({
   status: workflowStatusSchema.optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(20),
+  offset: z.coerce.number().int().min(0).optional().default(0),
+  q: z.string().trim().max(100).optional(),
 });
 
 const createSchema = z.object({
@@ -41,6 +44,9 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const parsedQuery = querySchema.safeParse({
     status: url.searchParams.get("status") ?? undefined,
+    limit: url.searchParams.get("limit") ?? undefined,
+    offset: url.searchParams.get("offset") ?? undefined,
+    q: url.searchParams.get("q") ?? undefined,
   });
   if (!parsedQuery.success) {
     return NextResponse.json(
@@ -49,7 +55,7 @@ export async function GET(request: Request) {
     );
   }
 
-  const { status } = parsedQuery.data;
+  const { status, limit, offset, q } = parsedQuery.data;
   const conditions: SQL[] = [];
 
   if (auth.user.role !== "ADMIN") {
@@ -58,29 +64,73 @@ export async function GET(request: Request) {
   if (status) {
     conditions.push(eq(leaveRequests.status, status));
   }
+  const search = q?.trim().toLowerCase();
+  if (search) {
+    const like = `%${search}%`;
+    conditions.push(
+      or(
+        sql`lower(coalesce(${users.name}, '')) like ${like}`,
+        sql`lower(${leaveRequests.leaveType}) like ${like}`,
+        sql`lower(${leaveRequests.reason}) like ${like}`,
+        sql`lower(${leaveRequests.status}) like ${like}`
+      ) as SQL
+    );
+  }
 
   const db = getDb();
-  const baseQuery = db
-    .select({ request: leaveRequests, user: users })
-    .from(leaveRequests)
-    .leftJoin(users, eq(leaveRequests.userId, users.id));
-  const rows =
-    conditions.length > 0
-      ? await baseQuery.where(and(...conditions))
-      : await baseQuery;
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+
+  const totalResult = whereClause
+    ? await db
+        .select({ count: sql<string>`count(*)` })
+        .from(leaveRequests)
+        .leftJoin(users, eq(leaveRequests.userId, users.id))
+        .where(whereClause)
+    : await db
+        .select({ count: sql<string>`count(*)` })
+        .from(leaveRequests)
+        .leftJoin(users, eq(leaveRequests.userId, users.id));
+  const total = Number(totalResult[0]?.count ?? 0);
+
+  const rows = whereClause
+    ? await db
+        .select({ request: leaveRequests, user: users })
+        .from(leaveRequests)
+        .leftJoin(users, eq(leaveRequests.userId, users.id))
+        .where(whereClause)
+        .orderBy(desc(leaveRequests.createdAt))
+        .limit(limit)
+        .offset(offset)
+    : await db
+        .select({ request: leaveRequests, user: users })
+        .from(leaveRequests)
+        .leftJoin(users, eq(leaveRequests.userId, users.id))
+        .orderBy(desc(leaveRequests.createdAt))
+        .limit(limit)
+        .offset(offset);
+
+  const items = rows.map(({ request, user }) => ({
+    ...request,
+    user: user
+      ? {
+          id: user.id,
+          username: user.username,
+          name: user.name,
+          role: user.role,
+        }
+      : undefined,
+  }));
+  const hasMore = offset + items.length < total;
 
   return NextResponse.json(
-    rows.map(({ request, user }) => ({
-      ...request,
-      user: user
-        ? {
-            id: user.id,
-            username: user.username,
-            name: user.name,
-            role: user.role,
-          }
-        : undefined,
-    }))
+    {
+      items,
+      total,
+      limit,
+      offset,
+      hasMore,
+      nextOffset: hasMore ? offset + items.length : null,
+    }
   );
 }
 
@@ -132,4 +182,3 @@ export async function POST(request: Request) {
 
   return NextResponse.json(created, { status: 201 });
 }
-

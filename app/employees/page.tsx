@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -32,6 +32,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { createEmployee, fetchEmployees, updateEmployee } from "@/lib/api/employees";
 import { fetchUsers } from "@/lib/api/users";
 import { formatDate } from "@/lib/numbering";
@@ -74,36 +75,23 @@ export default function EmployeesPage() {
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [form, setForm] = useState<FormState>(initialForm);
   const [searchQuery, setSearchQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const PAGE_SIZE = 20;
+  const debouncedSearch = useDebouncedValue(searchQuery.trim(), 400);
 
-  const usersWithoutEmployee = useMemo(() => {
-    const takenUserIds = new Set(employees.map((employee) => employee.userId));
-    return users.filter((item) => !takenUserIds.has(item.id));
-  }, [employees, users]);
-
-  const filteredEmployees = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) return employees;
-
-    return employees.filter((employee) => {
-      const haystack = [
-        employee.employeeCode,
-        employee.user?.name ?? "",
-        employee.user?.username ?? "",
-        employee.department ?? "",
-        employee.position ?? "",
-        employee.workLocation ?? "",
-      ]
-        .join(" ")
-        .toLowerCase();
-      return haystack.includes(q);
-    });
-  }, [employees, searchQuery]);
+  const usersWithoutEmployee = users;
 
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const employeeRows = await fetchEmployees();
-      setEmployees(employeeRows);
+      const employeeRows = await fetchEmployees({
+        limit: PAGE_SIZE,
+        offset: (page - 1) * PAGE_SIZE,
+        q: debouncedSearch.length >= 2 ? debouncedSearch : undefined,
+      });
+      setEmployees(employeeRows.items);
+      setTotal(employeeRows.total);
       if (isAdmin) {
         const userRows = await fetchUsers();
         setUsers(userRows);
@@ -122,7 +110,11 @@ export default function EmployeesPage() {
 
   useEffect(() => {
     void loadData();
-  }, [isAdmin]);
+  }, [isAdmin, page, debouncedSearch]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch]);
 
   const resetForm = () => {
     setForm(initialForm);
@@ -268,7 +260,10 @@ export default function EmployeesPage() {
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
+                onChange={(event) => {
+                  setSearchQuery(event.target.value);
+                  setPage(1);
+                }}
                 placeholder="Cari employee..."
                 className="pl-9"
               />
@@ -297,7 +292,7 @@ export default function EmployeesPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredEmployees.length === 0 ? (
+                {employees.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={isAdmin ? 8 : 7} className="py-8 text-center text-muted-foreground">
                       <div className="flex flex-col items-center gap-2">
@@ -307,7 +302,7 @@ export default function EmployeesPage() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredEmployees.map((employee) => (
+                  employees.map((employee) => (
                     <TableRow key={employee.id}>
                       <TableCell className="font-mono text-xs">{employee.employeeCode}</TableCell>
                       <TableCell>
@@ -343,13 +338,13 @@ export default function EmployeesPage() {
           </div>
 
           <div className="space-y-3 md:hidden">
-            {filteredEmployees.length === 0 ? (
+            {employees.length === 0 ? (
               <div className="flex flex-col items-center gap-2 rounded-md border py-8 text-muted-foreground">
                 <Users className="h-8 w-8" />
                 <p>Belum ada data employee</p>
               </div>
             ) : (
-              filteredEmployees.map((employee) => (
+              employees.map((employee) => (
                 <div key={employee.id} className="rounded-md border p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -372,6 +367,32 @@ export default function EmployeesPage() {
                 </div>
               ))
             )}
+          </div>
+          <div className="mt-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <p className="text-sm text-muted-foreground">
+              {total === 0
+                ? "Menampilkan 0 dari 0 data"
+                : `Menampilkan ${(page - 1) * PAGE_SIZE + 1}-${Math.min(
+                    page * PAGE_SIZE,
+                    total
+                  )} dari ${total} data`}
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                disabled={page <= 1}
+              >
+                Prev
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setPage((prev) => prev + 1)}
+                disabled={page * PAGE_SIZE >= total}
+              >
+                Next
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -484,3 +505,4 @@ export default function EmployeesPage() {
     </AdminLayout>
   );
 }
+
