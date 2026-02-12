@@ -202,6 +202,45 @@ export const settings = pgTable("settings", {
   updatedAt: timestamp("updated_at", { mode: "date" }).notNull(),
 });
 
+export const settingsApprovalFlow = pgTable("settings_approval_flow", {
+  id: text("id").primaryKey(),
+  leaveApprovalLevels: integer("leave_approval_levels").notNull().default(2),
+  leaveApproverLevel1Role: text("leave_approver_level1_role").notNull(),
+  leaveApproverLevel2Role: text("leave_approver_level2_role").notNull(),
+  reimbursementApprovalLevels: integer("reimbursement_approval_levels").notNull().default(2),
+  reimbursementApproverLevel1Role: text("reimbursement_approver_level1_role").notNull(),
+  reimbursementApproverLevel2Role: text("reimbursement_approver_level2_role").notNull(),
+  businessTripApprovalLevels: integer("business_trip_approval_levels").notNull().default(2),
+  businessTripApproverLevel1Role: text("business_trip_approver_level1_role").notNull(),
+  businessTripApproverLevel2Role: text("business_trip_approver_level2_role").notNull(),
+  createdAt: timestamp("created_at", { mode: "date" }).notNull(),
+  updatedAt: timestamp("updated_at", { mode: "date" }).notNull(),
+});
+
+export const settingsWorkSchedule = pgTable("settings_work_schedule", {
+  id: text("id").primaryKey(),
+  timezone: text("timezone").notNull(),
+  checkInDeadline: text("check_in_deadline").notNull(),
+  workStart: text("work_start").notNull(),
+  workEnd: text("work_end").notNull(),
+  allowFlexibleCheckout: boolean("allow_flexible_checkout").notNull().default(true),
+  workingDaysJson: text("working_days_json").notNull(),
+  createdAt: timestamp("created_at", { mode: "date" }).notNull(),
+  updatedAt: timestamp("updated_at", { mode: "date" }).notNull(),
+});
+
+export const settingsReimbursementLimit = pgTable("settings_reimbursement_limit", {
+  id: text("id").primaryKey(),
+  transportLimit: numeric("transport_limit", { precision: 15, scale: 0 }).notNull(),
+  mealLimit: numeric("meal_limit", { precision: 15, scale: 0 }).notNull(),
+  otherLimit: numeric("other_limit", { precision: 15, scale: 0 }).notNull(),
+  positionLimitJson: text("position_limit_json").notNull(),
+  maxFilesPerRequest: integer("max_files_per_request").notNull().default(10),
+  maxFileSizeMb: integer("max_file_size_mb").notNull().default(5),
+  createdAt: timestamp("created_at", { mode: "date" }).notNull(),
+  updatedAt: timestamp("updated_at", { mode: "date" }).notNull(),
+});
+
 export const employees = pgTable(
   "employees",
   {
@@ -325,5 +364,31 @@ export const reimbursements = pgTable(
   (table) => ({
     userIdIdx: index("reimbursements_user_id_idx").on(table.userId),
     statusIdx: index("reimbursements_status_idx").on(table.status),
+  })
+);
+
+export const reimbursementAttachments = pgTable(
+  "reimbursement_attachments",
+  {
+    id: text("id").primaryKey(),
+    reimbursementId: text("reimbursement_id")
+      .notNull()
+      .references(() => reimbursements.id),
+    purpose: text("purpose").notNull(),
+    fileUrl: text("file_url").notNull(),
+    fileKey: text("file_key"),
+    fileName: text("file_name").notNull(),
+    contentType: text("content_type"),
+    fileSize: integer("file_size"),
+    uploadedBy: text("uploaded_by")
+      .notNull()
+      .references(() => users.id),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull(),
+  },
+  (table) => ({
+    reimbursementIdIdx: index("reimbursement_attachments_reimbursement_id_idx").on(
+      table.reimbursementId
+    ),
+    purposeIdx: index("reimbursement_attachments_purpose_idx").on(table.purpose),
   })
 );

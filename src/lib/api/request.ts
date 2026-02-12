@@ -11,8 +11,17 @@ export async function requestJson<T>(
   });
 
   if (!response.ok) {
-    const message = await response.text();
-    throw new Error(message || "Request failed");
+    const raw = await response.text();
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw) as { error?: string; message?: string };
+        const message = parsed.error || parsed.message;
+        throw new Error(message || raw);
+      } catch {
+        throw new Error(raw);
+      }
+    }
+    throw new Error("Request failed");
   }
 
   return response.json() as Promise<T>;

@@ -1,12 +1,486 @@
-﻿"use client";
+"use client";
 
-import { FeatureComingSoon } from "@/components/layout/FeatureComingSoon";
+import { useEffect, useMemo, useState } from "react";
+import { AdminLayout } from "@/components/layout/AdminLayout";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { useToast } from "@/hooks/use-toast";
+import { createEmployee, fetchEmployees, updateEmployee } from "@/lib/api/employees";
+import { fetchUsers } from "@/lib/api/users";
+import { formatDate } from "@/lib/numbering";
+import { useAuth } from "@/contexts/AuthContext";
+import type { Employee, User } from "@/types";
+import { Plus, Search, Users } from "lucide-react";
 
-export default function Page() {
+interface FormState {
+  userId: string;
+  employeeCode: string;
+  position: string;
+  department: string;
+  workLocation: string;
+  phone: string;
+  email: string;
+  isActive: "true" | "false";
+}
+
+const initialForm: FormState = {
+  userId: "",
+  employeeCode: "",
+  position: "",
+  department: "",
+  workLocation: "",
+  phone: "",
+  email: "",
+  isActive: "true",
+};
+
+export default function EmployeesPage() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "ADMIN";
+  const { toast } = useToast();
+
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  const [form, setForm] = useState<FormState>(initialForm);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const usersWithoutEmployee = useMemo(() => {
+    const takenUserIds = new Set(employees.map((employee) => employee.userId));
+    return users.filter((item) => !takenUserIds.has(item.id));
+  }, [employees, users]);
+
+  const filteredEmployees = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return employees;
+
+    return employees.filter((employee) => {
+      const haystack = [
+        employee.employeeCode,
+        employee.user?.name ?? "",
+        employee.user?.username ?? "",
+        employee.department ?? "",
+        employee.position ?? "",
+        employee.workLocation ?? "",
+      ]
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [employees, searchQuery]);
+
+  const loadData = async () => {
+    setIsLoading(true);
+    try {
+      const employeeRows = await fetchEmployees();
+      setEmployees(employeeRows);
+      if (isAdmin) {
+        const userRows = await fetchUsers();
+        setUsers(userRows);
+      }
+    } catch (error) {
+      console.error(error);
+      toast({
+        title: "Error",
+        description: "Gagal memuat data karyawan",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadData();
+  }, [isAdmin]);
+
+  const resetForm = () => {
+    setForm(initialForm);
+    setEditingEmployee(null);
+  };
+
+  const openCreateDialog = () => {
+    resetForm();
+    setIsDialogOpen(true);
+  };
+
+  const openEditDialog = (employee: Employee) => {
+    setEditingEmployee(employee);
+    setForm({
+      userId: employee.userId,
+      employeeCode: employee.employeeCode,
+      position: employee.position ?? "",
+      department: employee.department ?? "",
+      workLocation: employee.workLocation ?? "",
+      phone: employee.phone ?? "",
+      email: employee.email ?? "",
+      isActive: employee.isActive ? "true" : "false",
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    if (!form.employeeCode.trim()) {
+      toast({
+        title: "Error",
+        description: "Employee code wajib diisi",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!editingEmployee && !form.userId) {
+      toast({
+        title: "Error",
+        description: "Pilih user terlebih dahulu",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      if (editingEmployee) {
+        const updated = await updateEmployee(editingEmployee.id, {
+          employeeCode: form.employeeCode,
+          position: form.position || undefined,
+          department: form.department || undefined,
+          workLocation: form.workLocation || undefined,
+          phone: form.phone || undefined,
+          email: form.email || undefined,
+          isActive: form.isActive === "true",
+        });
+
+        setEmployees((prev) =>
+          prev.map((row) =>
+            row.id === updated.id
+              ? {
+                  ...updated,
+                  user: row.user,
+                }
+              : row
+          )
+        );
+
+        toast({ title: "Berhasil", description: "Data employee diperbarui" });
+      } else {
+        const created = await createEmployee({
+          userId: form.userId,
+          employeeCode: form.employeeCode,
+          position: form.position || undefined,
+          department: form.department || undefined,
+          workLocation: form.workLocation || undefined,
+          phone: form.phone || undefined,
+          email: form.email || undefined,
+          isActive: form.isActive === "true",
+        });
+
+        const selectedUser = users.find((item) => item.id === created.userId);
+        setEmployees((prev) => [
+          ...prev,
+          {
+            ...created,
+            user: selectedUser
+              ? {
+                  id: selectedUser.id,
+                  username: selectedUser.username,
+                  name: selectedUser.name,
+                  role: selectedUser.role,
+                }
+              : undefined,
+          },
+        ]);
+        toast({ title: "Berhasil", description: "Employee berhasil ditambahkan" });
+      }
+
+      setIsDialogOpen(false);
+      resetForm();
+    } catch (error) {
+      console.error(error);
+      toast({
+        title: "Error",
+        description: "Gagal menyimpan data employee",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <AdminLayout title="Employees">
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-6 w-44" />
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {Array.from({ length: 5 }).map((_, idx) => (
+                <Skeleton key={idx} className="h-8 w-full" />
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      </AdminLayout>
+    );
+  }
+
   return (
-    <FeatureComingSoon
-      title="Employees"
-      description="Master data karyawan dan profil kepegawaian."
-    />
+    <AdminLayout title="Employees">
+      <Card>
+        <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <CardTitle>Employee Directory</CardTitle>
+          <div className="flex w-full flex-col gap-2 md:w-auto md:flex-row md:items-center">
+            <div className="relative md:w-[240px]">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Cari employee..."
+                className="pl-9"
+              />
+            </div>
+            {isAdmin && (
+              <Button onClick={openCreateDialog}>
+                <Plus className="mr-2 h-4 w-4" />
+                Tambah Employee
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="hidden rounded-md border md:block">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Employee Code</TableHead>
+                  <TableHead>Nama</TableHead>
+                  <TableHead>Department</TableHead>
+                  <TableHead>Position</TableHead>
+                  <TableHead>Lokasi</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Updated</TableHead>
+                  {isAdmin && <TableHead className="text-right">Aksi</TableHead>}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredEmployees.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={isAdmin ? 8 : 7} className="py-8 text-center text-muted-foreground">
+                      <div className="flex flex-col items-center gap-2">
+                        <Users className="h-8 w-8" />
+                        <p>Belum ada data employee</p>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredEmployees.map((employee) => (
+                    <TableRow key={employee.id}>
+                      <TableCell className="font-mono text-xs">{employee.employeeCode}</TableCell>
+                      <TableCell>
+                        <div>
+                          <p className="font-medium">{employee.user?.name ?? "-"}</p>
+                          <p className="text-xs text-muted-foreground">{employee.user?.username ?? "-"}</p>
+                        </div>
+                      </TableCell>
+                      <TableCell>{employee.department ?? "-"}</TableCell>
+                      <TableCell>{employee.position ?? "-"}</TableCell>
+                      <TableCell>{employee.workLocation ?? "-"}</TableCell>
+                      <TableCell>
+                        <Badge
+                          variant="outline"
+                          className={employee.isActive ? "bg-success text-success-foreground" : "bg-muted text-muted-foreground"}
+                        >
+                          {employee.isActive ? "ACTIVE" : "INACTIVE"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{formatDate(new Date(employee.updatedAt))}</TableCell>
+                      {isAdmin && (
+                        <TableCell className="text-right">
+                          <Button variant="outline" size="sm" onClick={() => openEditDialog(employee)}>
+                            Edit
+                          </Button>
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+
+          <div className="space-y-3 md:hidden">
+            {filteredEmployees.length === 0 ? (
+              <div className="flex flex-col items-center gap-2 rounded-md border py-8 text-muted-foreground">
+                <Users className="h-8 w-8" />
+                <p>Belum ada data employee</p>
+              </div>
+            ) : (
+              filteredEmployees.map((employee) => (
+                <div key={employee.id} className="rounded-md border p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-mono text-xs text-muted-foreground">{employee.employeeCode}</p>
+                      <p className="font-medium">{employee.user?.name ?? "-"}</p>
+                      <p className="text-xs text-muted-foreground">{employee.department ?? "-"} | {employee.position ?? "-"}</p>
+                    </div>
+                    <Badge variant="outline" className={employee.isActive ? "bg-success text-success-foreground" : "bg-muted text-muted-foreground"}>
+                      {employee.isActive ? "ACTIVE" : "INACTIVE"}
+                    </Badge>
+                  </div>
+                  <p className="mt-2 text-sm text-muted-foreground">Lokasi: {employee.workLocation ?? "-"}</p>
+                  {isAdmin && (
+                    <div className="mt-3 flex justify-end">
+                      <Button variant="outline" size="sm" onClick={() => openEditDialog(employee)}>
+                        Edit
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {isAdmin && (
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogContent className="sm:max-w-[620px] p-0">
+            <form onSubmit={handleSubmit} className="flex max-h-[85dvh] flex-col">
+              <DialogHeader className="px-6 pt-6 pb-0">
+                <DialogTitle>{editingEmployee ? "Edit Employee" : "Tambah Employee"}</DialogTitle>
+                <DialogDescription>
+                  {editingEmployee
+                    ? "Perbarui profil kepegawaian"
+                    : "Hubungkan user ke data employee"}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 overflow-y-auto px-6 py-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>User</Label>
+                  {editingEmployee ? (
+                    <Input disabled value={editingEmployee.user?.name ?? editingEmployee.userId} />
+                  ) : (
+                    <Select value={form.userId} onValueChange={(value) => setForm((prev) => ({ ...prev, userId: value }))}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Pilih user" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {usersWithoutEmployee.map((item) => (
+                          <SelectItem key={item.id} value={item.id}>
+                            {item.name} ({item.username})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label>Employee Code</Label>
+                  <Input
+                    value={form.employeeCode}
+                    onChange={(event) => setForm((prev) => ({ ...prev, employeeCode: event.target.value }))}
+                    placeholder="EMP-001"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Department</Label>
+                  <Input
+                    value={form.department}
+                    onChange={(event) => setForm((prev) => ({ ...prev, department: event.target.value }))}
+                    placeholder="HR"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Position</Label>
+                  <Input
+                    value={form.position}
+                    onChange={(event) => setForm((prev) => ({ ...prev, position: event.target.value }))}
+                    placeholder="Staff"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Work Location</Label>
+                  <Input
+                    value={form.workLocation}
+                    onChange={(event) => setForm((prev) => ({ ...prev, workLocation: event.target.value }))}
+                    placeholder="Jakarta"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Status</Label>
+                  <Select value={form.isActive} onValueChange={(value) => setForm((prev) => ({ ...prev, isActive: value as "true" | "false" }))}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="true">ACTIVE</SelectItem>
+                      <SelectItem value="false">INACTIVE</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Email</Label>
+                  <Input
+                    value={form.email}
+                    onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))}
+                    placeholder="staff@company.com"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Phone</Label>
+                  <Input
+                    value={form.phone}
+                    onChange={(event) => setForm((prev) => ({ ...prev, phone: event.target.value }))}
+                    placeholder="08..."
+                  />
+                </div>
+              </div>
+              <DialogFooter className="border-t px-6 py-4">
+                <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
+                  Batal
+                </Button>
+                <Button type="submit" disabled={isSaving}>
+                  {isSaving ? "Menyimpan..." : editingEmployee ? "Update" : "Simpan"}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+      )}
+    </AdminLayout>
   );
 }

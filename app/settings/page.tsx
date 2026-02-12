@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import { fetchSettings, updateSettings, type SettingsPayload } from "@/lib/api/settings";
-import { Building2, FileCog, ShieldCheck } from "lucide-react";
+import { Building2, FileCog, ShieldCheck, Trash2 } from "lucide-react";
 
 const defaultState: SettingsPayload = {
   companyName: "",
@@ -25,11 +25,32 @@ const defaultState: SettingsPayload = {
   defaultSignerName: "",
 };
 
+type CleanupOrphanResponse = {
+  mode: "dry-run" | "delete";
+  prefix: string;
+  olderThanMinutes: number;
+  scannedObjects: number;
+  referencedKeyCount: number;
+  orphanCandidateCount: number;
+  deletedCount: number;
+  failedCount: number;
+  orphanCandidates: Array<{ key: string; lastModified: string | null }>;
+  deletedKeys: string[];
+  failedDeletes: Array<{ key: string; error: string }>;
+};
+
 export default function SettingsPage() {
   const { toast } = useToast();
   const [formData, setFormData] = useState<SettingsPayload>(defaultState);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [cleanupLoadingMode, setCleanupLoadingMode] = useState<"dry-run" | "delete" | null>(null);
+  const [cleanupForm, setCleanupForm] = useState({
+    olderThanMinutes: 60,
+    maxDelete: 200,
+    maxScanObjects: 10000,
+  });
+  const [cleanupResult, setCleanupResult] = useState<CleanupOrphanResponse | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -75,6 +96,49 @@ export default function SettingsPage() {
       });
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const runCleanup = async (mode: "dry-run" | "delete") => {
+    setCleanupLoadingMode(mode);
+    try {
+      const response = await fetch("/api/uploads/reimbursement/cleanup-orphans", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          dryRun: mode === "dry-run",
+          olderThanMinutes: Number(cleanupForm.olderThanMinutes),
+          maxDelete: Number(cleanupForm.maxDelete),
+          maxScanObjects: Number(cleanupForm.maxScanObjects),
+        }),
+      });
+      const data = (await response.json()) as CleanupOrphanResponse | { error?: string };
+
+      if (!response.ok) {
+        throw new Error("error" in data ? data.error || "Cleanup gagal" : "Cleanup gagal");
+      }
+
+      if (!("mode" in data)) {
+        throw new Error("Response cleanup tidak valid");
+      }
+
+      setCleanupResult(data);
+      toast({
+        title: "Berhasil",
+        description:
+          mode === "dry-run"
+            ? "Dry-run cleanup berhasil dijalankan."
+            : `Cleanup selesai. ${data.deletedCount} file dihapus.`,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Gagal cleanup orphan file";
+      toast({
+        title: "Error",
+        description: message,
+        variant: "destructive",
+      });
+    } finally {
+      setCleanupLoadingMode(null);
     }
   };
 
@@ -256,6 +320,97 @@ export default function SettingsPage() {
                   placeholder="Nama penandatangan"
                 />
               </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border border-border/70">
+            <CardHeader>
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+                  <Trash2 className="h-5 w-5" />
+                </div>
+                <div>
+                  <CardTitle>Maintenance R2</CardTitle>
+                  <CardDescription>Cleanup orphan file reimbursement di Cloudflare R2.</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="grid gap-4">
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="space-y-2">
+                  <Label>Older Than (menit)</Label>
+                  <Input
+                    type="number"
+                    min={0}
+                    value={cleanupForm.olderThanMinutes}
+                    onChange={(event) =>
+                      setCleanupForm((prev) => ({
+                        ...prev,
+                        olderThanMinutes: Number(event.target.value),
+                      }))
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Maks Delete</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={cleanupForm.maxDelete}
+                    onChange={(event) =>
+                      setCleanupForm((prev) => ({
+                        ...prev,
+                        maxDelete: Number(event.target.value),
+                      }))
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Maks Scan Object</Label>
+                  <Input
+                    type="number"
+                    min={100}
+                    value={cleanupForm.maxScanObjects}
+                    onChange={(event) =>
+                      setCleanupForm((prev) => ({
+                        ...prev,
+                        maxScanObjects: Number(event.target.value),
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => void runCleanup("dry-run")}
+                  disabled={cleanupLoadingMode !== null}
+                >
+                  {cleanupLoadingMode === "dry-run" ? "Menjalankan Dry-Run..." : "Dry-Run Cleanup"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={() => void runCleanup("delete")}
+                  disabled={cleanupLoadingMode !== null}
+                >
+                  {cleanupLoadingMode === "delete" ? "Menjalankan Delete..." : "Execute Cleanup"}
+                </Button>
+              </div>
+
+              {cleanupResult && (
+                <div className="rounded-md border p-3 text-sm space-y-1">
+                  <p><span className="font-medium">Mode:</span> {cleanupResult.mode}</p>
+                  <p><span className="font-medium">Prefix:</span> {cleanupResult.prefix}</p>
+                  <p><span className="font-medium">Scanned:</span> {cleanupResult.scannedObjects}</p>
+                  <p><span className="font-medium">Referenced:</span> {cleanupResult.referencedKeyCount}</p>
+                  <p><span className="font-medium">Orphan Candidate:</span> {cleanupResult.orphanCandidateCount}</p>
+                  <p><span className="font-medium">Deleted:</span> {cleanupResult.deletedCount}</p>
+                  <p><span className="font-medium">Failed:</span> {cleanupResult.failedCount}</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

@@ -12,6 +12,9 @@ import {
   letterAssignmentMembers,
   users,
   settings,
+  settingsApprovalFlow,
+  settingsWorkSchedule,
+  settingsReimbursementLimit,
 } from "./schema";
 import {
   mockClients,
@@ -119,6 +122,117 @@ async function seedSettings() {
         numberingReset: "YEARLY",
         defaultPpnRate: "11",
         defaultSignerName: "Anita Rahman, CPA",
+        updatedAt: now,
+      },
+    });
+}
+
+async function seedHrSettings() {
+  const db = getDb();
+  const now = new Date();
+
+  await db
+    .insert(settingsApprovalFlow)
+    .values({
+      id: "default",
+      leaveApprovalLevels: 2,
+      leaveApproverLevel1Role: "ADMIN_1",
+      leaveApproverLevel2Role: "ADMIN_2",
+      reimbursementApprovalLevels: 2,
+      reimbursementApproverLevel1Role: "ADMIN_1",
+      reimbursementApproverLevel2Role: "ADMIN_2",
+      businessTripApprovalLevels: 2,
+      businessTripApproverLevel1Role: "ADMIN_1",
+      businessTripApproverLevel2Role: "ADMIN_2",
+      createdAt: now,
+      updatedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: settingsApprovalFlow.id,
+      set: {
+        leaveApprovalLevels: 2,
+        leaveApproverLevel1Role: "ADMIN_1",
+        leaveApproverLevel2Role: "ADMIN_2",
+        reimbursementApprovalLevels: 2,
+        reimbursementApproverLevel1Role: "ADMIN_1",
+        reimbursementApproverLevel2Role: "ADMIN_2",
+        businessTripApprovalLevels: 2,
+        businessTripApproverLevel1Role: "ADMIN_1",
+        businessTripApproverLevel2Role: "ADMIN_2",
+        updatedAt: now,
+      },
+    });
+
+  await db
+    .insert(settingsWorkSchedule)
+    .values({
+      id: "default",
+      timezone: "Asia/Jakarta",
+      checkInDeadline: "10:00",
+      workStart: "08:00",
+      workEnd: "17:00",
+      allowFlexibleCheckout: true,
+      workingDaysJson: JSON.stringify({
+        monday: true,
+        tuesday: true,
+        wednesday: true,
+        thursday: true,
+        friday: true,
+        saturday: false,
+        sunday: false,
+      }),
+      createdAt: now,
+      updatedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: settingsWorkSchedule.id,
+      set: {
+        timezone: "Asia/Jakarta",
+        checkInDeadline: "10:00",
+        workStart: "08:00",
+        workEnd: "17:00",
+        allowFlexibleCheckout: true,
+        workingDaysJson: JSON.stringify({
+          monday: true,
+          tuesday: true,
+          wednesday: true,
+          thursday: true,
+          friday: true,
+          saturday: false,
+          sunday: false,
+        }),
+        updatedAt: now,
+      },
+    });
+
+  await db
+    .insert(settingsReimbursementLimit)
+    .values({
+      id: "default",
+      transportLimit: "500000",
+      mealLimit: "300000",
+      otherLimit: "500000",
+      positionLimitJson: JSON.stringify([
+        { id: "staff", position: "Staff", monthlyLimit: 1000000 },
+        { id: "senior-staff", position: "Senior Staff", monthlyLimit: 1500000 },
+      ]),
+      maxFilesPerRequest: 10,
+      maxFileSizeMb: 5,
+      createdAt: now,
+      updatedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: settingsReimbursementLimit.id,
+      set: {
+        transportLimit: "500000",
+        mealLimit: "300000",
+        otherLimit: "500000",
+        positionLimitJson: JSON.stringify([
+          { id: "staff", position: "Staff", monthlyLimit: 1000000 },
+          { id: "senior-staff", position: "Senior Staff", monthlyLimit: 1500000 },
+        ]),
+        maxFilesPerRequest: 10,
+        maxFileSizeMb: 5,
         updatedAt: now,
       },
     });
@@ -747,6 +861,7 @@ async function seedLetterAssignments() {
 async function run() {
   await seedUsers();
   await seedSettings();
+  await seedHrSettings();
   await seedClients();
   await migrateClientCodes();
   await seedContracts();

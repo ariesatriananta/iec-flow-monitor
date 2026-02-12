@@ -249,4 +249,18 @@ export interface Reimbursement {
   createdAt: Date;
   updatedAt: Date;
   user?: Pick<User, "id" | "username" | "name" | "role">;
+  attachments?: ReimbursementAttachment[];
+}
+
+export interface ReimbursementAttachment {
+  id: string;
+  reimbursementId: string;
+  purpose: "RECEIPT" | "PAID_PROOF" | string;
+  fileUrl: string;
+  fileKey?: string | null;
+  fileName: string;
+  contentType?: string | null;
+  fileSize?: number | null;
+  uploadedBy: string;
+  createdAt: Date;
 }

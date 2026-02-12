@@ -13,6 +13,7 @@ import type {
   LeaveRequest,
   BusinessTrip,
   Reimbursement,
+  ReimbursementAttachment,
 } from "@/types";
 
 const toDate = (value: string | Date): Date => {
@@ -123,4 +124,15 @@ export const parseReimbursement = (data: Reimbursement): Reimbursement => ({
   paidAt: data.paidAt ? toDate(data.paidAt) : null,
   createdAt: toDate(data.createdAt),
   updatedAt: toDate(data.updatedAt),
+  attachments: data.attachments
+    ? data.attachments.map(parseReimbursementAttachment)
+    : undefined,
+});
+
+const parseReimbursementAttachment = (
+  data: ReimbursementAttachment
+): ReimbursementAttachment => ({
+  ...data,
+  fileSize: data.fileSize ?? null,
+  createdAt: toDate(data.createdAt),
 });

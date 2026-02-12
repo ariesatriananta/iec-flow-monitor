@@ -1,24 +1,55 @@
-﻿export const dynamic = "force-dynamic";
+export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
-import { and, eq, gte, lte } from "drizzle-orm";
+import { and, eq, gte, lte, type SQL } from "drizzle-orm";
+import { z } from "zod";
 import { getDb } from "@/lib/db";
 import { attendanceRecords, users } from "@/lib/db/schema";
 import { requireSessionUser } from "@/lib/auth/server";
 import { getJakartaDayStart, getJakartaParts } from "@/lib/hr/time";
+
+const dateStringSchema = z
+  .string()
+  .trim()
+  .refine((value) => !Number.isNaN(new Date(value).getTime()), "Format tanggal tidak valid");
+
+const querySchema = z.object({
+  userId: z.string().trim().min(1).max(128).optional(),
+  from: dateStringSchema.optional(),
+  to: dateStringSchema.optional(),
+});
+
+const actionSchema = z.object({
+  action: z.union([z.literal("CHECK_IN"), z.literal("CHECK_OUT")]),
+  location: z.string().trim().max(200).optional(),
+  notes: z.string().trim().max(1000).optional(),
+  userId: z.string().trim().min(1).max(128).optional(),
+});
+
+const formatZodError = (error: z.ZodError) =>
+  error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; ");
 
 export async function GET(request: Request) {
   const auth = await requireSessionUser();
   if ("response" in auth) return auth.response;
 
   const url = new URL(request.url);
-  const userId = url.searchParams.get("userId");
-  const from = url.searchParams.get("from");
-  const to = url.searchParams.get("to");
+  const parsedQuery = querySchema.safeParse({
+    userId: url.searchParams.get("userId") ?? undefined,
+    from: url.searchParams.get("from") ?? undefined,
+    to: url.searchParams.get("to") ?? undefined,
+  });
+  if (!parsedQuery.success) {
+    return NextResponse.json(
+      { error: `Query tidak valid: ${formatZodError(parsedQuery.error)}` },
+      { status: 400 }
+    );
+  }
 
+  const { userId, from, to } = parsedQuery.data;
   const targetUserId = auth.user.role === "ADMIN" ? userId : auth.user.id;
 
-  const conditions = [];
+  const conditions: SQL[] = [];
   if (targetUserId) conditions.push(eq(attendanceRecords.userId, targetUserId));
   if (from) conditions.push(gte(attendanceRecords.attendanceDate, new Date(from)));
   if (to) conditions.push(lte(attendanceRecords.attendanceDate, new Date(to)));
@@ -52,17 +83,19 @@ export async function POST(request: Request) {
   const auth = await requireSessionUser();
   if ("response" in auth) return auth.response;
 
-  const body = await request.json();
-  const action = body?.action;
-  if (action !== "CHECK_IN" && action !== "CHECK_OUT") {
+  const rawBody = await request.json().catch(() => null);
+  const parsedBody = actionSchema.safeParse(rawBody);
+  if (!parsedBody.success) {
     return NextResponse.json(
-      { error: "action harus CHECK_IN atau CHECK_OUT" },
+      { error: `Payload tidak valid: ${formatZodError(parsedBody.error)}` },
       { status: 400 }
     );
   }
 
+  const body = parsedBody.data;
+  const action = body.action;
   const targetUserId =
-    auth.user.role === "ADMIN" && body?.userId ? body.userId : auth.user.id;
+    auth.user.role === "ADMIN" && body.userId ? body.userId : auth.user.id;
 
   const now = new Date();
   const dayStart = getJakartaDayStart(now);
@@ -100,8 +133,8 @@ export async function POST(request: Request) {
         .update(attendanceRecords)
         .set({
           checkInAt: now,
-          checkInLocation: body?.location ?? existing.checkInLocation,
-          notes: body?.notes ?? existing.notes,
+          checkInLocation: body.location ?? existing.checkInLocation,
+          notes: body.notes ?? existing.notes,
           updatedAt: now,
         })
         .where(eq(attendanceRecords.id, existing.id))
@@ -116,11 +149,11 @@ export async function POST(request: Request) {
         userId: targetUserId,
         attendanceDate: dayStart,
         checkInAt: now,
-        checkInLocation: body?.location ?? null,
+        checkInLocation: body.location ?? null,
         checkOutAt: null,
         checkOutLocation: null,
         status: "PRESENT",
-        notes: body?.notes ?? null,
+        notes: body.notes ?? null,
         createdAt: now,
         updatedAt: now,
       })
@@ -147,8 +180,8 @@ export async function POST(request: Request) {
     .update(attendanceRecords)
     .set({
       checkOutAt: now,
-      checkOutLocation: body?.location ?? null,
-      notes: body?.notes ?? existing.notes,
+      checkOutLocation: body.location ?? null,
+      notes: body.notes ?? existing.notes,
       updatedAt: now,
     })
     .where(eq(attendanceRecords.id, existing.id))
@@ -156,3 +189,4 @@ export async function POST(request: Request) {
 
   return NextResponse.json(updated);
 }
+

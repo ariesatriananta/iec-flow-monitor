@@ -1,10 +1,43 @@
-﻿export const dynamic = "force-dynamic";
+export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
+import { z } from "zod";
 import { getDb } from "@/lib/db";
 import { leaveRequests } from "@/lib/db/schema";
 import { requireSessionUser } from "@/lib/auth/server";
+
+const dateStringSchema = z
+  .string()
+  .trim()
+  .refine((value) => !Number.isNaN(new Date(value).getTime()), "Format tanggal tidak valid");
+
+const staffUpdateSchema = z.object({
+  leaveType: z.string().trim().min(1).max(50).optional(),
+  reason: z.string().trim().min(1).max(2000).optional(),
+  startDate: dateStringSchema.optional(),
+  endDate: dateStringSchema.optional(),
+  status: z.literal("CANCELLED").optional(),
+});
+
+const adminUpdateSchema = z.object({
+  leaveType: z.string().trim().min(1).max(50).optional(),
+  reason: z.string().trim().min(1).max(2000).optional(),
+  startDate: dateStringSchema.optional(),
+  endDate: dateStringSchema.optional(),
+  status: z
+    .union([
+      z.literal("SUBMITTED"),
+      z.literal("APPROVED"),
+      z.literal("REJECTED"),
+      z.literal("CANCELLED"),
+    ])
+    .optional(),
+  adminNote: z.string().trim().max(2000).optional(),
+});
+
+const formatZodError = (error: z.ZodError) =>
+  error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; ");
 
 export async function PUT(
   request: Request,
@@ -13,7 +46,7 @@ export async function PUT(
   const auth = await requireSessionUser();
   if ("response" in auth) return auth.response;
 
-  const body = await request.json();
+  const rawBody = await request.json().catch(() => null);
   const db = getDb();
 
   const [existing] = await db
@@ -27,6 +60,15 @@ export async function PUT(
   }
 
   if (auth.user.role !== "ADMIN") {
+    const parsedBody = staffUpdateSchema.safeParse(rawBody);
+    if (!parsedBody.success) {
+      return NextResponse.json(
+        { error: `Payload tidak valid: ${formatZodError(parsedBody.error)}` },
+        { status: 400 }
+      );
+    }
+
+    const body = parsedBody.data;
     if (existing.userId !== auth.user.id) {
       return NextResponse.json({ error: "Akses ditolak" }, { status: 403 });
     }
@@ -34,6 +76,15 @@ export async function PUT(
     if (existing.status !== "SUBMITTED") {
       return NextResponse.json(
         { error: "Pengajuan yang sudah diproses tidak bisa diubah" },
+        { status: 400 }
+      );
+    }
+
+    const startDate = body.startDate ? new Date(body.startDate) : existing.startDate;
+    const endDate = body.endDate ? new Date(body.endDate) : existing.endDate;
+    if (endDate < startDate) {
+      return NextResponse.json(
+        { error: "Rentang tanggal cuti tidak valid" },
         { status: 400 }
       );
     }
@@ -54,7 +105,25 @@ export async function PUT(
     return NextResponse.json(updated);
   }
 
+  const parsedBody = adminUpdateSchema.safeParse(rawBody);
+  if (!parsedBody.success) {
+    return NextResponse.json(
+      { error: `Payload tidak valid: ${formatZodError(parsedBody.error)}` },
+      { status: 400 }
+    );
+  }
+
+  const body = parsedBody.data;
   const nextStatus = body.status ?? existing.status;
+  const startDate = body.startDate ? new Date(body.startDate) : existing.startDate;
+  const endDate = body.endDate ? new Date(body.endDate) : existing.endDate;
+  if (endDate < startDate) {
+    return NextResponse.json(
+      { error: "Rentang tanggal cuti tidak valid" },
+      { status: 400 }
+    );
+  }
+
   const approvedAt =
     nextStatus === "APPROVED" || nextStatus === "REJECTED" ? new Date() : null;
 
@@ -79,3 +148,4 @@ export async function PUT(
 
   return NextResponse.json(updated);
 }
+
