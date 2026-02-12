@@ -13,6 +13,7 @@ export async function createUser(payload: {
   name: string;
   password: string;
   role: User["role"];
+  employeeId?: string | null;
 }): Promise<User> {
   const response = await fetch("/api/users", {
     method: "POST",
@@ -28,7 +29,13 @@ export async function createUser(payload: {
 
 export async function updateUser(
   id: string,
-  payload: { username?: string; name?: string; password?: string; role?: User["role"] }
+  payload: {
+    username?: string;
+    name?: string;
+    password?: string;
+    role?: User["role"];
+    employeeId?: string | null;
+  }
 ): Promise<User> {
   const response = await fetch(`/api/users/${id}`, {
     method: "PUT",

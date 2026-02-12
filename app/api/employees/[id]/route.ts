@@ -17,7 +17,7 @@ export async function GET(
   const [row] = await db
     .select({ employee: employees, user: users })
     .from(employees)
-    .leftJoin(users, eq(employees.userId, users.id))
+    .leftJoin(users, eq(users.employeeId, employees.id))
     .where(eq(employees.id, params.id))
     .limit(1);
 
@@ -25,7 +25,7 @@ export async function GET(
     return NextResponse.json({ error: "Employee tidak ditemukan" }, { status: 404 });
   }
 
-  if (auth.user.role !== "ADMIN" && row.employee.userId !== auth.user.id) {
+  if (auth.user.role !== "ADMIN" && row.user?.id !== auth.user.id) {
     return NextResponse.json({ error: "Akses ditolak" }, { status: 403 });
   }
 
@@ -58,8 +58,7 @@ export async function PUT(
   const [updated] = await db
     .update(employees)
     .set({
-      employeeCode: body.employeeCode ?? undefined,
-      position: body.position ?? undefined,
+      title: body.title ?? undefined,
       department: body.department ?? undefined,
       workLocation: body.workLocation ?? undefined,
       phone: body.phone ?? undefined,

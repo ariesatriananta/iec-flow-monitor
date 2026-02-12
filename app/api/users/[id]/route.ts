@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic"
 import { NextResponse } from "next/server";
 import { and, eq, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { users } from "@/lib/db/schema";
+import { employees, users } from "@/lib/db/schema";
 import bcrypt from "bcryptjs";
 import { requireAdmin } from "@/lib/auth/server";
 
@@ -41,6 +41,39 @@ export async function PUT(
     }
   }
 
+  if (body.employeeId !== undefined) {
+    if (body.employeeId) {
+      const [employeeExists] = await db
+        .select({ id: employees.id })
+        .from(employees)
+        .where(eq(employees.id, body.employeeId))
+        .limit(1);
+      if (!employeeExists) {
+        return NextResponse.json(
+          { error: "Employee tidak ditemukan" },
+          { status: 404 }
+        );
+      }
+
+      const employeeTaken = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(
+          and(
+            eq(users.employeeId, body.employeeId),
+            sql`${users.id} <> ${params.id}`
+          )
+        )
+        .limit(1);
+      if (employeeTaken.length > 0) {
+        return NextResponse.json(
+          { error: "Employee sudah terhubung ke user lain" },
+          { status: 409 }
+        );
+      }
+    }
+  }
+
   const updateData: Record<string, unknown> = {
     updatedAt: new Date(),
   };
@@ -49,6 +82,9 @@ export async function PUT(
   if (body.name !== undefined) updateData.name = body.name;
   if (body.role !== undefined) {
     updateData.role = body.role === "STAFF" ? "STAFF" : "ADMIN";
+  }
+  if (body.employeeId !== undefined) {
+    updateData.employeeId = body.employeeId || null;
   }
   if (body.password) {
     updateData.passwordHash = await bcrypt.hash(body.password, 10);
@@ -63,6 +99,7 @@ export async function PUT(
       username: users.username,
       name: users.name,
       role: users.role,
+      employeeId: users.employeeId,
       createdAt: users.createdAt,
       updatedAt: users.updatedAt,
     });

@@ -16,6 +16,22 @@ const querySchema = z.object({
 const formatZodError = (error: z.ZodError) =>
   error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; ");
 
+const EMPLOYEE_CODE_PREFIX = "EM";
+const EMPLOYEE_CODE_PAD = 3;
+const MAX_EMPLOYEE_CODE_ATTEMPT = 5;
+
+const generateNextEmployeeCode = async () => {
+  const db = getDb();
+  const [row] = await db
+    .select({
+      maxSeq: sql<number>`coalesce(max((substring(${employees.employeeCode} from '^EM([0-9]+)$'))::integer), 0)`,
+    })
+    .from(employees);
+
+  const next = Number(row?.maxSeq ?? 0) + 1;
+  return `${EMPLOYEE_CODE_PREFIX}${String(next).padStart(EMPLOYEE_CODE_PAD, "0")}`;
+};
+
 export async function GET(request: Request) {
   const auth = await requireSessionUser();
   if ("response" in auth) return auth.response;
@@ -37,7 +53,7 @@ export async function GET(request: Request) {
   const db = getDb();
   const conditions: SQL[] = [];
   if (auth.user.role !== "ADMIN") {
-    conditions.push(eq(employees.userId, auth.user.id));
+    conditions.push(eq(users.id, auth.user.id));
   }
 
   const search = q?.trim().toLowerCase();
@@ -47,7 +63,7 @@ export async function GET(request: Request) {
       or(
         sql`lower(${employees.employeeCode}) like ${like}`,
         sql`lower(coalesce(${employees.department}, '')) like ${like}`,
-        sql`lower(coalesce(${employees.position}, '')) like ${like}`,
+        sql`lower(coalesce(${employees.title}, '')) like ${like}`,
         sql`lower(coalesce(${employees.workLocation}, '')) like ${like}`,
         sql`lower(coalesce(${users.name}, '')) like ${like}`,
         sql`lower(coalesce(${users.username}, '')) like ${like}`
@@ -60,19 +76,19 @@ export async function GET(request: Request) {
     ? await db
         .select({ count: sql<string>`count(*)` })
         .from(employees)
-        .leftJoin(users, eq(employees.userId, users.id))
+        .leftJoin(users, eq(users.employeeId, employees.id))
         .where(whereClause)
     : await db
         .select({ count: sql<string>`count(*)` })
         .from(employees)
-        .leftJoin(users, eq(employees.userId, users.id));
+        .leftJoin(users, eq(users.employeeId, employees.id));
   const total = Number(totalResult[0]?.count ?? 0);
 
   const rows = whereClause
     ? await db
         .select({ employee: employees, user: users })
         .from(employees)
-        .leftJoin(users, eq(employees.userId, users.id))
+        .leftJoin(users, eq(users.employeeId, employees.id))
         .where(whereClause)
         .orderBy(desc(employees.updatedAt))
         .limit(limit)
@@ -80,7 +96,7 @@ export async function GET(request: Request) {
     : await db
         .select({ employee: employees, user: users })
         .from(employees)
-        .leftJoin(users, eq(employees.userId, users.id))
+        .leftJoin(users, eq(users.employeeId, employees.id))
         .orderBy(desc(employees.updatedAt))
         .limit(limit)
         .offset(offset);
@@ -116,42 +132,50 @@ export async function POST(request: Request) {
   if ("response" in auth) return auth.response;
 
   const body = await request.json();
+  const db = getDb();
 
-  if (!body?.userId || !body?.employeeCode) {
+  let created: typeof employees.$inferSelect | undefined;
+
+  for (let attempt = 1; attempt <= MAX_EMPLOYEE_CODE_ATTEMPT; attempt += 1) {
+    const now = new Date();
+    const employeeCode = await generateNextEmployeeCode();
+
+    try {
+      [created] = await db
+        .insert(employees)
+        .values({
+          id: crypto.randomUUID(),
+          employeeCode,
+          title: body.title ?? null,
+          department: body.department ?? null,
+          workLocation: body.workLocation ?? null,
+          phone: body.phone ?? null,
+          email: body.email ?? null,
+          isActive: body.isActive ?? true,
+          createdAt: now,
+          updatedAt: now,
+        })
+        .returning();
+      break;
+    } catch (error) {
+      const isUniqueCodeConflict =
+        attempt < MAX_EMPLOYEE_CODE_ATTEMPT &&
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        (error as { code?: string }).code === "23505";
+      if (!isUniqueCodeConflict) {
+        throw error;
+      }
+    }
+  }
+
+  if (!created) {
     return NextResponse.json(
-      { error: "userId dan employeeCode wajib diisi" },
-      { status: 400 }
+      { error: "Gagal generate employee code, silakan coba lagi" },
+      { status: 500 }
     );
   }
-
-  const db = getDb();
-  const [owner] = await db
-    .select({ id: users.id })
-    .from(users)
-    .where(eq(users.id, body.userId))
-    .limit(1);
-
-  if (!owner) {
-    return NextResponse.json({ error: "User tidak ditemukan" }, { status: 404 });
-  }
-
-  const now = new Date();
-  const [created] = await db
-    .insert(employees)
-    .values({
-      id: crypto.randomUUID(),
-      userId: body.userId,
-      employeeCode: body.employeeCode,
-      position: body.position ?? null,
-      department: body.department ?? null,
-      workLocation: body.workLocation ?? null,
-      phone: body.phone ?? null,
-      email: body.email ?? null,
-      isActive: body.isActive ?? true,
-      createdAt: now,
-      updatedAt: now,
-    })
-    .returning();
 
   return NextResponse.json(created, { status: 201 });
 }

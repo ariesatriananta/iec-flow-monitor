@@ -34,16 +34,13 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { createEmployee, fetchEmployees, updateEmployee } from "@/lib/api/employees";
-import { fetchUsers } from "@/lib/api/users";
 import { formatDate } from "@/lib/numbering";
 import { useAuth } from "@/contexts/AuthContext";
-import type { Employee, User } from "@/types";
+import type { Employee } from "@/types";
 import { Plus, Search, Users } from "lucide-react";
 
 interface FormState {
-  userId: string;
-  employeeCode: string;
-  position: string;
+  title: string;
   department: string;
   workLocation: string;
   phone: string;
@@ -51,10 +48,20 @@ interface FormState {
   isActive: "true" | "false";
 }
 
+const TITLE_OPTIONS = [
+  "Intern",
+  "Junior Staff",
+  "Mid-level Staff",
+  "Senior Staff",
+  "Supervisor",
+  "Asst. Manager",
+  "Senior Manager",
+  "Partner",
+  "Director",
+] as const;
+
 const initialForm: FormState = {
-  userId: "",
-  employeeCode: "",
-  position: "",
+  title: "",
   department: "",
   workLocation: "",
   phone: "",
@@ -68,7 +75,6 @@ export default function EmployeesPage() {
   const { toast } = useToast();
 
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -80,8 +86,6 @@ export default function EmployeesPage() {
   const PAGE_SIZE = 20;
   const debouncedSearch = useDebouncedValue(searchQuery.trim(), 400);
 
-  const usersWithoutEmployee = users;
-
   const loadData = async () => {
     setIsLoading(true);
     try {
@@ -92,10 +96,6 @@ export default function EmployeesPage() {
       });
       setEmployees(employeeRows.items);
       setTotal(employeeRows.total);
-      if (isAdmin) {
-        const userRows = await fetchUsers();
-        setUsers(userRows);
-      }
     } catch (error) {
       console.error(error);
       toast({
@@ -129,9 +129,7 @@ export default function EmployeesPage() {
   const openEditDialog = (employee: Employee) => {
     setEditingEmployee(employee);
     setForm({
-      userId: employee.userId,
-      employeeCode: employee.employeeCode,
-      position: employee.position ?? "",
+      title: employee.title ?? "",
       department: employee.department ?? "",
       workLocation: employee.workLocation ?? "",
       phone: employee.phone ?? "",
@@ -144,30 +142,11 @@ export default function EmployeesPage() {
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
 
-    if (!form.employeeCode.trim()) {
-      toast({
-        title: "Error",
-        description: "Employee code wajib diisi",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!editingEmployee && !form.userId) {
-      toast({
-        title: "Error",
-        description: "Pilih user terlebih dahulu",
-        variant: "destructive",
-      });
-      return;
-    }
-
     setIsSaving(true);
     try {
       if (editingEmployee) {
         const updated = await updateEmployee(editingEmployee.id, {
-          employeeCode: form.employeeCode,
-          position: form.position || undefined,
+          title: form.title || undefined,
           department: form.department || undefined,
           workLocation: form.workLocation || undefined,
           phone: form.phone || undefined,
@@ -189,9 +168,7 @@ export default function EmployeesPage() {
         toast({ title: "Berhasil", description: "Data employee diperbarui" });
       } else {
         const created = await createEmployee({
-          userId: form.userId,
-          employeeCode: form.employeeCode,
-          position: form.position || undefined,
+          title: form.title || undefined,
           department: form.department || undefined,
           workLocation: form.workLocation || undefined,
           phone: form.phone || undefined,
@@ -199,21 +176,8 @@ export default function EmployeesPage() {
           isActive: form.isActive === "true",
         });
 
-        const selectedUser = users.find((item) => item.id === created.userId);
-        setEmployees((prev) => [
-          ...prev,
-          {
-            ...created,
-            user: selectedUser
-              ? {
-                  id: selectedUser.id,
-                  username: selectedUser.username,
-                  name: selectedUser.name,
-                  role: selectedUser.role,
-                }
-              : undefined,
-          },
-        ]);
+        setEmployees((prev) => [created, ...prev]);
+        setTotal((prev) => prev + 1);
         toast({ title: "Berhasil", description: "Employee berhasil ditambahkan" });
       }
 
@@ -284,7 +248,7 @@ export default function EmployeesPage() {
                   <TableHead>Employee Code</TableHead>
                   <TableHead>Nama</TableHead>
                   <TableHead>Department</TableHead>
-                  <TableHead>Position</TableHead>
+                  <TableHead>Title</TableHead>
                   <TableHead>Lokasi</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Updated</TableHead>
@@ -312,7 +276,7 @@ export default function EmployeesPage() {
                         </div>
                       </TableCell>
                       <TableCell>{employee.department ?? "-"}</TableCell>
-                      <TableCell>{employee.position ?? "-"}</TableCell>
+                      <TableCell>{employee.title ?? "-"}</TableCell>
                       <TableCell>{employee.workLocation ?? "-"}</TableCell>
                       <TableCell>
                         <Badge
@@ -350,7 +314,7 @@ export default function EmployeesPage() {
                     <div>
                       <p className="font-mono text-xs text-muted-foreground">{employee.employeeCode}</p>
                       <p className="font-medium">{employee.user?.name ?? "-"}</p>
-                      <p className="text-xs text-muted-foreground">{employee.department ?? "-"} | {employee.position ?? "-"}</p>
+                      <p className="text-xs text-muted-foreground">{employee.department ?? "-"} | {employee.title ?? "-"}</p>
                     </div>
                     <Badge variant="outline" className={employee.isActive ? "bg-success text-success-foreground" : "bg-muted text-muted-foreground"}>
                       {employee.isActive ? "ACTIVE" : "INACTIVE"}
@@ -406,37 +370,10 @@ export default function EmployeesPage() {
                 <DialogDescription>
                   {editingEmployee
                     ? "Perbarui profil kepegawaian"
-                    : "Hubungkan user ke data employee"}
+                    : "Tambahkan profil employee"}
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 overflow-y-auto px-6 py-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>User</Label>
-                  {editingEmployee ? (
-                    <Input disabled value={editingEmployee.user?.name ?? editingEmployee.userId} />
-                  ) : (
-                    <Select value={form.userId} onValueChange={(value) => setForm((prev) => ({ ...prev, userId: value }))}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Pilih user" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {usersWithoutEmployee.map((item) => (
-                          <SelectItem key={item.id} value={item.id}>
-                            {item.name} ({item.username})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label>Employee Code</Label>
-                  <Input
-                    value={form.employeeCode}
-                    onChange={(event) => setForm((prev) => ({ ...prev, employeeCode: event.target.value }))}
-                    placeholder="EMP-001"
-                  />
-                </div>
                 <div className="space-y-2">
                   <Label>Department</Label>
                   <Input
@@ -446,12 +383,31 @@ export default function EmployeesPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Position</Label>
-                  <Input
-                    value={form.position}
-                    onChange={(event) => setForm((prev) => ({ ...prev, position: event.target.value }))}
-                    placeholder="Staff"
-                  />
+                  <Label>Title</Label>
+                  <Select
+                    value={form.title || "NONE"}
+                    onValueChange={(value) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        title: value === "NONE" ? "" : value,
+                      }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Pilih title" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="NONE">-</SelectItem>
+                      {form.title && !TITLE_OPTIONS.includes(form.title as (typeof TITLE_OPTIONS)[number]) && (
+                        <SelectItem value={form.title}>{form.title}</SelectItem>
+                      )}
+                      {TITLE_OPTIONS.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label>Work Location</Label>

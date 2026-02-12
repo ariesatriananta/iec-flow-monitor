@@ -132,6 +132,7 @@ export interface User {
   username: string;
   name: string;
   role: 'ADMIN' | 'STAFF';
+  employeeId?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -162,9 +163,8 @@ export interface RecentActivity {
 
 export interface Employee {
   id: string;
-  userId: string;
   employeeCode: string;
-  position?: string;
+  title?: string;
   department?: string;
   workLocation?: string;
   phone?: string;

@@ -178,12 +178,14 @@ export const users = pgTable(
     username: text("username").notNull(),
     name: text("name").notNull(),
     role: userRoleEnum("role").notNull().default("ADMIN"),
+    employeeId: text("employee_id").references(() => employees.id),
     passwordHash: text("password_hash").notNull(),
     createdAt: timestamp("created_at", { mode: "date" }).notNull(),
     updatedAt: timestamp("updated_at", { mode: "date" }).notNull(),
   },
   (table) => ({
     usernameUnique: uniqueIndex("users_username_unique").on(table.username),
+    employeeIdUnique: uniqueIndex("users_employee_id_unique").on(table.employeeId),
   })
 );
 
@@ -245,11 +247,8 @@ export const employees = pgTable(
   "employees",
   {
     id: text("id").primaryKey(),
-    userId: text("user_id")
-      .notNull()
-      .references(() => users.id),
     employeeCode: text("employee_code").notNull(),
-    position: text("position"),
+    title: text("title"),
     department: text("department"),
     workLocation: text("work_location"),
     phone: text("phone"),
@@ -259,7 +258,6 @@ export const employees = pgTable(
     updatedAt: timestamp("updated_at", { mode: "date" }).notNull(),
   },
   (table) => ({
-    userIdUnique: uniqueIndex("employees_user_id_unique").on(table.userId),
     employeeCodeUnique: uniqueIndex("employees_employee_code_unique").on(table.employeeCode),
     emailUnique: uniqueIndex("employees_email_unique").on(table.email),
   })

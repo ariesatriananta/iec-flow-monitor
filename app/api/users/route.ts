@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic"
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { users } from "@/lib/db/schema";
+import { employees, users } from "@/lib/db/schema";
 import bcrypt from "bcryptjs";
 import { requireAdmin } from "@/lib/auth/server";
 
@@ -18,6 +18,7 @@ export async function GET() {
       username: users.username,
       name: users.name,
       role: users.role,
+      employeeId: users.employeeId,
       createdAt: users.createdAt,
       updatedAt: users.updatedAt,
     })
@@ -52,6 +53,32 @@ export async function POST(request: Request) {
     );
   }
 
+  if (body.employeeId) {
+    const [employeeExists] = await db
+      .select({ id: employees.id })
+      .from(employees)
+      .where(eq(employees.id, body.employeeId))
+      .limit(1);
+    if (!employeeExists) {
+      return NextResponse.json(
+        { error: "Employee tidak ditemukan" },
+        { status: 404 }
+      );
+    }
+
+    const employeeTaken = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.employeeId, body.employeeId))
+      .limit(1);
+    if (employeeTaken.length > 0) {
+      return NextResponse.json(
+        { error: "Employee sudah terhubung ke user lain" },
+        { status: 409 }
+      );
+    }
+  }
+
   const now = new Date();
   const role = body.role === "STAFF" ? "STAFF" : "ADMIN";
   const passwordHash = await bcrypt.hash(body.password, 10);
@@ -62,6 +89,7 @@ export async function POST(request: Request) {
       username: body.username,
       name: body.name,
       role,
+      employeeId: body.employeeId ?? null,
       passwordHash,
       createdAt: now,
       updatedAt: now,
@@ -71,6 +99,7 @@ export async function POST(request: Request) {
       username: users.username,
       name: users.name,
       role: users.role,
+      employeeId: users.employeeId,
       createdAt: users.createdAt,
       updatedAt: users.updatedAt,
     });

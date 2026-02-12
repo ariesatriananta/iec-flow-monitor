@@ -42,10 +42,13 @@ import type { User } from '@/types';
 import { formatDate } from '@/lib/numbering';
 import { useToast } from '@/hooks/use-toast';
 import { createUser, deleteUser, fetchUsers, updateUser } from '@/lib/api/users';
+import { fetchEmployees } from '@/lib/api/employees';
+import type { Employee } from '@/types';
 
 export default function Users() {
   const { toast } = useToast();
   const [users, setUsers] = useState<User[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -60,6 +63,7 @@ export default function Users() {
     username: '',
     password: '',
     role: 'ADMIN' as User['role'],
+    employeeId: 'NONE',
   });
 
   const filteredUsers = users
@@ -77,8 +81,14 @@ export default function Users() {
     let active = true;
     const loadData = async () => {
       try {
-        const data = await fetchUsers();
-        if (active) setUsers(data);
+        const [userRows, employeeRows] = await Promise.all([
+          fetchUsers(),
+          fetchEmployees({ limit: 100, offset: 0 }),
+        ]);
+        if (active) {
+          setUsers(userRows);
+          setEmployees(employeeRows.items);
+        }
       } catch (error) {
         console.error(error);
       } finally {
@@ -96,9 +106,14 @@ export default function Users() {
   }, [searchQuery]);
 
   const visibleUsers = filteredUsers.slice(0, visibleCount);
+  const selectableEmployees = employees.filter((employee) => {
+    const linkedUser = users.find((user) => user.employeeId === employee.id);
+    if (!linkedUser) return true;
+    return editingUser?.id === linkedUser.id;
+  });
 
   const resetForm = () => {
-    setFormData({ name: '', username: '', password: '', role: 'ADMIN' });
+    setFormData({ name: '', username: '', password: '', role: 'ADMIN', employeeId: 'NONE' });
     setEditingUser(null);
     setShowPassword(false);
   };
@@ -111,6 +126,7 @@ export default function Users() {
         username: user.username,
         password: '',
         role: user.role,
+        employeeId: user.employeeId ?? 'NONE',
       });
     } else {
       resetForm();
@@ -142,6 +158,7 @@ export default function Users() {
           name: formData.name,
           username: formData.username,
           role: formData.role,
+          employeeId: formData.employeeId === 'NONE' ? null : formData.employeeId,
           password: formData.password || undefined,
         });
         setUsers(users.map((u) => (u.id === updated.id ? updated : u)));
@@ -165,6 +182,7 @@ export default function Users() {
           username: formData.username,
           password: formData.password,
           role: formData.role,
+          employeeId: formData.employeeId === 'NONE' ? null : formData.employeeId,
         });
         setUsers([...users, created]);
         toast({
@@ -253,6 +271,7 @@ export default function Users() {
                     <TableHead>Name</TableHead>
                     <TableHead>Username</TableHead>
                     <TableHead>Role</TableHead>
+                    <TableHead>Employee</TableHead>
                     <TableHead>Created</TableHead>
                     <TableHead className="w-[50px]"></TableHead>
                   </TableRow>
@@ -260,7 +279,7 @@ export default function Users() {
                 <TableBody>
                   {filteredUsers.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center py-8">
+                      <TableCell colSpan={6} className="text-center py-8">
                         <div className="flex flex-col items-center gap-2 text-muted-foreground">
                           <UserCog className="w-8 h-8" />
                           <p>Tidak ada user ditemukan</p>
@@ -276,6 +295,9 @@ export default function Users() {
                           <Badge variant="outline" className="bg-primary/10 text-primary">
                             {user.role}
                           </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {employees.find((employee) => employee.id === user.employeeId)?.employeeCode ?? '-'}
                         </TableCell>
                         <TableCell>{formatDate(new Date(user.createdAt))}</TableCell>
                         <TableCell>
@@ -326,6 +348,9 @@ export default function Users() {
                         {user.role}
                       </Badge>
                     </div>
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Employee: {employees.find((employee) => employee.id === user.employeeId)?.employeeCode ?? '-'}
+                    </p>
                     <div className="mt-3 flex items-center justify-between text-sm">
                       <span className="text-muted-foreground">
                         {formatDate(new Date(user.createdAt))}
@@ -419,6 +444,27 @@ export default function Users() {
                   <SelectContent>
                     <SelectItem value="ADMIN">ADMIN</SelectItem>
                     <SelectItem value="STAFF">STAFF</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="employee">Employee</Label>
+                <Select
+                  value={formData.employeeId}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, employeeId: value })
+                  }
+                >
+                  <SelectTrigger id="employee">
+                    <SelectValue placeholder="Pilih employee (opsional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="NONE">-</SelectItem>
+                    {selectableEmployees.map((employee) => (
+                      <SelectItem key={employee.id} value={employee.id}>
+                        {employee.employeeCode} - {employee.department ?? employee.title ?? 'Employee'}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>

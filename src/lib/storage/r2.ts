@@ -164,10 +164,14 @@ const signAndRequestR2 = async ({
     headers["Content-Type"] = contentType;
   }
 
+  const requestBody = body
+    ? new Blob([Uint8Array.from(body)], { type: contentType })
+    : undefined;
+
   return fetch(url, {
     method,
     headers,
-    body,
+    body: requestBody,
     cache: "no-store",
   });
 };
@@ -310,4 +314,3 @@ export async function listObjectsFromR2(params: {
     nextContinuationToken: nextContinuationToken || null,
   };
 }
-

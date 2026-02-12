@@ -22,9 +22,7 @@ export async function fetchEmployees(params?: {
 }
 
 export async function createEmployee(payload: {
-  userId: string;
-  employeeCode: string;
-  position?: string;
+  title?: string;
   department?: string;
   workLocation?: string;
   phone?: string;
@@ -41,8 +39,7 @@ export async function createEmployee(payload: {
 export async function updateEmployee(
   id: string,
   payload: Partial<{
-    employeeCode: string;
-    position: string;
+    title: string;
     department: string;
     workLocation: string;
     phone: string;
