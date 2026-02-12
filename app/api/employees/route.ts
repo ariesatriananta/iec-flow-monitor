@@ -13,6 +13,22 @@ const querySchema = z.object({
   q: z.string().trim().max(100).optional(),
 });
 
+const employeeGenderSchema = z.enum(["MALE", "FEMALE"]);
+
+const createEmployeeSchema = z.object({
+  fullName: z.string().trim().min(1, "fullName wajib diisi"),
+  nip: z.string().trim().min(1, "nip wajib diisi"),
+  gender: employeeGenderSchema,
+  title: z.string().trim().min(1, "title wajib dipilih"),
+  department: z.string().trim().min(1, "department wajib dipilih"),
+  workLocation: z.string().trim().optional(),
+  phone: z.string().trim().optional(),
+  email: z.string().trim().email("Format email tidak valid").optional().or(z.literal("")),
+  bankAccountName: z.string().trim().optional(),
+  bankAccountNumber: z.string().trim().optional(),
+  isActive: z.boolean().optional(),
+});
+
 const formatZodError = (error: z.ZodError) =>
   error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; ");
 
@@ -62,9 +78,14 @@ export async function GET(request: Request) {
     conditions.push(
       or(
         sql`lower(${employees.employeeCode}) like ${like}`,
+        sql`lower(coalesce(${employees.fullName}, '')) like ${like}`,
+        sql`lower(coalesce(${employees.nip}, '')) like ${like}`,
+        sql`lower(coalesce(${employees.gender}, '')) like ${like}`,
         sql`lower(coalesce(${employees.department}, '')) like ${like}`,
         sql`lower(coalesce(${employees.title}, '')) like ${like}`,
         sql`lower(coalesce(${employees.workLocation}, '')) like ${like}`,
+        sql`lower(coalesce(${employees.phone}, '')) like ${like}`,
+        sql`lower(coalesce(${employees.email}, '')) like ${like}`,
         sql`lower(coalesce(${users.name}, '')) like ${like}`,
         sql`lower(coalesce(${users.username}, '')) like ${like}`
       ) as SQL
@@ -132,6 +153,15 @@ export async function POST(request: Request) {
   if ("response" in auth) return auth.response;
 
   const body = await request.json();
+  const parsedBody = createEmployeeSchema.safeParse(body);
+  if (!parsedBody.success) {
+    return NextResponse.json(
+      { error: `Body tidak valid: ${formatZodError(parsedBody.error)}` },
+      { status: 400 }
+    );
+  }
+
+  const input = parsedBody.data;
   const db = getDb();
 
   let created: typeof employees.$inferSelect | undefined;
@@ -146,12 +176,17 @@ export async function POST(request: Request) {
         .values({
           id: crypto.randomUUID(),
           employeeCode,
-          title: body.title ?? null,
-          department: body.department ?? null,
-          workLocation: body.workLocation ?? null,
-          phone: body.phone ?? null,
-          email: body.email ?? null,
-          isActive: body.isActive ?? true,
+          fullName: input.fullName,
+          nip: input.nip,
+          gender: input.gender,
+          title: input.title,
+          department: input.department,
+          workLocation: input.workLocation || null,
+          phone: input.phone || null,
+          email: input.email || null,
+          bankAccountName: input.bankAccountName || null,
+          bankAccountNumber: input.bankAccountNumber || null,
+          isActive: input.isActive ?? true,
           createdAt: now,
           updatedAt: now,
         })

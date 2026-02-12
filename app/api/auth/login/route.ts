@@ -5,7 +5,7 @@ import { cookies } from "next/headers";
 import { eq } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import { getDb } from "@/lib/db";
-import { users } from "@/lib/db/schema";
+import { employees, users } from "@/lib/db/schema";
 import {
   createSessionToken,
   sessionCookieOptions,
@@ -23,20 +23,39 @@ export async function POST(request: Request) {
   }
 
   const db = getDb();
-  const [user] = await db
-    .select()
+  const [row] = await db
+    .select({
+      user: users,
+      employee: {
+        id: employees.id,
+        employeeCode: employees.employeeCode,
+        fullName: employees.fullName,
+        nip: employees.nip,
+        gender: employees.gender,
+        title: employees.title,
+        department: employees.department,
+        workLocation: employees.workLocation,
+        phone: employees.phone,
+        email: employees.email,
+        bankAccountName: employees.bankAccountName,
+        bankAccountNumber: employees.bankAccountNumber,
+        isActive: employees.isActive,
+        updatedAt: employees.updatedAt,
+      },
+    })
     .from(users)
+    .leftJoin(employees, eq(users.employeeId, employees.id))
     .where(eq(users.username, body.username))
     .limit(1);
 
-  if (!user) {
+  if (!row?.user) {
     return NextResponse.json(
       { error: "Username atau password salah" },
       { status: 401 }
     );
   }
 
-  const isValid = await bcrypt.compare(body.password, user.passwordHash);
+  const isValid = await bcrypt.compare(body.password, row.user.passwordHash);
   if (!isValid) {
     return NextResponse.json(
       { error: "Username atau password salah" },
@@ -44,20 +63,22 @@ export async function POST(request: Request) {
     );
   }
 
-  const role = user.role === "STAFF" ? "STAFF" : "ADMIN";
+  const role = row.user.role === "STAFF" ? "STAFF" : "ADMIN";
   const token = createSessionToken({
-    userId: user.id,
+    userId: row.user.id,
     role,
   });
 
   cookies().set(SESSION_COOKIE_NAME, token, sessionCookieOptions);
 
   return NextResponse.json({
-    id: user.id,
-    username: user.username,
-    name: user.name,
+    id: row.user.id,
+    username: row.user.username,
+    name: row.user.name,
     role,
-    createdAt: user.createdAt,
-    updatedAt: user.updatedAt,
+    employeeId: row.user.employeeId,
+    employee: row.employee?.id ? row.employee : null,
+    createdAt: row.user.createdAt,
+    updatedAt: row.user.updatedAt,
   });
 }

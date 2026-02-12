@@ -133,6 +133,22 @@ export interface User {
   name: string;
   role: 'ADMIN' | 'STAFF';
   employeeId?: string | null;
+  employee?: {
+    id: string;
+    employeeCode: string;
+    fullName?: string;
+    nip?: string;
+    gender?: "MALE" | "FEMALE" | string;
+    title?: string;
+    department?: string;
+    workLocation?: string;
+    phone?: string;
+    email?: string;
+    bankAccountName?: string;
+    bankAccountNumber?: string;
+    isActive: boolean;
+    updatedAt: Date;
+  } | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -164,11 +180,16 @@ export interface RecentActivity {
 export interface Employee {
   id: string;
   employeeCode: string;
+  fullName?: string;
+  nip?: string;
+  gender?: "MALE" | "FEMALE" | string;
   title?: string;
   department?: string;
   workLocation?: string;
   phone?: string;
   email?: string;
+  bankAccountName?: string;
+  bankAccountNumber?: string;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;

@@ -131,6 +131,47 @@
                  </span>
                </div>
              </div>
+             {user?.employee ? (
+               <div className="grid gap-2 rounded-xl border border-border/60 bg-muted/40 p-4 text-sm">
+                 <p className="text-sm font-semibold">Informasi Employee</p>
+                 <div className="flex items-center justify-between gap-4">
+                   <span className="text-muted-foreground">Employee Code</span>
+                   <span className="font-medium">{user.employee.employeeCode ?? "-"}</span>
+                 </div>
+                 <div className="flex items-center justify-between gap-4">
+                   <span className="text-muted-foreground">Nama</span>
+                   <span className="font-medium">{user.employee.fullName ?? "-"}</span>
+                 </div>
+                 <div className="flex items-center justify-between gap-4">
+                   <span className="text-muted-foreground">NIP</span>
+                   <span className="font-medium">{user.employee.nip ?? "-"}</span>
+                 </div>
+                 <div className="flex items-center justify-between gap-4">
+                   <span className="text-muted-foreground">Department</span>
+                   <span className="font-medium">{user.employee.department ?? "-"}</span>
+                 </div>
+                 <div className="flex items-center justify-between gap-4">
+                   <span className="text-muted-foreground">Title</span>
+                   <span className="font-medium">{user.employee.title ?? "-"}</span>
+                 </div>
+                 <div className="flex items-center justify-between gap-4">
+                   <span className="text-muted-foreground">Email</span>
+                   <span className="font-medium">{user.employee.email ?? "-"}</span>
+                 </div>
+                 <div className="flex items-center justify-between gap-4">
+                   <span className="text-muted-foreground">No HP</span>
+                   <span className="font-medium">{user.employee.phone ?? "-"}</span>
+                 </div>
+                 <div className="flex items-center justify-between gap-4">
+                   <span className="text-muted-foreground">Bank</span>
+                   <span className="font-medium">{user.employee.bankAccountName ?? "-"}</span>
+                 </div>
+                 <div className="flex items-center justify-between gap-4">
+                   <span className="text-muted-foreground">No Rekening</span>
+                   <span className="font-medium">{user.employee.bankAccountNumber ?? "-"}</span>
+                 </div>
+               </div>
+             ) : null}
            </CardContent>
          </Card>
 

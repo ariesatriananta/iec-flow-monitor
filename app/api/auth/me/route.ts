@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { users } from "@/lib/db/schema";
+import { employees, users } from "@/lib/db/schema";
 import {
   parseSessionToken,
   SESSION_COOKIE_NAME,
@@ -27,20 +27,40 @@ export async function GET() {
   }
 
   const db = getDb();
-  const [user] = await db
+  const [row] = await db
     .select({
-      id: users.id,
-      username: users.username,
-      name: users.name,
-      role: users.role,
-      createdAt: users.createdAt,
-      updatedAt: users.updatedAt,
+      user: {
+        id: users.id,
+        username: users.username,
+        name: users.name,
+        role: users.role,
+        employeeId: users.employeeId,
+        createdAt: users.createdAt,
+        updatedAt: users.updatedAt,
+      },
+      employee: {
+        id: employees.id,
+        employeeCode: employees.employeeCode,
+        fullName: employees.fullName,
+        nip: employees.nip,
+        gender: employees.gender,
+        title: employees.title,
+        department: employees.department,
+        workLocation: employees.workLocation,
+        phone: employees.phone,
+        email: employees.email,
+        bankAccountName: employees.bankAccountName,
+        bankAccountNumber: employees.bankAccountNumber,
+        isActive: employees.isActive,
+        updatedAt: employees.updatedAt,
+      },
     })
     .from(users)
+    .leftJoin(employees, eq(users.employeeId, employees.id))
     .where(eq(users.id, session.sub))
     .limit(1);
 
-  if (!user) {
+  if (!row) {
     cookieStore.set(SESSION_COOKIE_NAME, "", {
       ...sessionCookieOptions,
       maxAge: 0,
@@ -49,12 +69,7 @@ export async function GET() {
   }
 
   return NextResponse.json({
-    id: user.id,
-    username: user.username,
-    name: user.name,
-    role: user.role,
-    createdAt: user.createdAt,
-    updatedAt: user.updatedAt,
+    ...row.user,
+    employee: row.employee?.id ? row.employee : null,
   });
 }
-

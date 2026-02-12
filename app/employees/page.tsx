@@ -17,6 +17,22 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -33,18 +49,22 @@ import {
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { createEmployee, fetchEmployees, updateEmployee } from "@/lib/api/employees";
-import { formatDate } from "@/lib/numbering";
+import { createEmployee, deleteEmployee, fetchEmployees, updateEmployee } from "@/lib/api/employees";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Employee } from "@/types";
-import { Plus, Search, Users } from "lucide-react";
+import { Eye, MoreHorizontal, Pencil, Plus, Search, Trash2, UserX, Users } from "lucide-react";
 
 interface FormState {
+  fullName: string;
+  nip: string;
+  gender: string;
   title: string;
   department: string;
   workLocation: string;
   phone: string;
   email: string;
+  bankAccountName: string;
+  bankAccountNumber: string;
   isActive: "true" | "false";
 }
 
@@ -60,12 +80,31 @@ const TITLE_OPTIONS = [
   "Director",
 ] as const;
 
+const DEPARTMENT_OPTIONS = [
+  "Audit",
+  "Finance & Accounting",
+  "Administrasi",
+  "Legal",
+  "HR&GA",
+  "Lainnya",
+] as const;
+
+const GENDER_OPTIONS = [
+  { value: "MALE", label: "Laki-laki" },
+  { value: "FEMALE", label: "Perempuan" },
+] as const;
+
 const initialForm: FormState = {
+  fullName: "",
+  nip: "",
+  gender: "",
   title: "",
   department: "",
   workLocation: "",
   phone: "",
   email: "",
+  bankAccountName: "",
+  bankAccountNumber: "",
   isActive: "true",
 };
 
@@ -77,7 +116,12 @@ export default function EmployeesPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [detailTarget, setDetailTarget] = useState<Employee | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Employee | null>(null);
+  const [deactivateTarget, setDeactivateTarget] = useState<Employee | null>(null);
+  const [activateTarget, setActivateTarget] = useState<Employee | null>(null);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [form, setForm] = useState<FormState>(initialForm);
   const [searchQuery, setSearchQuery] = useState("");
@@ -121,6 +165,9 @@ export default function EmployeesPage() {
     setEditingEmployee(null);
   };
 
+  const formatGender = (gender?: string) =>
+    gender === "MALE" ? "Laki-laki" : gender === "FEMALE" ? "Perempuan" : "-";
+
   const openCreateDialog = () => {
     resetForm();
     setIsDialogOpen(true);
@@ -129,11 +176,16 @@ export default function EmployeesPage() {
   const openEditDialog = (employee: Employee) => {
     setEditingEmployee(employee);
     setForm({
+      fullName: employee.fullName ?? "",
+      nip: employee.nip ?? "",
+      gender: employee.gender ?? "",
       title: employee.title ?? "",
       department: employee.department ?? "",
       workLocation: employee.workLocation ?? "",
       phone: employee.phone ?? "",
       email: employee.email ?? "",
+      bankAccountName: employee.bankAccountName ?? "",
+      bankAccountNumber: employee.bankAccountNumber ?? "",
       isActive: employee.isActive ? "true" : "false",
     });
     setIsDialogOpen(true);
@@ -141,16 +193,31 @@ export default function EmployeesPage() {
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+    const fullName = form.fullName.trim();
+    const nip = form.nip.trim();
+    if (!fullName || !nip || !form.gender || !form.title || !form.department) {
+      toast({
+        title: "Error",
+        description: "Fullname, NIP, Gender, Title, dan Department wajib diisi",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setIsSaving(true);
     try {
       if (editingEmployee) {
         const updated = await updateEmployee(editingEmployee.id, {
+          fullName,
+          nip,
+          gender: form.gender as "MALE" | "FEMALE",
           title: form.title || undefined,
           department: form.department || undefined,
           workLocation: form.workLocation || undefined,
           phone: form.phone || undefined,
           email: form.email || undefined,
+          bankAccountName: form.bankAccountName || undefined,
+          bankAccountNumber: form.bankAccountNumber || undefined,
           isActive: form.isActive === "true",
         });
 
@@ -168,11 +235,16 @@ export default function EmployeesPage() {
         toast({ title: "Berhasil", description: "Data employee diperbarui" });
       } else {
         const created = await createEmployee({
-          title: form.title || undefined,
-          department: form.department || undefined,
+          fullName,
+          nip,
+          gender: form.gender as "MALE" | "FEMALE",
+          title: form.title,
+          department: form.department,
           workLocation: form.workLocation || undefined,
           phone: form.phone || undefined,
           email: form.email || undefined,
+          bankAccountName: form.bankAccountName || undefined,
+          bankAccountNumber: form.bankAccountNumber || undefined,
           isActive: form.isActive === "true",
         });
 
@@ -192,6 +264,88 @@ export default function EmployeesPage() {
       });
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    setActionLoadingId(deleteTarget.id);
+    try {
+      await deleteEmployee(deleteTarget.id);
+      setEmployees((prev) => prev.filter((row) => row.id !== deleteTarget.id));
+      setTotal((prev) => Math.max(0, prev - 1));
+      toast({ title: "Berhasil", description: "Employee berhasil dihapus" });
+      setDeleteTarget(null);
+    } catch (error) {
+      console.error(error);
+      toast({
+        title: "Gagal menghapus",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Employee tidak bisa dihapus karena sudah dipakai transaksi/workflow",
+        variant: "destructive",
+      });
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleConfirmDeactivate = async () => {
+    if (!deactivateTarget) return;
+    setActionLoadingId(deactivateTarget.id);
+    try {
+      const updated = await updateEmployee(deactivateTarget.id, { isActive: false });
+      setEmployees((prev) =>
+        prev.map((row) =>
+          row.id === updated.id
+            ? {
+                ...updated,
+                user: row.user,
+              }
+            : row
+        )
+      );
+      toast({ title: "Berhasil", description: "Employee berhasil dinonaktifkan" });
+      setDeactivateTarget(null);
+    } catch (error) {
+      console.error(error);
+      toast({
+        title: "Gagal menonaktifkan",
+        description: error instanceof Error ? error.message : "Terjadi kesalahan",
+        variant: "destructive",
+      });
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  const handleConfirmActivate = async () => {
+    if (!activateTarget) return;
+    setActionLoadingId(activateTarget.id);
+    try {
+      const updated = await updateEmployee(activateTarget.id, { isActive: true });
+      setEmployees((prev) =>
+        prev.map((row) =>
+          row.id === updated.id
+            ? {
+                ...updated,
+                user: row.user,
+              }
+            : row
+        )
+      );
+      toast({ title: "Berhasil", description: "Employee berhasil diaktifkan" });
+      setActivateTarget(null);
+    } catch (error) {
+      console.error(error);
+      toast({
+        title: "Gagal mengaktifkan",
+        description: error instanceof Error ? error.message : "Terjadi kesalahan",
+        variant: "destructive",
+      });
+    } finally {
+      setActionLoadingId(null);
     }
   };
 
@@ -245,14 +399,14 @@ export default function EmployeesPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Employee Code</TableHead>
-                  <TableHead>Nama</TableHead>
+                  <TableHead>Fullname</TableHead>
+                  <TableHead>NIP</TableHead>
+                  <TableHead>Gender</TableHead>
                   <TableHead>Department</TableHead>
                   <TableHead>Title</TableHead>
-                  <TableHead>Lokasi</TableHead>
+                  <TableHead>Email</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Updated</TableHead>
-                  {isAdmin && <TableHead className="text-right">Aksi</TableHead>}
+                  {isAdmin && <TableHead className="w-[50px]"></TableHead>}
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -268,16 +422,23 @@ export default function EmployeesPage() {
                 ) : (
                   employees.map((employee) => (
                     <TableRow key={employee.id}>
-                      <TableCell className="font-mono text-xs">{employee.employeeCode}</TableCell>
                       <TableCell>
                         <div>
-                          <p className="font-medium">{employee.user?.name ?? "-"}</p>
+                          <p className="font-medium">{employee.fullName ?? "-"}</p>
                           <p className="text-xs text-muted-foreground">{employee.user?.username ?? "-"}</p>
                         </div>
                       </TableCell>
+                      <TableCell>{employee.nip ?? "-"}</TableCell>
+                      <TableCell>
+                        {employee.gender === "MALE"
+                          ? "Laki-laki"
+                          : employee.gender === "FEMALE"
+                            ? "Perempuan"
+                            : "-"}
+                      </TableCell>
                       <TableCell>{employee.department ?? "-"}</TableCell>
                       <TableCell>{employee.title ?? "-"}</TableCell>
-                      <TableCell>{employee.workLocation ?? "-"}</TableCell>
+                      <TableCell>{employee.email ?? "-"}</TableCell>
                       <TableCell>
                         <Badge
                           variant="outline"
@@ -286,12 +447,47 @@ export default function EmployeesPage() {
                           {employee.isActive ? "ACTIVE" : "INACTIVE"}
                         </Badge>
                       </TableCell>
-                      <TableCell>{formatDate(new Date(employee.updatedAt))}</TableCell>
                       {isAdmin && (
-                        <TableCell className="text-right">
-                          <Button variant="outline" size="sm" onClick={() => openEditDialog(employee)}>
-                            Edit
-                          </Button>
+                        <TableCell>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" disabled={actionLoadingId === employee.id}>
+                                {actionLoadingId === employee.id ? (
+                                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                                ) : (
+                                  <MoreHorizontal className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => setDetailTarget(employee)}>
+                                <Eye className="mr-2 h-4 w-4" />
+                                Detail
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => openEditDialog(employee)}>
+                                <Pencil className="mr-2 h-4 w-4" />
+                                Edit
+                              </DropdownMenuItem>
+                              {employee.isActive ? (
+                                <DropdownMenuItem onClick={() => setDeactivateTarget(employee)}>
+                                  <UserX className="mr-2 h-4 w-4" />
+                                  Deactivate
+                                </DropdownMenuItem>
+                              ) : (
+                                <DropdownMenuItem onClick={() => setActivateTarget(employee)}>
+                                  <UserX className="mr-2 h-4 w-4" />
+                                  Activate
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive"
+                                onClick={() => setDeleteTarget(employee)}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </TableCell>
                       )}
                     </TableRow>
@@ -312,20 +508,60 @@ export default function EmployeesPage() {
                 <div key={employee.id} className="rounded-md border p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="font-mono text-xs text-muted-foreground">{employee.employeeCode}</p>
-                      <p className="font-medium">{employee.user?.name ?? "-"}</p>
-                      <p className="text-xs text-muted-foreground">{employee.department ?? "-"} | {employee.title ?? "-"}</p>
+                      <p className="font-medium">{employee.fullName ?? "-"}</p>
+                      <p className="text-xs text-muted-foreground">
+                        NIP: {employee.nip ?? "-"} |{" "}
+                        {formatGender(employee.gender)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {employee.department ?? "-"} | {employee.title ?? "-"} | {employee.email ?? "-"}
+                      </p>
                     </div>
                     <Badge variant="outline" className={employee.isActive ? "bg-success text-success-foreground" : "bg-muted text-muted-foreground"}>
                       {employee.isActive ? "ACTIVE" : "INACTIVE"}
                     </Badge>
                   </div>
-                  <p className="mt-2 text-sm text-muted-foreground">Lokasi: {employee.workLocation ?? "-"}</p>
                   {isAdmin && (
                     <div className="mt-3 flex justify-end">
-                      <Button variant="outline" size="sm" onClick={() => openEditDialog(employee)}>
-                        Edit
-                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" disabled={actionLoadingId === employee.id}>
+                            {actionLoadingId === employee.id ? (
+                              <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                            ) : (
+                              <MoreHorizontal className="h-4 w-4" />
+                            )}
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => setDetailTarget(employee)}>
+                            <Eye className="mr-2 h-4 w-4" />
+                            Detail
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => openEditDialog(employee)}>
+                            <Pencil className="mr-2 h-4 w-4" />
+                            Edit
+                          </DropdownMenuItem>
+                          {employee.isActive ? (
+                            <DropdownMenuItem onClick={() => setDeactivateTarget(employee)}>
+                              <UserX className="mr-2 h-4 w-4" />
+                              Deactivate
+                            </DropdownMenuItem>
+                          ) : (
+                            <DropdownMenuItem onClick={() => setActivateTarget(employee)}>
+                              <UserX className="mr-2 h-4 w-4" />
+                              Activate
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={() => setDeleteTarget(employee)}
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   )}
                 </div>
@@ -375,21 +611,83 @@ export default function EmployeesPage() {
               </DialogHeader>
               <div className="grid gap-4 overflow-y-auto px-6 py-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label>Department</Label>
+                  <Label>Fullname</Label>
                   <Input
-                    value={form.department}
-                    onChange={(event) => setForm((prev) => ({ ...prev, department: event.target.value }))}
-                    placeholder="HR"
+                    value={form.fullName}
+                    onChange={(event) => setForm((prev) => ({ ...prev, fullName: event.target.value }))}
+                    placeholder="Nama lengkap"
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label>NIP</Label>
+                  <Input
+                    value={form.nip}
+                    onChange={(event) => setForm((prev) => ({ ...prev, nip: event.target.value }))}
+                    placeholder="Nomor induk pegawai"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Gender</Label>
+                  <Select
+                    value={form.gender || undefined}
+                    onValueChange={(value) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        gender: value,
+                      }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Pilih gender" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {form.gender &&
+                        !GENDER_OPTIONS.some((option) => option.value === form.gender) && (
+                          <SelectItem value={form.gender}>{form.gender}</SelectItem>
+                        )}
+                      {GENDER_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Department</Label>
+                  <Select
+                    value={form.department || undefined}
+                    onValueChange={(value) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        department: value,
+                      }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Pilih department" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {form.department &&
+                        !DEPARTMENT_OPTIONS.includes(form.department as (typeof DEPARTMENT_OPTIONS)[number]) && (
+                          <SelectItem value={form.department}>{form.department}</SelectItem>
+                        )}
+                      {DEPARTMENT_OPTIONS.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label>Title</Label>
                   <Select
-                    value={form.title || "NONE"}
+                    value={form.title || undefined}
                     onValueChange={(value) =>
                       setForm((prev) => ({
                         ...prev,
-                        title: value === "NONE" ? "" : value,
+                        title: value,
                       }))
                     }
                   >
@@ -397,7 +695,6 @@ export default function EmployeesPage() {
                       <SelectValue placeholder="Pilih title" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="NONE">-</SelectItem>
                       {form.title && !TITLE_OPTIONS.includes(form.title as (typeof TITLE_OPTIONS)[number]) && (
                         <SelectItem value={form.title}>{form.title}</SelectItem>
                       )}
@@ -418,6 +715,42 @@ export default function EmployeesPage() {
                   />
                 </div>
                 <div className="space-y-2">
+                  <Label>Email</Label>
+                  <Input
+                    value={form.email}
+                    onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))}
+                    placeholder="staff@company.com"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>No HP</Label>
+                  <Input
+                    value={form.phone}
+                    onChange={(event) => setForm((prev) => ({ ...prev, phone: event.target.value }))}
+                    placeholder="08..."
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Account Bank Name</Label>
+                  <Input
+                    value={form.bankAccountName}
+                    onChange={(event) =>
+                      setForm((prev) => ({ ...prev, bankAccountName: event.target.value }))
+                    }
+                    placeholder="Nama rekening"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Account Bank Number</Label>
+                  <Input
+                    value={form.bankAccountNumber}
+                    onChange={(event) =>
+                      setForm((prev) => ({ ...prev, bankAccountNumber: event.target.value }))
+                    }
+                    placeholder="Nomor rekening"
+                  />
+                </div>
+                <div className="space-y-2">
                   <Label>Status</Label>
                   <Select value={form.isActive} onValueChange={(value) => setForm((prev) => ({ ...prev, isActive: value as "true" | "false" }))}>
                     <SelectTrigger>
@@ -428,22 +761,6 @@ export default function EmployeesPage() {
                       <SelectItem value="false">INACTIVE</SelectItem>
                     </SelectContent>
                   </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Email</Label>
-                  <Input
-                    value={form.email}
-                    onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))}
-                    placeholder="staff@company.com"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Phone</Label>
-                  <Input
-                    value={form.phone}
-                    onChange={(event) => setForm((prev) => ({ ...prev, phone: event.target.value }))}
-                    placeholder="08..."
-                  />
                 </div>
               </div>
               <DialogFooter className="border-t px-6 py-4">
@@ -458,6 +775,147 @@ export default function EmployeesPage() {
           </DialogContent>
         </Dialog>
       )}
+
+      <Dialog
+        open={detailTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setDetailTarget(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-[700px]">
+          <DialogHeader>
+            <DialogTitle>Detail Employee</DialogTitle>
+            <DialogDescription>Informasi lengkap data employee.</DialogDescription>
+          </DialogHeader>
+          {detailTarget && (
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="rounded-lg border bg-muted/40 p-4">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Identitas</p>
+                <div className="mt-3 space-y-2 text-sm">
+                  <p><span className="text-muted-foreground">Fullname:</span> {detailTarget.fullName ?? "-"}</p>
+                  <p><span className="text-muted-foreground">NIP:</span> {detailTarget.nip ?? "-"}</p>
+                  <p><span className="text-muted-foreground">Gender:</span> {formatGender(detailTarget.gender)}</p>
+                  <p><span className="text-muted-foreground">Status:</span> {detailTarget.isActive ? "ACTIVE" : "INACTIVE"}</p>
+                </div>
+              </div>
+              <div className="rounded-lg border bg-muted/40 p-4">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Kepegawaian</p>
+                <div className="mt-3 space-y-2 text-sm">
+                  <p><span className="text-muted-foreground">Department:</span> {detailTarget.department ?? "-"}</p>
+                  <p><span className="text-muted-foreground">Title:</span> {detailTarget.title ?? "-"}</p>
+                  <p><span className="text-muted-foreground">Work Location:</span> {detailTarget.workLocation ?? "-"}</p>
+                  <p><span className="text-muted-foreground">Employee Code:</span> {detailTarget.employeeCode ?? "-"}</p>
+                </div>
+              </div>
+              <div className="rounded-lg border bg-muted/40 p-4">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Kontak</p>
+                <div className="mt-3 space-y-2 text-sm">
+                  <p><span className="text-muted-foreground">Email:</span> {detailTarget.email ?? "-"}</p>
+                  <p><span className="text-muted-foreground">No HP:</span> {detailTarget.phone ?? "-"}</p>
+                  <p><span className="text-muted-foreground">User Login:</span> {detailTarget.user?.username ?? "-"}</p>
+                </div>
+              </div>
+              <div className="rounded-lg border bg-muted/40 p-4">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Bank</p>
+                <div className="mt-3 space-y-2 text-sm">
+                  <p><span className="text-muted-foreground">Account Name:</span> {detailTarget.bankAccountName ?? "-"}</p>
+                  <p><span className="text-muted-foreground">Account Number:</span> {detailTarget.bankAccountNumber ?? "-"}</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus Employee</AlertDialogTitle>
+            <AlertDialogDescription>
+              Employee{" "}
+              <span className="font-medium text-foreground">
+                {deleteTarget?.fullName ?? deleteTarget?.nip}
+              </span>{" "}
+              akan dihapus permanen. Hanya bisa jika belum dipakai transaksi/workflow. Lanjutkan?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={actionLoadingId !== null}>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void handleConfirmDelete()}>
+              {actionLoadingId === deleteTarget?.id ? (
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+              ) : (
+                "Hapus"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={deactivateTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeactivateTarget(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Deactivate Employee</AlertDialogTitle>
+            <AlertDialogDescription>
+              Employee{" "}
+              <span className="font-medium text-foreground">
+                {deactivateTarget?.fullName ?? deactivateTarget?.nip}
+              </span>{" "}
+              akan dinonaktifkan (`is_active = false`). Lanjutkan?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={actionLoadingId !== null}>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void handleConfirmDeactivate()}>
+              {actionLoadingId === deactivateTarget?.id ? (
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+              ) : (
+                "Deactivate"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={activateTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setActivateTarget(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Activate Employee</AlertDialogTitle>
+            <AlertDialogDescription>
+              Employee{" "}
+              <span className="font-medium text-foreground">
+                {activateTarget?.fullName ?? activateTarget?.nip}
+              </span>{" "}
+              akan diaktifkan kembali (`is_active = true`). Lanjutkan?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={actionLoadingId !== null}>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void handleConfirmActivate()}>
+              {actionLoadingId === activateTarget?.id ? (
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+              ) : (
+                "Activate"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AdminLayout>
   );
 }

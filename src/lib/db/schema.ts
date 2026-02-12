@@ -248,17 +248,23 @@ export const employees = pgTable(
   {
     id: text("id").primaryKey(),
     employeeCode: text("employee_code").notNull(),
+    fullName: text("full_name"),
+    nip: text("nip"),
+    gender: text("gender"),
     title: text("title"),
     department: text("department"),
     workLocation: text("work_location"),
     phone: text("phone"),
     email: text("email"),
+    bankAccountName: text("bank_account_name"),
+    bankAccountNumber: text("bank_account_number"),
     isActive: boolean("is_active").notNull().default(true),
     createdAt: timestamp("created_at", { mode: "date" }).notNull(),
     updatedAt: timestamp("updated_at", { mode: "date" }).notNull(),
   },
   (table) => ({
     employeeCodeUnique: uniqueIndex("employees_employee_code_unique").on(table.employeeCode),
+    nipUnique: uniqueIndex("employees_nip_unique").on(table.nip),
     emailUnique: uniqueIndex("employees_email_unique").on(table.email),
   })
 );

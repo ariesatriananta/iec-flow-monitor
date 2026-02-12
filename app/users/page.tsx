@@ -83,7 +83,7 @@ export default function Users() {
       try {
         const [userRows, employeeRows] = await Promise.all([
           fetchUsers(),
-          fetchEmployees({ limit: 100, offset: 0 }),
+          fetchEmployees({ limit: 1000, offset: 0 }),
         ]);
         if (active) {
           setUsers(userRows);
@@ -271,7 +271,7 @@ export default function Users() {
                     <TableHead>Name</TableHead>
                     <TableHead>Username</TableHead>
                     <TableHead>Role</TableHead>
-                    <TableHead>Employee</TableHead>
+                    <TableHead>Employee Name</TableHead>
                     <TableHead>Created</TableHead>
                     <TableHead className="w-[50px]"></TableHead>
                   </TableRow>
@@ -297,7 +297,7 @@ export default function Users() {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          {employees.find((employee) => employee.id === user.employeeId)?.employeeCode ?? '-'}
+                          {employees.find((employee) => employee.id === user.employeeId)?.fullName ?? '-'}
                         </TableCell>
                         <TableCell>{formatDate(new Date(user.createdAt))}</TableCell>
                         <TableCell>
@@ -349,7 +349,7 @@ export default function Users() {
                       </Badge>
                     </div>
                     <p className="mt-2 text-xs text-muted-foreground">
-                      Employee: {employees.find((employee) => employee.id === user.employeeId)?.employeeCode ?? '-'}
+                      Employee Name: {employees.find((employee) => employee.id === user.employeeId)?.fullName ?? '-'}
                     </p>
                     <div className="mt-3 flex items-center justify-between text-sm">
                       <span className="text-muted-foreground">
@@ -462,7 +462,7 @@ export default function Users() {
                     <SelectItem value="NONE">-</SelectItem>
                     {selectableEmployees.map((employee) => (
                       <SelectItem key={employee.id} value={employee.id}>
-                        {employee.employeeCode} - {employee.department ?? employee.title ?? 'Employee'}
+                        {employee.fullName ?? employee.employeeCode} ({employee.employeeCode})
                       </SelectItem>
                     ))}
                   </SelectContent>

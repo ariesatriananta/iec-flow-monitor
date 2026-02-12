@@ -22,11 +22,16 @@ export async function fetchEmployees(params?: {
 }
 
 export async function createEmployee(payload: {
-  title?: string;
-  department?: string;
+  fullName: string;
+  nip: string;
+  gender: "MALE" | "FEMALE";
+  title: string;
+  department: string;
   workLocation?: string;
   phone?: string;
   email?: string;
+  bankAccountName?: string;
+  bankAccountNumber?: string;
   isActive?: boolean;
 }): Promise<Employee> {
   const data = await requestJson<Employee>("/api/employees", {
@@ -39,11 +44,16 @@ export async function createEmployee(payload: {
 export async function updateEmployee(
   id: string,
   payload: Partial<{
+    fullName: string;
+    nip: string;
+    gender: "MALE" | "FEMALE";
     title: string;
     department: string;
     workLocation: string;
     phone: string;
     email: string;
+    bankAccountName: string;
+    bankAccountNumber: string;
     isActive: boolean;
   }>
 ): Promise<Employee> {
@@ -52,4 +62,10 @@ export async function updateEmployee(
     body: JSON.stringify(payload),
   });
   return parseEmployee(data);
+}
+
+export async function deleteEmployee(id: string): Promise<void> {
+  await requestJson<{ ok: boolean }>(`/api/employees/${id}`, {
+    method: "DELETE",
+  });
 }
