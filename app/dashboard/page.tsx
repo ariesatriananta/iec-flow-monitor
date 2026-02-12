@@ -14,12 +14,36 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { FileText, Receipt, TrendingUp, Clock, ArrowRight, Plus } from 'lucide-react';
+import {
+  FileText,
+  Receipt,
+  TrendingUp,
+  Clock,
+  ArrowRight,
+  Plus,
+  CalendarCheck2,
+  FileCheck,
+  Plane,
+  Wallet,
+} from 'lucide-react';
 import { formatCurrency } from '@/lib/numbering';
 import { fetchDashboardKPI, fetchDashboardMonthly } from '@/lib/api/dashboard';
 import { fetchContracts } from '@/lib/api/contracts';
 import { fetchInvoices } from '@/lib/api/invoices';
-import type { Contract, DashboardKPI, DashboardMonthlyDatum, Invoice } from '@/types';
+import { fetchAttendance } from '@/lib/api/attendance';
+import { fetchLeaveRequests } from '@/lib/api/leaveManagement';
+import { fetchBusinessTrips } from '@/lib/api/businessTrip';
+import { fetchReimbursements } from '@/lib/api/reimbursement';
+import type {
+  AttendanceRecord,
+  BusinessTrip,
+  Contract,
+  DashboardKPI,
+  DashboardMonthlyDatum,
+  Invoice,
+  LeaveRequest,
+  Reimbursement,
+} from '@/types';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -41,6 +65,15 @@ export default function Dashboard() {
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [monthlyData, setMonthlyData] = useState<DashboardMonthlyDatum[]>([]);
+  const [todayAttendance, setTodayAttendance] = useState<AttendanceRecord | null>(null);
+  const [recentLeaves, setRecentLeaves] = useState<LeaveRequest[]>([]);
+  const [recentTrips, setRecentTrips] = useState<BusinessTrip[]>([]);
+  const [recentReimbursements, setRecentReimbursements] = useState<Reimbursement[]>([]);
+  const [staffCounts, setStaffCounts] = useState({
+    leaveSubmitted: 0,
+    tripSubmitted: 0,
+    reimbursementSubmitted: 0,
+  });
   const [isLoading, setIsLoading] = useState(true);
   const [quickActionLoading, setQuickActionLoading] = useState<string | null>(null);
 
@@ -48,23 +81,49 @@ export default function Dashboard() {
     let active = true;
     const loadData = async () => {
       try {
-        const [kpiData, monthly] = await Promise.all([
-          fetchDashboardKPI(),
-          fetchDashboardMonthly(),
-        ]);
-        if (!active) return;
-        setKpi(kpiData);
-        setMonthlyData(monthly);
-
         if (user?.role === 'ADMIN') {
-          const [contractData, invoiceData] = await Promise.all([
+          const [kpiData, monthly, contractData, invoiceData] = await Promise.all([
+            fetchDashboardKPI(),
+            fetchDashboardMonthly(),
             fetchContracts(),
             fetchInvoices(),
           ]);
           if (!active) return;
+          setKpi(kpiData);
+          setMonthlyData(monthly);
           setContracts(contractData);
           setInvoices(invoiceData);
         } else {
+          const today = new Date().toISOString().slice(0, 10);
+          const [
+            attendanceToday,
+            leaveSubmitted,
+            tripSubmitted,
+            reimbursementSubmitted,
+            leaveLatest,
+            tripLatest,
+            reimbursementLatest,
+          ] = await Promise.all([
+            fetchAttendance({ from: today, to: today, limit: 1, offset: 0 }),
+            fetchLeaveRequests({ status: 'SUBMITTED', limit: 1, offset: 0 }),
+            fetchBusinessTrips({ status: 'SUBMITTED', limit: 1, offset: 0 }),
+            fetchReimbursements({ status: 'SUBMITTED', limit: 1, offset: 0 }),
+            fetchLeaveRequests({ limit: 5, offset: 0 }),
+            fetchBusinessTrips({ limit: 5, offset: 0 }),
+            fetchReimbursements({ limit: 5, offset: 0 }),
+          ]);
+          if (!active) return;
+          setTodayAttendance(attendanceToday.items[0] ?? null);
+          setStaffCounts({
+            leaveSubmitted: leaveSubmitted.total,
+            tripSubmitted: tripSubmitted.total,
+            reimbursementSubmitted: reimbursementSubmitted.total,
+          });
+          setRecentLeaves(leaveLatest.items);
+          setRecentTrips(tripLatest.items);
+          setRecentReimbursements(reimbursementLatest.items);
+          setKpi(null);
+          setMonthlyData([]);
           setContracts([]);
           setInvoices([]);
         }
@@ -126,8 +185,196 @@ export default function Dashboard() {
     },
   ];
 
+  const attendanceLabel = todayAttendance
+    ? todayAttendance.checkOutAt
+      ? 'SUDAH CHECK-OUT'
+      : todayAttendance.checkInAt
+      ? 'SUDAH CHECK-IN'
+      : 'TERCATAT'
+    : 'BELUM ABSEN';
+
   return (
     <AdminLayout title="Dashboard">
+      {user?.role === 'STAFF' ? (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <Card className="hover:shadow-md transition-shadow">
+              <CardContent className="p-4 md:p-6">
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Absensi Hari Ini</p>
+                  <p className="text-xl font-bold">{attendanceLabel}</p>
+                  <p className="text-xs text-muted-foreground">Status check-in/check-out</p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="hover:shadow-md transition-shadow">
+              <CardContent className="p-4 md:p-6">
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Leave Pending</p>
+                  <p className="text-xl font-bold">{staffCounts.leaveSubmitted}</p>
+                  <p className="text-xs text-muted-foreground">Menunggu approval</p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="hover:shadow-md transition-shadow">
+              <CardContent className="p-4 md:p-6">
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Business Trip Pending</p>
+                  <p className="text-xl font-bold">{staffCounts.tripSubmitted}</p>
+                  <p className="text-xs text-muted-foreground">Menunggu approval</p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="hover:shadow-md transition-shadow">
+              <CardContent className="p-4 md:p-6">
+                <div className="space-y-1">
+                  <p className="text-sm text-muted-foreground">Reimbursement Pending</p>
+                  <p className="text-xl font-bold">{staffCounts.reimbursementSubmitted}</p>
+                  <p className="text-xs text-muted-foreground">Menunggu approval</p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+            <Button
+              variant="outline"
+              className="h-auto p-4 flex items-center justify-between"
+              onClick={() => {
+                setQuickActionLoading('attendance');
+                router.push('/attendance');
+              }}
+            >
+              <div className="flex items-center gap-3">
+                {quickActionLoading === 'attendance' ? (
+                  <span className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                ) : (
+                  <CalendarCheck2 className="w-5 h-5 text-primary" />
+                )}
+                <span>Absen Sekarang</span>
+              </div>
+              <ArrowRight className="w-4 h-4 text-muted-foreground" />
+            </Button>
+            <Button
+              variant="outline"
+              className="h-auto p-4 flex items-center justify-between"
+              onClick={() => {
+                setQuickActionLoading('leave');
+                router.push('/leave-management');
+              }}
+            >
+              <div className="flex items-center gap-3">
+                {quickActionLoading === 'leave' ? (
+                  <span className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                ) : (
+                  <FileCheck className="w-5 h-5 text-primary" />
+                )}
+                <span>Ajukan Cuti</span>
+              </div>
+              <ArrowRight className="w-4 h-4 text-muted-foreground" />
+            </Button>
+            <Button
+              variant="outline"
+              className="h-auto p-4 flex items-center justify-between"
+              onClick={() => {
+                setQuickActionLoading('trip');
+                router.push('/business-trip');
+              }}
+            >
+              <div className="flex items-center gap-3">
+                {quickActionLoading === 'trip' ? (
+                  <span className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                ) : (
+                  <Plane className="w-5 h-5 text-primary" />
+                )}
+                <span>Ajukan Perjalanan Dinas</span>
+              </div>
+              <ArrowRight className="w-4 h-4 text-muted-foreground" />
+            </Button>
+            <Button
+              variant="outline"
+              className="h-auto p-4 flex items-center justify-between"
+              onClick={() => {
+                setQuickActionLoading('reimbursement');
+                router.push('/reimbursement');
+              }}
+            >
+              <div className="flex items-center gap-3">
+                {quickActionLoading === 'reimbursement' ? (
+                  <span className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                ) : (
+                  <Wallet className="w-5 h-5 text-primary" />
+                )}
+                <span>Ajukan Reimbursement</span>
+              </div>
+              <ArrowRight className="w-4 h-4 text-muted-foreground" />
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Recent Leave</CardTitle>
+                <CardDescription>Pengajuan cuti terbaru</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {recentLeaves.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Belum ada data.</p>
+                ) : (
+                  recentLeaves.map((item) => (
+                    <div key={item.id} className="rounded-md border p-3">
+                      <p className="font-medium text-sm">{item.leaveType}</p>
+                      <p className="text-xs text-muted-foreground">{item.reason}</p>
+                      <Badge variant="outline" className="mt-2">{item.status}</Badge>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Recent Business Trip</CardTitle>
+                <CardDescription>Pengajuan perjalanan dinas terbaru</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {recentTrips.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Belum ada data.</p>
+                ) : (
+                  recentTrips.map((item) => (
+                    <div key={item.id} className="rounded-md border p-3">
+                      <p className="font-medium text-sm">{item.destinationCity}</p>
+                      <p className="text-xs text-muted-foreground">{item.companyName}</p>
+                      <Badge variant="outline" className="mt-2">{item.status}</Badge>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Recent Reimbursement</CardTitle>
+                <CardDescription>Pengajuan reimbursement terbaru</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {recentReimbursements.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Belum ada data.</p>
+                ) : (
+                  recentReimbursements.map((item) => (
+                    <div key={item.id} className="rounded-md border p-3">
+                      <p className="font-medium text-sm">{item.category}</p>
+                      <p className="text-xs text-muted-foreground">{formatCurrency(item.amount)}</p>
+                      <Badge variant="outline" className="mt-2">{item.status}</Badge>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </>
+      ) : (
+        <>
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {kpiCards.map((card) => (
@@ -451,6 +698,8 @@ export default function Dashboard() {
         </Card>
       </div>
       ) : null}
+      </>
+      )}
     </AdminLayout>
   );
 }

@@ -25,6 +25,7 @@ export function AdminHeader({ title, onOpenSidebar }: AdminHeaderProps) {
   const router = useRouter();
   const { theme, setTheme } = useTheme();
   const isDark = theme === 'dark';
+  const displayName = user?.employee?.fullName?.trim() || user?.name || '-';
 
   const handleLogout = async () => {
     await logout();
@@ -76,13 +77,18 @@ export function AdminHeader({ title, onOpenSidebar }: AdminHeaderProps) {
               <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center">
                 <User className="w-4 h-4 text-primary-foreground" />
               </div>
-              <span className="hidden md:inline font-medium">{user?.name}</span>
+              <span className="hidden md:inline font-medium">{displayName}</span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuLabel>
               <div className="flex flex-col">
-                <span>{user?.name}</span>
+                <span>{displayName}</span>
+                {user?.employee ? (
+                  <span className="text-xs text-muted-foreground font-normal">
+                    {user.employee.title ?? "-"} - {user.employee.department ?? "-"}
+                  </span>
+                ) : null}
                 <span className="text-xs text-muted-foreground font-normal">
                   {user?.username ? `Username: ${user.username}` : ''}
                 </span>
@@ -93,11 +99,15 @@ export function AdminHeader({ title, onOpenSidebar }: AdminHeaderProps) {
               <UserCircle className="w-4 h-4 mr-2" />
               My Profile
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => router.push('/settings')}>
-              <Settings className="w-4 h-4 mr-2" />
-              Settings
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
+            {user?.role === 'ADMIN' && (
+              <>
+                <DropdownMenuItem onClick={() => router.push('/settings')}>
+                  <Settings className="w-4 h-4 mr-2" />
+                  Settings
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+              </>
+            )}
             <DropdownMenuItem onClick={handleLogout} className="text-destructive">
               <LogOut className="w-4 h-4 mr-2" />
               Logout

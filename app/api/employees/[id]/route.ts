@@ -12,7 +12,7 @@ import {
   reimbursements,
   users,
 } from "@/lib/db/schema";
-import { requireAdmin, requireSessionUser } from "@/lib/auth/server";
+import { requireAdmin } from "@/lib/auth/server";
 
 const updateEmployeeSchema = z.object({
   fullName: z.string().trim().min(1).optional(),
@@ -35,7 +35,7 @@ export async function GET(
   _request: Request,
   { params }: { params: { id: string } }
 ) {
-  const auth = await requireSessionUser();
+  const auth = await requireAdmin();
   if ("response" in auth) return auth.response;
 
   const db = getDb();
@@ -48,10 +48,6 @@ export async function GET(
 
   if (!row) {
     return NextResponse.json({ error: "Employee tidak ditemukan" }, { status: 404 });
-  }
-
-  if (auth.user.role !== "ADMIN" && row.user?.id !== auth.user.id) {
-    return NextResponse.json({ error: "Akses ditolak" }, { status: 403 });
   }
 
   return NextResponse.json({

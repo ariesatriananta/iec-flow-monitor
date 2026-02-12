@@ -84,7 +84,7 @@ const navSections: NavSection[] = [
         title: 'Employees',
         href: '/employees',
         icon: Users,
-        roles: ['ADMIN', 'STAFF']
+        roles: ['ADMIN']
       },
       {
         title: 'Attendance',

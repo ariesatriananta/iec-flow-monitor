@@ -81,13 +81,21 @@ export default function Users() {
     let active = true;
     const loadData = async () => {
       try {
-        const [userRows, employeeRows] = await Promise.all([
+        const [usersResult, employeesResult] = await Promise.allSettled([
           fetchUsers(),
           fetchEmployees({ limit: 1000, offset: 0 }),
         ]);
+
+        const userRows =
+          usersResult.status === "fulfilled" ? usersResult.value : [];
+        const employeeRows =
+          employeesResult.status === "fulfilled"
+            ? employeesResult.value.items
+            : [];
+
         if (active) {
           setUsers(userRows);
-          setEmployees(employeeRows.items);
+          setEmployees(employeeRows);
         }
       } catch (error) {
         console.error(error);

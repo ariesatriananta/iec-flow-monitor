@@ -5,7 +5,7 @@ import { and, desc, eq, or, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/lib/db";
 import { employees, users } from "@/lib/db/schema";
-import { requireAdmin, requireSessionUser } from "@/lib/auth/server";
+import { requireAdmin } from "@/lib/auth/server";
 
 const querySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional().default(20),
@@ -49,7 +49,7 @@ const generateNextEmployeeCode = async () => {
 };
 
 export async function GET(request: Request) {
-  const auth = await requireSessionUser();
+  const auth = await requireAdmin();
   if ("response" in auth) return auth.response;
 
   const url = new URL(request.url);
@@ -68,9 +68,6 @@ export async function GET(request: Request) {
   const { limit, offset, q } = parsedQuery.data;
   const db = getDb();
   const conditions: SQL[] = [];
-  if (auth.user.role !== "ADMIN") {
-    conditions.push(eq(users.id, auth.user.id));
-  }
 
   const search = q?.trim().toLowerCase();
   if (search) {

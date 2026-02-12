@@ -99,7 +99,7 @@
 
    return (
      <AdminLayout title="My Profile">
-       <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
+       <div className="grid gap-6 lg:grid-cols-3">
          <Card className="relative overflow-hidden">
            <div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-br from-primary/15 via-primary/5 to-transparent" />
            <CardHeader className="relative">
@@ -131,9 +131,17 @@
                  </span>
                </div>
              </div>
+           </CardContent>
+         </Card>
+
+         <Card className="relative overflow-hidden">
+           <div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-br from-primary/15 via-primary/5 to-transparent" />
+           <CardHeader className="relative">
+             <CardTitle>Employee Information</CardTitle>
+           </CardHeader>
+           <CardContent className="relative">
              {user?.employee ? (
                <div className="grid gap-2 rounded-xl border border-border/60 bg-muted/40 p-4 text-sm">
-                 <p className="text-sm font-semibold">Informasi Employee</p>
                  <div className="flex items-center justify-between gap-4">
                    <span className="text-muted-foreground">Employee Code</span>
                    <span className="font-medium">{user.employee.employeeCode ?? "-"}</span>
@@ -171,7 +179,11 @@
                    <span className="font-medium">{user.employee.bankAccountNumber ?? "-"}</span>
                  </div>
                </div>
-             ) : null}
+             ) : (
+               <div className="rounded-xl border border-border/60 bg-muted/40 p-4 text-sm text-muted-foreground">
+                 Belum ada data employee yang terhubung ke akun ini.
+               </div>
+             )}
            </CardContent>
          </Card>
 

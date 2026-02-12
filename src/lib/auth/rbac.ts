@@ -5,7 +5,6 @@ export type UserRole = User["role"];
 const STAFF_ALLOWED_PREFIXES = [
   "/dashboard",
   "/profile",
-  "/employees",
   "/attendance",
   "/leave-management",
   "/business-trip",
@@ -40,4 +39,3 @@ export const canAccessPath = (role: UserRole, pathname: string) => {
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
   );
 };
-
