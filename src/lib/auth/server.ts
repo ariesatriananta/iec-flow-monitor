@@ -30,18 +30,37 @@ export async function requireSessionUser(): Promise<GuardResult> {
     };
   }
 
-  const db = getDb();
-  const [user] = await db
-    .select({
-      id: users.id,
-      username: users.username,
-      name: users.name,
-      role: users.role,
-      employeeId: users.employeeId,
-    })
-    .from(users)
-    .where(eq(users.id, session.sub))
-    .limit(1);
+  let user:
+    | {
+        id: string;
+        username: string;
+        name: string;
+        role: "ADMIN" | "STAFF";
+        employeeId: string | null;
+      }
+    | undefined;
+  try {
+    const db = getDb();
+    [user] = await db
+      .select({
+        id: users.id,
+        username: users.username,
+        name: users.name,
+        role: users.role,
+        employeeId: users.employeeId,
+      })
+      .from(users)
+      .where(eq(users.id, session.sub))
+      .limit(1);
+  } catch (error) {
+    console.error("Auth DB error:", error);
+    return {
+      response: NextResponse.json(
+        { error: "Database sedang tidak tersedia, coba lagi beberapa saat" },
+        { status: 503 }
+      ),
+    };
+  }
 
   if (!user) {
     return {

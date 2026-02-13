@@ -209,12 +209,30 @@ export const settingsApprovalFlow = pgTable("settings_approval_flow", {
   leaveApprovalLevels: integer("leave_approval_levels").notNull().default(2),
   leaveApproverLevel1Role: text("leave_approver_level1_role").notNull(),
   leaveApproverLevel2Role: text("leave_approver_level2_role").notNull(),
+  leaveApproverLevel1EmployeeId: text("leave_approver_level1_employee_id").references(
+    () => employees.id
+  ),
+  leaveApproverLevel2EmployeeId: text("leave_approver_level2_employee_id").references(
+    () => employees.id
+  ),
   reimbursementApprovalLevels: integer("reimbursement_approval_levels").notNull().default(2),
   reimbursementApproverLevel1Role: text("reimbursement_approver_level1_role").notNull(),
   reimbursementApproverLevel2Role: text("reimbursement_approver_level2_role").notNull(),
+  reimbursementApproverLevel1EmployeeId: text("reimbursement_approver_level1_employee_id").references(
+    () => employees.id
+  ),
+  reimbursementApproverLevel2EmployeeId: text("reimbursement_approver_level2_employee_id").references(
+    () => employees.id
+  ),
   businessTripApprovalLevels: integer("business_trip_approval_levels").notNull().default(2),
   businessTripApproverLevel1Role: text("business_trip_approver_level1_role").notNull(),
   businessTripApproverLevel2Role: text("business_trip_approver_level2_role").notNull(),
+  businessTripApproverLevel1EmployeeId: text("business_trip_approver_level1_employee_id").references(
+    () => employees.id
+  ),
+  businessTripApproverLevel2EmployeeId: text("business_trip_approver_level2_employee_id").references(
+    () => employees.id
+  ),
   createdAt: timestamp("created_at", { mode: "date" }).notNull(),
   updatedAt: timestamp("updated_at", { mode: "date" }).notNull(),
 });

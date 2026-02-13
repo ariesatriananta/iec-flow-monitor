@@ -83,7 +83,7 @@ export default function Users() {
       try {
         const [usersResult, employeesResult] = await Promise.allSettled([
           fetchUsers(),
-          fetchEmployees({ limit: 1000, offset: 0 }),
+          fetchEmployees({ limit: 500, offset: 0 }),
         ]);
 
         const userRows =
@@ -466,15 +466,15 @@ export default function Users() {
                   <SelectTrigger id="employee">
                     <SelectValue placeholder="Pilih employee (opsional)" />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="NONE">-</SelectItem>
-                    {selectableEmployees.map((employee) => (
-                      <SelectItem key={employee.id} value={employee.id}>
-                        {employee.fullName ?? employee.employeeCode} ({employee.employeeCode})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                    <SelectContent>
+                      <SelectItem value="NONE">-</SelectItem>
+                      {selectableEmployees.map((employee) => (
+                        <SelectItem key={employee.id} value={employee.id}>
+                          {[employee.fullName ?? employee.employeeCode, employee.title ?? "-", employee.department ?? "-"].join(" - ")}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="password">

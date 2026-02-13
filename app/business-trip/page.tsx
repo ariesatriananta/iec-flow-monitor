@@ -31,13 +31,14 @@ import {
   fetchBusinessTrips,
   updateBusinessTrip,
 } from "@/lib/api/businessTrip";
+import { fetchApprovalFlowSettings } from "@/lib/api/settings";
 import { formatDate } from "@/lib/numbering";
 import { useAuth } from "@/contexts/AuthContext";
 import type { BusinessTrip } from "@/types";
 import { ActionConfirmDialog } from "@/components/shared/ActionConfirmDialog";
 import { PlaneTakeoff, Search } from "lucide-react";
 
-const statusOptions = ["ALL", "SUBMITTED", "APPROVED", "REJECTED", "CANCELLED"];
+const statusOptions = ["ALL", "SUBMITTED", "WAITING_LEVEL_2", "APPROVED", "REJECTED", "CANCELLED"];
 
 const statusClass = (status: string) => {
   if (status === "APPROVED") return "bg-success text-success-foreground";
@@ -64,6 +65,9 @@ export default function BusinessTripPage() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  const [approvalLevels, setApprovalLevels] = useState<1 | 2>(2);
+  const [approverLevel1EmployeeId, setApproverLevel1EmployeeId] = useState<string | null>(null);
+  const [approverLevel2EmployeeId, setApproverLevel2EmployeeId] = useState<string | null>(null);
   const PAGE_SIZE = 20;
   const debouncedSearch = useDebouncedValue(searchQuery.trim(), 400);
 
@@ -101,8 +105,38 @@ export default function BusinessTripPage() {
   }, [loadData]);
 
   useEffect(() => {
+    void (async () => {
+      try {
+        const settings = await fetchApprovalFlowSettings();
+        setApprovalLevels(settings.businessTripApprovalLevels);
+        setApproverLevel1EmployeeId(settings.businessTripApproverLevel1EmployeeId);
+        setApproverLevel2EmployeeId(settings.businessTripApproverLevel2EmployeeId);
+      } catch {
+        setApprovalLevels(2);
+        setApproverLevel1EmployeeId(null);
+        setApproverLevel2EmployeeId(null);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
     setPage(1);
   }, [statusFilter, debouncedSearch]);
+
+  const isApproverLevel1 = Boolean(user?.employeeId) && user?.employeeId === approverLevel1EmployeeId;
+  const isApproverLevel2 =
+    approvalLevels === 2 &&
+    Boolean(user?.employeeId) &&
+    user?.employeeId === approverLevel2EmployeeId;
+  const isApprover = isApproverLevel1 || isApproverLevel2;
+  const showRequesterColumn = isAdmin || isApprover;
+  const canAdminProcess = (status: string) => status === "SUBMITTED" || status === "WAITING_LEVEL_2";
+  const getApproveButtonLabel = (status: string) => {
+    if (status === "SUBMITTED" && approvalLevels === 2) return "Approve L1";
+    if (status === "WAITING_LEVEL_2") return "Approve L2";
+    return "Approve";
+  };
+  const getStatusLabel = (status: string) => (status === "WAITING_LEVEL_2" ? "WAITING L2" : status);
 
   const handleCreate = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -146,13 +180,13 @@ export default function BusinessTripPage() {
   const handleUpdateStatus = async (row: BusinessTrip, status: string) => {
     try {
       const payload: Record<string, unknown> = { status };
-      if (isAdmin && status === "REJECTED") {
+      if (isApprover && status === "REJECTED") {
         payload.adminNote = "Perlu revisi data perjalanan";
       }
 
       const updated = await updateBusinessTrip(row.id, payload);
       setRows((prev) => prev.map((item) => (item.id === updated.id ? { ...item, ...updated } : item)));
-      toast({ title: "Berhasil", description: `Status diubah ke ${status}` });
+      toast({ title: "Berhasil", description: `Status diubah ke ${updated.status}` });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Gagal memperbarui status";
       toast({ title: "Error", description: message, variant: "destructive" });
@@ -266,7 +300,7 @@ export default function BusinessTripPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        {isAdmin && <TableHead>User</TableHead>}
+                        {showRequesterColumn && <TableHead>User</TableHead>}
                         <TableHead>Tujuan</TableHead>
                         <TableHead>Perusahaan</TableHead>
                         <TableHead>Periode</TableHead>
@@ -278,7 +312,7 @@ export default function BusinessTripPage() {
                     <TableBody>
                       {rows.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={isAdmin ? 7 : 6} className="py-8 text-center text-muted-foreground">
+                          <TableCell colSpan={showRequesterColumn ? 7 : 6} className="py-8 text-center text-muted-foreground">
                             <div className="flex flex-col items-center gap-2">
                               <PlaneTakeoff className="h-8 w-8" />
                               <p>Belum ada pengajuan perjalanan dinas</p>
@@ -288,7 +322,7 @@ export default function BusinessTripPage() {
                       ) : (
                         rows.map((row) => (
                           <TableRow key={row.id}>
-                            {isAdmin && <TableCell>{row.employee?.fullName ?? row.user?.name ?? "-"}</TableCell>}
+                            {showRequesterColumn && <TableCell>{row.employee?.fullName ?? row.user?.name ?? "-"}</TableCell>}
                             <TableCell>{row.destinationCity}</TableCell>
                             <TableCell>{row.companyName}</TableCell>
                             <TableCell>
@@ -297,15 +331,15 @@ export default function BusinessTripPage() {
                             <TableCell className="max-w-[240px] truncate">{row.purpose ?? "-"}</TableCell>
                             <TableCell>
                               <Badge variant="outline" className={statusClass(row.status)}>
-                                {row.status}
+                                {getStatusLabel(row.status)}
                               </Badge>
                             </TableCell>
                             <TableCell className="text-right">
                               <div className="flex justify-end gap-2">
-                                {isAdmin && row.status === "SUBMITTED" && (
+                                {isApprover && canAdminProcess(row.status) && (
                                   <>
                                     <Button size="sm" onClick={() => setPendingAction({ row, nextStatus: "APPROVED" })}>
-                                      Approve
+                                      {getApproveButtonLabel(row.status)}
                                     </Button>
                                     <Button size="sm" variant="destructive" onClick={() => setPendingAction({ row, nextStatus: "REJECTED" })}>
                                       Reject
@@ -339,16 +373,16 @@ export default function BusinessTripPage() {
                           <div>
                             <p className="font-medium">{row.destinationCity}</p>
                             <p className="text-xs text-muted-foreground">
-                              {isAdmin
+                              {showRequesterColumn
                                 ? row.employee?.fullName ?? row.user?.name ?? row.companyName
                                 : row.companyName}
                             </p>
-                            {isAdmin && (
+                            {showRequesterColumn && (
                               <p className="text-xs text-muted-foreground">{row.companyName}</p>
                             )}
                           </div>
                           <Badge variant="outline" className={statusClass(row.status)}>
-                            {row.status}
+                            {getStatusLabel(row.status)}
                           </Badge>
                         </div>
                         <p className="mt-2 text-sm text-muted-foreground">
@@ -356,10 +390,10 @@ export default function BusinessTripPage() {
                         </p>
                         <p className="mt-2 text-sm">{row.purpose ?? "-"}</p>
                         <div className="mt-3 flex justify-end gap-2">
-                          {isAdmin && row.status === "SUBMITTED" && (
+                          {isApprover && canAdminProcess(row.status) && (
                             <>
                               <Button size="sm" onClick={() => setPendingAction({ row, nextStatus: "APPROVED" })}>
-                                Approve
+                                {getApproveButtonLabel(row.status)}
                               </Button>
                               <Button size="sm" variant="destructive" onClick={() => setPendingAction({ row, nextStatus: "REJECTED" })}>
                                 Reject

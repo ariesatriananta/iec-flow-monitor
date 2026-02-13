@@ -4,11 +4,16 @@ import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/lib/db";
-import { reimbursementAttachments, reimbursements } from "@/lib/db/schema";
+import {
+  reimbursementAttachments,
+  reimbursements,
+  settingsApprovalFlow,
+} from "@/lib/db/schema";
 import { requireSessionUser } from "@/lib/auth/server";
 
 const workflowStatusSchema = z.union([
   z.literal("SUBMITTED"),
+  z.literal("WAITING_LEVEL_2"),
   z.literal("APPROVED"),
   z.literal("REJECTED"),
   z.literal("PAID"),
@@ -65,7 +70,21 @@ export async function PUT(
     return NextResponse.json({ error: "Reimbursement tidak ditemukan" }, { status: 404 });
   }
 
-  if (auth.user.role !== "ADMIN") {
+  const [approvalFlow] = await db.select().from(settingsApprovalFlow).limit(1);
+  const approvalLevels = approvalFlow?.reimbursementApprovalLevels ?? 2;
+  const approverLevel1EmployeeId =
+    approvalFlow?.reimbursementApproverLevel1EmployeeId ?? null;
+  const approverLevel2EmployeeId =
+    approvalFlow?.reimbursementApproverLevel2EmployeeId ?? null;
+  const isApproverLevel1 =
+    Boolean(auth.user.employeeId) && auth.user.employeeId === approverLevel1EmployeeId;
+  const isApproverLevel2 =
+    approvalLevels === 2 &&
+    Boolean(auth.user.employeeId) &&
+    auth.user.employeeId === approverLevel2EmployeeId;
+  const isApprover = isApproverLevel1 || isApproverLevel2;
+
+  if (!isApprover) {
     const parsedBody = staffUpdateSchema.safeParse(rawBody);
     if (!parsedBody.success) {
       return NextResponse.json(
@@ -118,7 +137,82 @@ export async function PUT(
 
   const body = parsedBody.data;
   const paidProofAttachments = body.paidProofAttachments ?? [];
-  const nextStatus = body.status ?? existing.status;
+  const requestedStatus = body.status ?? existing.status;
+  let nextStatus = requestedStatus;
+  let approvedBy: string | null | undefined = undefined;
+  let approvedAt: Date | null | undefined = undefined;
+
+  if (requestedStatus === "APPROVED" || requestedStatus === "REJECTED") {
+    if (existing.status === "SUBMITTED") {
+      if (!isApproverLevel1) {
+        return NextResponse.json(
+          { error: "Anda bukan approver level 1 untuk reimbursement ini" },
+          { status: 403 }
+        );
+      }
+
+      if (requestedStatus === "APPROVED" && approvalLevels === 2) {
+        nextStatus = "WAITING_LEVEL_2";
+        approvedBy = null;
+        approvedAt = null;
+      } else {
+        nextStatus = requestedStatus;
+        approvedBy = auth.user.id;
+        approvedAt = new Date();
+      }
+    } else if (existing.status === "WAITING_LEVEL_2") {
+      if (approvalLevels !== 2) {
+        return NextResponse.json(
+          { error: "Konfigurasi approval level reimbursement tidak sesuai" },
+          { status: 400 }
+        );
+      }
+      if (!isApproverLevel2) {
+        return NextResponse.json(
+          { error: "Anda bukan approver level 2 untuk reimbursement ini" },
+          { status: 403 }
+        );
+      }
+
+      nextStatus = requestedStatus;
+      approvedBy = auth.user.id;
+      approvedAt = new Date();
+    } else {
+      return NextResponse.json(
+        { error: "Status saat ini tidak bisa diproses approval/reject" },
+        { status: 400 }
+      );
+    }
+  } else if (requestedStatus === "PAID") {
+    const canMarkPaid =
+      approvalLevels === 2 ? isApproverLevel2 : isApproverLevel1;
+    if (!canMarkPaid) {
+      return NextResponse.json(
+        { error: "Anda bukan approver final untuk mark paid reimbursement ini" },
+        { status: 403 }
+      );
+    }
+    if (existing.status !== "APPROVED") {
+      return NextResponse.json(
+        { error: "Hanya reimbursement APPROVED yang bisa di-mark paid" },
+        { status: 400 }
+      );
+    }
+  } else if (
+    requestedStatus === "WAITING_LEVEL_2" &&
+    existing.status !== "WAITING_LEVEL_2"
+  ) {
+    return NextResponse.json(
+      { error: "Status WAITING_LEVEL_2 tidak dapat di-set manual" },
+      { status: 400 }
+    );
+  } else if (requestedStatus === "SUBMITTED" && existing.status !== "SUBMITTED") {
+    return NextResponse.json(
+      { error: "Status SUBMITTED tidak dapat dikembalikan manual" },
+      { status: 400 }
+    );
+  }
+
   const paidProofUrlFromPayload =
     body.paidProofUrl ?? paidProofAttachments[0]?.url ?? existing.paidProofUrl;
   if (nextStatus === "PAID" && !paidProofUrlFromPayload) {
@@ -128,8 +222,6 @@ export async function PUT(
     );
   }
 
-  const approvedAt =
-    nextStatus === "APPROVED" || nextStatus === "REJECTED" ? new Date() : null;
   const paidAt = nextStatus === "PAID" ? new Date() : existing.paidAt;
 
   const [updated] = await db
@@ -142,9 +234,7 @@ export async function PUT(
       status: nextStatus,
       adminNote: body.adminNote ?? undefined,
       approvedBy:
-        nextStatus === "APPROVED" || nextStatus === "REJECTED" || nextStatus === "PAID"
-          ? auth.user.id
-          : null,
+        nextStatus === "PAID" ? auth.user.id : approvedBy,
       approvedAt:
         nextStatus === "PAID"
           ? existing.approvedAt ?? new Date()

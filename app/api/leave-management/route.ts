@@ -9,6 +9,7 @@ import { requireSessionUser } from "@/lib/auth/server";
 
 const workflowStatusSchema = z.union([
   z.literal("SUBMITTED"),
+  z.literal("WAITING_LEVEL_2"),
   z.literal("APPROVED"),
   z.literal("REJECTED"),
   z.literal("CANCELLED"),

@@ -127,6 +127,13 @@
       "when": 1767592800000,
       "tag": "0017_hr_workflow_employee_relation",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1767808800000,
+      "tag": "0018_approval_flow_person_based",
+      "breakpoints": true
     }
   ]
 }

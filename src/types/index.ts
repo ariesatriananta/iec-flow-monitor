@@ -220,6 +220,7 @@ export interface AttendanceRecord {
 export type WorkflowStatus =
   | "DRAFT"
   | "SUBMITTED"
+  | "WAITING_LEVEL_2"
   | "APPROVED"
   | "REJECTED"
   | "CANCELLED"

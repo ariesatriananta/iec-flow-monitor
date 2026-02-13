@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/lib/db";
-import { businessTrips } from "@/lib/db/schema";
+import { businessTrips, settingsApprovalFlow } from "@/lib/db/schema";
 import { requireSessionUser } from "@/lib/auth/server";
 
 const dateStringSchema = z
@@ -30,6 +30,7 @@ const adminUpdateSchema = z.object({
   status: z
     .union([
       z.literal("SUBMITTED"),
+      z.literal("WAITING_LEVEL_2"),
       z.literal("APPROVED"),
       z.literal("REJECTED"),
       z.literal("CANCELLED"),
@@ -61,7 +62,21 @@ export async function PUT(
     return NextResponse.json({ error: "Perjalanan dinas tidak ditemukan" }, { status: 404 });
   }
 
-  if (auth.user.role !== "ADMIN") {
+  const [approvalFlow] = await db.select().from(settingsApprovalFlow).limit(1);
+  const approvalLevels = approvalFlow?.businessTripApprovalLevels ?? 2;
+  const approverLevel1EmployeeId =
+    approvalFlow?.businessTripApproverLevel1EmployeeId ?? null;
+  const approverLevel2EmployeeId =
+    approvalFlow?.businessTripApproverLevel2EmployeeId ?? null;
+  const isApproverLevel1 =
+    Boolean(auth.user.employeeId) && auth.user.employeeId === approverLevel1EmployeeId;
+  const isApproverLevel2 =
+    approvalLevels === 2 &&
+    Boolean(auth.user.employeeId) &&
+    auth.user.employeeId === approverLevel2EmployeeId;
+  const isApprover = isApproverLevel1 || isApproverLevel2;
+
+  if (!isApprover) {
     const parsedBody = staffUpdateSchema.safeParse(rawBody);
     if (!parsedBody.success) {
       return NextResponse.json(
@@ -117,7 +132,8 @@ export async function PUT(
   }
 
   const body = parsedBody.data;
-  const nextStatus = body.status ?? existing.status;
+  const requestedStatus = body.status ?? existing.status;
+  let nextStatus = requestedStatus;
   const startDate = body.startDate ? new Date(body.startDate) : existing.startDate;
   const endDate = body.endDate ? new Date(body.endDate) : existing.endDate;
   if (endDate < startDate) {
@@ -127,8 +143,64 @@ export async function PUT(
     );
   }
 
-  const approvedAt =
-    nextStatus === "APPROVED" || nextStatus === "REJECTED" ? new Date() : null;
+  let approvedBy: string | null | undefined = undefined;
+  let approvedAt: Date | null | undefined = undefined;
+
+  if (requestedStatus === "APPROVED" || requestedStatus === "REJECTED") {
+    if (existing.status === "SUBMITTED") {
+      if (!isApproverLevel1) {
+        return NextResponse.json(
+          { error: "Anda bukan approver level 1 untuk perjalanan dinas ini" },
+          { status: 403 }
+        );
+      }
+
+      if (requestedStatus === "APPROVED" && approvalLevels === 2) {
+        nextStatus = "WAITING_LEVEL_2";
+        approvedBy = null;
+        approvedAt = null;
+      } else {
+        nextStatus = requestedStatus;
+        approvedBy = auth.user.id;
+        approvedAt = new Date();
+      }
+    } else if (existing.status === "WAITING_LEVEL_2") {
+      if (approvalLevels !== 2) {
+        return NextResponse.json(
+          { error: "Konfigurasi approval level perjalanan dinas tidak sesuai" },
+          { status: 400 }
+        );
+      }
+      if (!isApproverLevel2) {
+        return NextResponse.json(
+          { error: "Anda bukan approver level 2 untuk perjalanan dinas ini" },
+          { status: 403 }
+        );
+      }
+
+      nextStatus = requestedStatus;
+      approvedBy = auth.user.id;
+      approvedAt = new Date();
+    } else {
+      return NextResponse.json(
+        { error: "Status saat ini tidak bisa diproses approval/reject" },
+        { status: 400 }
+      );
+    }
+  } else if (
+    requestedStatus === "WAITING_LEVEL_2" &&
+    existing.status !== "WAITING_LEVEL_2"
+  ) {
+    return NextResponse.json(
+      { error: "Status WAITING_LEVEL_2 tidak dapat di-set manual" },
+      { status: 400 }
+    );
+  } else if (requestedStatus === "SUBMITTED" && existing.status !== "SUBMITTED") {
+    return NextResponse.json(
+      { error: "Status SUBMITTED tidak dapat dikembalikan manual" },
+      { status: 400 }
+    );
+  }
 
   const [updated] = await db
     .update(businessTrips)
@@ -140,10 +212,7 @@ export async function PUT(
       endDate: body.endDate ? new Date(body.endDate) : undefined,
       status: nextStatus,
       adminNote: body.adminNote ?? undefined,
-      approvedBy:
-        nextStatus === "APPROVED" || nextStatus === "REJECTED"
-          ? auth.user.id
-          : null,
+      approvedBy,
       approvedAt,
       updatedAt: new Date(),
     })

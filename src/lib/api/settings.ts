@@ -14,14 +14,14 @@ export interface SettingsPayload {
 
 export interface ApprovalFlowPayload {
   leaveApprovalLevels: 1 | 2;
-  leaveApproverLevel1Role: string;
-  leaveApproverLevel2Role: string;
+  leaveApproverLevel1EmployeeId: string | null;
+  leaveApproverLevel2EmployeeId: string | null;
   reimbursementApprovalLevels: 1 | 2;
-  reimbursementApproverLevel1Role: string;
-  reimbursementApproverLevel2Role: string;
+  reimbursementApproverLevel1EmployeeId: string | null;
+  reimbursementApproverLevel2EmployeeId: string | null;
   businessTripApprovalLevels: 1 | 2;
-  businessTripApproverLevel1Role: string;
-  businessTripApproverLevel2Role: string;
+  businessTripApproverLevel1EmployeeId: string | null;
+  businessTripApproverLevel2EmployeeId: string | null;
 }
 
 export interface WorkSchedulePayload {
@@ -120,4 +120,3 @@ export async function updateReimbursementLimitSettings(
     body: JSON.stringify(payload),
   });
 }
-

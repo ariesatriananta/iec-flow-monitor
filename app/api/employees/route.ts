@@ -8,7 +8,7 @@ import { employees, users } from "@/lib/db/schema";
 import { requireAdmin } from "@/lib/auth/server";
 
 const querySchema = z.object({
-  limit: z.coerce.number().int().min(1).max(100).optional().default(20),
+  limit: z.coerce.number().int().min(1).max(500).optional().default(20),
   offset: z.coerce.number().int().min(0).optional().default(0),
   q: z.string().trim().max(100).optional(),
 });

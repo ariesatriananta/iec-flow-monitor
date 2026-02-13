@@ -32,6 +32,7 @@ import {
   fetchReimbursements,
   updateReimbursement,
 } from "@/lib/api/reimbursement";
+import { fetchApprovalFlowSettings } from "@/lib/api/settings";
 import {
   uploadReimbursementFile,
   type UploadReimbursementResponse,
@@ -43,7 +44,7 @@ import { ActionConfirmDialog } from "@/components/shared/ActionConfirmDialog";
 import { Loader2, Search, Upload, Wallet, X } from "lucide-react";
 
 const categoryOptions = ["TRANSPORT", "MEAL", "OTHER"];
-const statusOptions = ["ALL", "SUBMITTED", "APPROVED", "REJECTED", "PAID", "CANCELLED"];
+const statusOptions = ["ALL", "SUBMITTED", "WAITING_LEVEL_2", "APPROVED", "REJECTED", "PAID", "CANCELLED"];
 
 const statusClass = (status: string) => {
   if (status === "APPROVED") return "bg-success text-success-foreground";
@@ -84,6 +85,9 @@ export default function ReimbursementPage() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  const [approvalLevels, setApprovalLevels] = useState<1 | 2>(2);
+  const [approverLevel1EmployeeId, setApproverLevel1EmployeeId] = useState<string | null>(null);
+  const [approverLevel2EmployeeId, setApproverLevel2EmployeeId] = useState<string | null>(null);
   const PAGE_SIZE = 20;
   const debouncedSearch = useDebouncedValue(searchQuery.trim(), 400);
 
@@ -131,8 +135,39 @@ export default function ReimbursementPage() {
   }, [loadData]);
 
   useEffect(() => {
+    void (async () => {
+      try {
+        const settings = await fetchApprovalFlowSettings();
+        setApprovalLevels(settings.reimbursementApprovalLevels);
+        setApproverLevel1EmployeeId(settings.reimbursementApproverLevel1EmployeeId);
+        setApproverLevel2EmployeeId(settings.reimbursementApproverLevel2EmployeeId);
+      } catch {
+        setApprovalLevels(2);
+        setApproverLevel1EmployeeId(null);
+        setApproverLevel2EmployeeId(null);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
     setPage(1);
   }, [statusFilter, debouncedSearch]);
+
+  const isApproverLevel1 = Boolean(user?.employeeId) && user?.employeeId === approverLevel1EmployeeId;
+  const isApproverLevel2 =
+    approvalLevels === 2 &&
+    Boolean(user?.employeeId) &&
+    user?.employeeId === approverLevel2EmployeeId;
+  const isApprover = isApproverLevel1 || isApproverLevel2;
+  const canApprovalAction = (status: string) => status === "SUBMITTED" || status === "WAITING_LEVEL_2";
+  const canMarkPaid = (status: string) =>
+    status === "APPROVED" && (approvalLevels === 2 ? isApproverLevel2 : isApproverLevel1);
+  const getApproveLabel = (status: string) => {
+    if (status === "SUBMITTED" && approvalLevels === 2) return "Approve L1";
+    if (status === "WAITING_LEVEL_2") return "Approve L2";
+    return "Approve";
+  };
+  const getStatusLabel = (status: string) => (status === "WAITING_LEVEL_2" ? "WAITING L2" : status);
 
   const getReceiptAttachments = (row: Reimbursement) => {
     const attachments = row.attachments?.filter((item) => isPurpose(item, "RECEIPT")) ?? [];
@@ -290,10 +325,10 @@ export default function ReimbursementPage() {
   const handleUpdateStatus = async (row: Reimbursement, status: string) => {
     try {
       const payload: Record<string, unknown> = { status };
-      if (isAdmin && status === "REJECTED") {
+      if (isApprover && status === "REJECTED") {
         payload.adminNote = "Nominal / bukti belum sesuai";
       }
-      if (isAdmin && status === "PAID") {
+      if (isApprover && status === "PAID") {
         const draftPaidProofs = paidProofDrafts[row.id] ?? [];
         const existingPaidProofs = getPaidProofAttachments(row);
         if (draftPaidProofs.length === 0 && existingPaidProofs.length === 0) {
@@ -317,7 +352,7 @@ export default function ReimbursementPage() {
           return next;
         });
       }
-      toast({ title: "Berhasil", description: `Status reimbursement diubah ke ${status}` });
+      toast({ title: "Berhasil", description: `Status reimbursement diubah ke ${updated.status}` });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Gagal memperbarui status";
       toast({ title: "Error", description: message, variant: "destructive" });
@@ -612,23 +647,23 @@ export default function ReimbursementPage() {
                               <TableCell>{renderAttachmentLinks(row, paidProofAttachments, "-")}</TableCell>
                               <TableCell>
                                 <Badge variant="outline" className={statusClass(row.status)}>
-                                  {row.status}
+                                  {getStatusLabel(row.status)}
                                 </Badge>
                               </TableCell>
                               <TableCell>{formatDate(new Date(row.createdAt))}</TableCell>
                               <TableCell className="text-right">
                                 <div className="flex justify-end gap-2">
-                                  {isAdmin && row.status === "SUBMITTED" && (
+                                  {isApprover && canApprovalAction(row.status) && (
                                     <>
                                       <Button size="sm" onClick={() => setPendingAction({ row, nextStatus: "APPROVED" })}>
-                                        Approve
+                                        {getApproveLabel(row.status)}
                                       </Button>
                                       <Button size="sm" variant="destructive" onClick={() => setPendingAction({ row, nextStatus: "REJECTED" })}>
                                         Reject
                                       </Button>
                                     </>
                                   )}
-                                  {isAdmin && row.status === "APPROVED" && (
+                                  {canMarkPaid(row.status) && (
                                     <div className="flex flex-col items-end gap-2">
                                       <div className="flex w-[260px] items-center gap-2">
                                         <Input
@@ -713,7 +748,7 @@ export default function ReimbursementPage() {
                               </p>
                             </div>
                             <Badge variant="outline" className={statusClass(row.status)}>
-                              {row.status}
+                              {getStatusLabel(row.status)}
                             </Badge>
                           </div>
                           <p className="mt-2 text-sm font-semibold">{formatCurrency(Number(row.amount))}</p>
@@ -729,17 +764,17 @@ export default function ReimbursementPage() {
                             </div>
                           </div>
                           <div className="mt-3 flex justify-end gap-2">
-                            {isAdmin && row.status === "SUBMITTED" && (
+                            {isApprover && canApprovalAction(row.status) && (
                               <>
                                 <Button size="sm" onClick={() => setPendingAction({ row, nextStatus: "APPROVED" })}>
-                                  Approve
+                                  {getApproveLabel(row.status)}
                                 </Button>
                                 <Button size="sm" variant="destructive" onClick={() => setPendingAction({ row, nextStatus: "REJECTED" })}>
                                   Reject
                                 </Button>
                               </>
                             )}
-                            {isAdmin && row.status === "APPROVED" && (
+                            {canMarkPaid(row.status) && (
                               <div className="flex w-full flex-col items-end gap-2">
                                 <div className="flex w-full items-center gap-2">
                                   <Input
