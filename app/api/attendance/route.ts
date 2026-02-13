@@ -25,12 +25,61 @@ const querySchema = z.object({
 
 const actionSchema = z.object({
   action: z.union([z.literal("CHECK_IN"), z.literal("CHECK_OUT")]),
-  location: z.string().trim().max(200).optional(),
+  location: z.string().trim().min(1).max(500),
   notes: z.string().trim().max(1000).optional(),
 });
 
 const formatZodError = (error: z.ZodError) =>
   error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; ");
+
+const toJakartaBoundary = (value: string, boundary: "start" | "end") => {
+  const base = value.trim().slice(0, 10);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(base)) {
+    return new Date(
+      boundary === "start"
+        ? `${base}T00:00:00+07:00`
+        : `${base}T23:59:59.999+07:00`
+    );
+  }
+  return new Date(value);
+};
+
+const parseGeoLocationPayload = (raw: string) => {
+  try {
+    const parsed = JSON.parse(raw) as {
+      lat?: number;
+      lng?: number;
+      accuracy?: number;
+      timestamp?: string;
+    };
+    const lat = Number(parsed.lat);
+    const lng = Number(parsed.lng);
+    const accuracy =
+      parsed.accuracy === undefined ? undefined : Number(parsed.accuracy);
+    const timestamp = parsed.timestamp;
+
+    if (!Number.isFinite(lat) || lat < -90 || lat > 90) return null;
+    if (!Number.isFinite(lng) || lng < -180 || lng > 180) return null;
+    if (
+      accuracy !== undefined &&
+      (!Number.isFinite(accuracy) || accuracy < 0 || accuracy > 100000)
+    ) {
+      return null;
+    }
+    if (timestamp !== undefined && Number.isNaN(new Date(timestamp).getTime())) {
+      return null;
+    }
+
+    return {
+      lat,
+      lng,
+      accuracy,
+      timestamp: timestamp ?? null,
+    };
+  } catch {
+    return null;
+  }
+};
 
 export async function GET(request: Request) {
   const auth = await requireSessionUser();
@@ -66,8 +115,16 @@ export async function GET(request: Request) {
 
   const conditions: SQL[] = [];
   if (targetEmployeeId) conditions.push(eq(attendanceRecords.employeeId, targetEmployeeId));
-  if (from) conditions.push(gte(attendanceRecords.attendanceDate, new Date(from)));
-  if (to) conditions.push(lte(attendanceRecords.attendanceDate, new Date(to)));
+  if (from) {
+    conditions.push(
+      gte(attendanceRecords.attendanceDate, toJakartaBoundary(from, "start"))
+    );
+  }
+  if (to) {
+    conditions.push(
+      lte(attendanceRecords.attendanceDate, toJakartaBoundary(to, "end"))
+    );
+  }
   if (status) conditions.push(eq(attendanceRecords.status, status));
 
   const search = q?.trim().toLowerCase();
@@ -126,8 +183,11 @@ export async function GET(request: Request) {
           id: employee.id,
           employeeCode: employee.employeeCode,
           fullName: employee.fullName,
+          nip: employee.nip,
           title: employee.title,
           department: employee.department,
+          email: employee.email,
+          workLocation: employee.workLocation,
         }
       : undefined,
     user: user
@@ -168,6 +228,13 @@ export async function POST(request: Request) {
 
   const body = parsedBody.data;
   const action = body.action;
+  const geoLocation = parseGeoLocationPayload(body.location);
+  if (!geoLocation) {
+    return NextResponse.json(
+      { error: "Payload geolocation tidak valid" },
+      { status: 400 }
+    );
+  }
   const targetEmployeeId = auth.user.employeeId;
 
   if (!targetEmployeeId) {
@@ -182,6 +249,26 @@ export async function POST(request: Request) {
   const jakarta = getJakartaParts(now);
 
   const db = getDb();
+  const [employee] = await db
+    .select({ id: employees.id, isActive: employees.isActive })
+    .from(employees)
+    .where(eq(employees.id, targetEmployeeId))
+    .limit(1);
+
+  if (!employee) {
+    return NextResponse.json(
+      { error: "Data employee tidak ditemukan" },
+      { status: 404 }
+    );
+  }
+
+  if (!employee.isActive) {
+    return NextResponse.json(
+      { error: "Employee nonaktif tidak dapat melakukan absensi" },
+      { status: 403 }
+    );
+  }
+
   const [existing] = await db
     .select()
     .from(attendanceRecords)
@@ -213,7 +300,7 @@ export async function POST(request: Request) {
         .update(attendanceRecords)
         .set({
           checkInAt: now,
-          checkInLocation: body.location ?? existing.checkInLocation,
+          checkInLocation: JSON.stringify(geoLocation),
           notes: body.notes ?? existing.notes,
           updatedAt: now,
         })
@@ -229,7 +316,7 @@ export async function POST(request: Request) {
         employeeId: targetEmployeeId,
         attendanceDate: dayStart,
         checkInAt: now,
-        checkInLocation: body.location ?? null,
+        checkInLocation: JSON.stringify(geoLocation),
         checkOutAt: null,
         checkOutLocation: null,
         status: "PRESENT",
@@ -260,7 +347,7 @@ export async function POST(request: Request) {
     .update(attendanceRecords)
     .set({
       checkOutAt: now,
-      checkOutLocation: body.location ?? null,
+      checkOutLocation: JSON.stringify(geoLocation),
       notes: body.notes ?? existing.notes,
       updatedAt: now,
     })

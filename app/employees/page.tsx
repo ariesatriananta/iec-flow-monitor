@@ -259,7 +259,10 @@ export default function EmployeesPage() {
       console.error(error);
       toast({
         title: "Error",
-        description: "Gagal menyimpan data employee",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Gagal menyimpan data employee",
         variant: "destructive",
       });
     } finally {

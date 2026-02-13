@@ -31,6 +31,20 @@ const updateEmployeeSchema = z.object({
 const formatZodError = (error: z.ZodError) =>
   error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; ");
 
+const getEmployeeUniqueErrorMessage = (error: unknown) => {
+  if (typeof error !== "object" || !error) return null;
+  const pgError = error as { code?: string; constraint?: string };
+  if (pgError.code !== "23505") return null;
+
+  if (pgError.constraint === "employees_nip_unique") {
+    return "NIP sudah digunakan employee lain";
+  }
+  if (pgError.constraint === "employees_email_unique") {
+    return "Email sudah digunakan employee lain";
+  }
+  return "Data employee duplikat (unik) terdeteksi";
+};
+
 export async function GET(
   _request: Request,
   { params }: { params: { id: string } }
@@ -85,24 +99,33 @@ export async function PUT(
   const input = parsedBody.data;
 
   const db = getDb();
-  const [updated] = await db
-    .update(employees)
-    .set({
-      fullName: input.fullName ?? undefined,
-      nip: input.nip ?? undefined,
-      gender: input.gender ?? undefined,
-      title: input.title ?? undefined,
-      department: input.department ?? undefined,
-      workLocation: input.workLocation ?? undefined,
-      phone: input.phone ?? undefined,
-      email: input.email === "" ? null : input.email ?? undefined,
-      bankAccountName: input.bankAccountName ?? undefined,
-      bankAccountNumber: input.bankAccountNumber ?? undefined,
-      isActive: input.isActive ?? undefined,
-      updatedAt: new Date(),
-    })
-    .where(eq(employees.id, params.id))
-    .returning();
+  let updated: typeof employees.$inferSelect | undefined;
+  try {
+    [updated] = await db
+      .update(employees)
+      .set({
+        fullName: input.fullName ?? undefined,
+        nip: input.nip ?? undefined,
+        gender: input.gender ?? undefined,
+        title: input.title ?? undefined,
+        department: input.department ?? undefined,
+        workLocation: input.workLocation ?? undefined,
+        phone: input.phone ?? undefined,
+        email: input.email === "" ? null : input.email ?? undefined,
+        bankAccountName: input.bankAccountName ?? undefined,
+        bankAccountNumber: input.bankAccountNumber ?? undefined,
+        isActive: input.isActive ?? undefined,
+        updatedAt: new Date(),
+      })
+      .where(eq(employees.id, params.id))
+      .returning();
+  } catch (error) {
+    const message = getEmployeeUniqueErrorMessage(error);
+    if (message) {
+      return NextResponse.json({ error: message }, { status: 409 });
+    }
+    throw error;
+  }
 
   if (!updated) {
     return NextResponse.json({ error: "Employee tidak ditemukan" }, { status: 404 });

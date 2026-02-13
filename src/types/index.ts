@@ -210,7 +210,10 @@ export interface AttendanceRecord {
   notes?: string | null;
   createdAt: Date;
   updatedAt: Date;
-  employee?: Pick<Employee, "id" | "employeeCode" | "fullName" | "title" | "department">;
+  employee?: Pick<
+    Employee,
+    "id" | "employeeCode" | "fullName" | "nip" | "title" | "department" | "email" | "workLocation"
+  >;
   user?: Pick<User, "id" | "username" | "name" | "role">;
 }
 

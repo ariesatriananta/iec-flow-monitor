@@ -33,7 +33,7 @@ export async function fetchAttendance(params?: {
 
 export async function submitAttendance(payload: {
   action: "CHECK_IN" | "CHECK_OUT";
-  location?: string;
+  location: string;
   notes?: string;
 }): Promise<AttendanceRecord> {
   const data = await requestJson<AttendanceRecord>("/api/attendance", {

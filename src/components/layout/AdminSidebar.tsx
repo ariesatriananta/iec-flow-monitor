@@ -16,7 +16,6 @@ import {
   Plane,
   Wallet,
   GitBranch,
-  Clock3,
   Scale,
   ChevronLeft,
   ChevronRight,
@@ -126,12 +125,6 @@ const navSections: NavSection[] = [
         title: 'Approval Flow',
         href: '/settings/approval-flow',
         icon: GitBranch,
-        roles: ['ADMIN']
-      },
-      {
-        title: 'Work Schedule',
-        href: '/settings/work-schedule',
-        icon: Clock3,
         roles: ['ADMIN']
       },
       {

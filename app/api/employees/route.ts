@@ -32,6 +32,23 @@ const createEmployeeSchema = z.object({
 const formatZodError = (error: z.ZodError) =>
   error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; ");
 
+const getEmployeeUniqueErrorMessage = (error: unknown) => {
+  if (typeof error !== "object" || !error) return null;
+  const pgError = error as { code?: string; constraint?: string };
+  if (pgError.code !== "23505") return null;
+
+  if (pgError.constraint === "employees_nip_unique") {
+    return "NIP sudah digunakan employee lain";
+  }
+  if (pgError.constraint === "employees_email_unique") {
+    return "Email sudah digunakan employee lain";
+  }
+  if (pgError.constraint === "employees_employee_code_unique") {
+    return "Employee code sudah digunakan, silakan coba lagi";
+  }
+  return "Data employee duplikat (unik) terdeteksi";
+};
+
 const EMPLOYEE_CODE_PREFIX = "EM";
 const EMPLOYEE_CODE_PAD = 3;
 const MAX_EMPLOYEE_CODE_ATTEMPT = 5;
@@ -190,14 +207,21 @@ export async function POST(request: Request) {
         .returning();
       break;
     } catch (error) {
-      const isUniqueCodeConflict =
+      const pgUniqueErrorMessage = getEmployeeUniqueErrorMessage(error);
+      if (!pgUniqueErrorMessage) {
+        throw error;
+      }
+
+      const isEmployeeCodeConflict =
         attempt < MAX_EMPLOYEE_CODE_ATTEMPT &&
         typeof error === "object" &&
         error !== null &&
-        "code" in error &&
-        (error as { code?: string }).code === "23505";
-      if (!isUniqueCodeConflict) {
-        throw error;
+        "constraint" in error &&
+        (error as { constraint?: string }).constraint ===
+          "employees_employee_code_unique";
+
+      if (!isEmployeeCodeConflict) {
+        return NextResponse.json({ error: pgUniqueErrorMessage }, { status: 409 });
       }
     }
   }
