@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -73,7 +73,7 @@ export default function BusinessTripPage() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
       const data = await fetchBusinessTrips({
@@ -94,11 +94,11 @@ export default function BusinessTripPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [statusFilter, debouncedSearch, page, toast]);
 
   useEffect(() => {
     void loadData();
-  }, [statusFilter, debouncedSearch, page]);
+  }, [loadData]);
 
   useEffect(() => {
     setPage(1);
@@ -288,7 +288,7 @@ export default function BusinessTripPage() {
                       ) : (
                         rows.map((row) => (
                           <TableRow key={row.id}>
-                            {isAdmin && <TableCell>{row.user?.name ?? "-"}</TableCell>}
+                            {isAdmin && <TableCell>{row.employee?.fullName ?? row.user?.name ?? "-"}</TableCell>}
                             <TableCell>{row.destinationCity}</TableCell>
                             <TableCell>{row.companyName}</TableCell>
                             <TableCell>
@@ -338,7 +338,14 @@ export default function BusinessTripPage() {
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <p className="font-medium">{row.destinationCity}</p>
-                            <p className="text-xs text-muted-foreground">{row.companyName}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {isAdmin
+                                ? row.employee?.fullName ?? row.user?.name ?? row.companyName
+                                : row.companyName}
+                            </p>
+                            {isAdmin && (
+                              <p className="text-xs text-muted-foreground">{row.companyName}</p>
+                            )}
                           </div>
                           <Badge variant="outline" className={statusClass(row.status)}>
                             {row.status}

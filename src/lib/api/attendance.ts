@@ -4,7 +4,7 @@ import { parseAttendanceRecord } from "@/lib/api/parse";
 import type { PaginatedResult } from "@/lib/api/pagination";
 
 export async function fetchAttendance(params?: {
-  userId?: string;
+  employeeId?: string;
   from?: string;
   to?: string;
   status?: string;
@@ -13,7 +13,7 @@ export async function fetchAttendance(params?: {
   q?: string;
 }): Promise<PaginatedResult<AttendanceRecord>> {
   const search = new URLSearchParams();
-  if (params?.userId) search.set("userId", params.userId);
+  if (params?.employeeId) search.set("employeeId", params.employeeId);
   if (params?.from) search.set("from", params.from);
   if (params?.to) search.set("to", params.to);
   if (params?.status) search.set("status", params.status);
@@ -35,7 +35,6 @@ export async function submitAttendance(payload: {
   action: "CHECK_IN" | "CHECK_OUT";
   location?: string;
   notes?: string;
-  userId?: string;
 }): Promise<AttendanceRecord> {
   const data = await requestJson<AttendanceRecord>("/api/attendance", {
     method: "POST",

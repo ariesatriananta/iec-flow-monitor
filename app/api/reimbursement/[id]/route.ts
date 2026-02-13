@@ -75,7 +75,7 @@ export async function PUT(
     }
 
     const body = parsedBody.data;
-    if (existing.userId !== auth.user.id) {
+    if (!auth.user.employeeId || existing.employeeId !== auth.user.employeeId) {
       return NextResponse.json({ error: "Akses ditolak" }, { status: 403 });
     }
 
@@ -181,4 +181,3 @@ export async function PUT(
 
   return NextResponse.json({ ...updated, attachments });
 }
-

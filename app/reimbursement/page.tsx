@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -103,7 +103,7 @@ export default function ReimbursementPage() {
   >({});
   const [deletingAttachmentId, setDeletingAttachmentId] = useState<string | null>(null);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
       const data = await fetchReimbursements({
@@ -124,11 +124,11 @@ export default function ReimbursementPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [statusFilter, debouncedSearch, page, toast]);
 
   useEffect(() => {
     void loadData();
-  }, [statusFilter, debouncedSearch, page]);
+  }, [loadData]);
 
   useEffect(() => {
     setPage(1);
@@ -145,7 +145,7 @@ export default function ReimbursementPage() {
           purpose: "RECEIPT",
           fileUrl: row.receiptUrl,
           fileName: "receipt",
-          uploadedBy: row.userId,
+          uploadedBy: row.user?.id ?? "system",
           createdAt: row.createdAt,
         },
       ];
@@ -164,7 +164,7 @@ export default function ReimbursementPage() {
           purpose: "PAID_PROOF",
           fileUrl: row.paidProofUrl,
           fileName: "paid-proof",
-          uploadedBy: row.userId,
+          uploadedBy: row.user?.id ?? "system",
           createdAt: row.createdAt,
         },
       ];
@@ -327,7 +327,7 @@ export default function ReimbursementPage() {
   const canDeleteAttachment = (row: Reimbursement, attachment: ReimbursementAttachment) => {
     if (attachment.id.startsWith("legacy-")) return false;
     if (isAdmin) return true;
-    const isOwn = row.userId === user?.id;
+    const isOwn = row.employeeId === user?.employeeId;
     const isSubmitted = row.status === "SUBMITTED";
     const isReceipt = attachment.purpose.toUpperCase() === "RECEIPT";
     return isOwn && isSubmitted && isReceipt;
@@ -602,7 +602,9 @@ export default function ReimbursementPage() {
 
                           return (
                             <TableRow key={row.id}>
-                              {isAdmin && <TableCell>{row.user?.name ?? "-"}</TableCell>}
+                              {isAdmin && (
+                                <TableCell>{row.employee?.fullName ?? row.user?.name ?? "-"}</TableCell>
+                              )}
                               <TableCell>{row.category}</TableCell>
                               <TableCell>{formatCurrency(Number(row.amount))}</TableCell>
                               <TableCell className="max-w-[240px] truncate">{row.description ?? "-"}</TableCell>
@@ -705,7 +707,9 @@ export default function ReimbursementPage() {
                             <div>
                               <p className="font-medium">{row.category}</p>
                               <p className="text-xs text-muted-foreground">
-                                {isAdmin ? row.user?.name ?? "-" : "Pengajuan Saya"}
+                                {isAdmin
+                                  ? row.employee?.fullName ?? row.user?.name ?? "-"
+                                  : "Pengajuan Saya"}
                               </p>
                             </div>
                             <Badge variant="outline" className={statusClass(row.status)}>

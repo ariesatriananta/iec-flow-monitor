@@ -200,7 +200,7 @@ export type AttendanceStatus = "PRESENT" | "SICK" | "LEAVE" | "ABSENT";
 
 export interface AttendanceRecord {
   id: string;
-  userId: string;
+  employeeId: string;
   attendanceDate: Date;
   checkInAt?: Date | null;
   checkOutAt?: Date | null;
@@ -210,6 +210,7 @@ export interface AttendanceRecord {
   notes?: string | null;
   createdAt: Date;
   updatedAt: Date;
+  employee?: Pick<Employee, "id" | "employeeCode" | "fullName" | "title" | "department">;
   user?: Pick<User, "id" | "username" | "name" | "role">;
 }
 
@@ -223,7 +224,7 @@ export type WorkflowStatus =
 
 export interface LeaveRequest {
   id: string;
-  userId: string;
+  employeeId: string;
   leaveType: string;
   reason: string;
   startDate: Date;
@@ -234,12 +235,13 @@ export interface LeaveRequest {
   approvedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
+  employee?: Pick<Employee, "id" | "employeeCode" | "fullName" | "title" | "department">;
   user?: Pick<User, "id" | "username" | "name" | "role">;
 }
 
 export interface BusinessTrip {
   id: string;
-  userId: string;
+  employeeId: string;
   destinationCity: string;
   companyName: string;
   purpose?: string | null;
@@ -251,12 +253,13 @@ export interface BusinessTrip {
   approvedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
+  employee?: Pick<Employee, "id" | "employeeCode" | "fullName" | "title" | "department">;
   user?: Pick<User, "id" | "username" | "name" | "role">;
 }
 
 export interface Reimbursement {
   id: string;
-  userId: string;
+  employeeId: string;
   category: string;
   amount: number;
   description?: string | null;
@@ -269,6 +272,7 @@ export interface Reimbursement {
   paidProofUrl?: string | null;
   createdAt: Date;
   updatedAt: Date;
+  employee?: Pick<Employee, "id" | "employeeCode" | "fullName" | "title" | "department">;
   user?: Pick<User, "id" | "username" | "name" | "role">;
   attachments?: ReimbursementAttachment[];
 }

@@ -37,7 +37,8 @@ export async function DELETE(
 
   const isAdmin = auth.user.role === "ADMIN";
   if (!isAdmin) {
-    const isOwnData = reimbursement.userId === auth.user.id;
+    const isOwnData =
+      Boolean(auth.user.employeeId) && reimbursement.employeeId === auth.user.employeeId;
     const isEditable = reimbursement.status === "SUBMITTED";
     const isReceipt = attachment.purpose.toUpperCase() === "RECEIPT";
     if (!isOwnData || !isEditable || !isReceipt) {
@@ -87,4 +88,3 @@ export async function DELETE(
 
   return NextResponse.json({ success: true });
 }
-

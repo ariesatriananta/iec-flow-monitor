@@ -135,38 +135,37 @@ export async function DELETE(
     .where(eq(users.employeeId, params.id));
 
   const linkedUserIds = linkedUsers.map((item) => item.id);
-  if (linkedUserIds.length > 0) {
-    const [attendanceCount, leaveCount, tripCount, reimbursementCount] = await Promise.all([
-      db
-        .select({ count: sql<number>`count(*)` })
-        .from(attendanceRecords)
-        .where(inArray(attendanceRecords.userId, linkedUserIds)),
-      db
-        .select({ count: sql<number>`count(*)` })
-        .from(leaveRequests)
-        .where(inArray(leaveRequests.userId, linkedUserIds)),
-      db
-        .select({ count: sql<number>`count(*)` })
-        .from(businessTrips)
-        .where(inArray(businessTrips.userId, linkedUserIds)),
-      db
-        .select({ count: sql<number>`count(*)` })
-        .from(reimbursements)
-        .where(inArray(reimbursements.userId, linkedUserIds)),
-    ]);
+  const [attendanceCount] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(attendanceRecords)
+    .where(eq(attendanceRecords.employeeId, params.id));
 
-    const usedInWorkflow =
-      Number(attendanceCount[0]?.count ?? 0) > 0 ||
-      Number(leaveCount[0]?.count ?? 0) > 0 ||
-      Number(tripCount[0]?.count ?? 0) > 0 ||
-      Number(reimbursementCount[0]?.count ?? 0) > 0;
+  const [leaveCount, tripCount, reimbursementCount] = await Promise.all([
+    db
+      .select({ count: sql<number>`count(*)` })
+      .from(leaveRequests)
+      .where(eq(leaveRequests.employeeId, params.id)),
+    db
+      .select({ count: sql<number>`count(*)` })
+      .from(businessTrips)
+      .where(eq(businessTrips.employeeId, params.id)),
+    db
+      .select({ count: sql<number>`count(*)` })
+      .from(reimbursements)
+      .where(eq(reimbursements.employeeId, params.id)),
+  ]);
 
-    if (usedInWorkflow) {
-      return NextResponse.json(
-        { error: "Employee tidak bisa dihapus karena sudah dipakai transaksi/workflow" },
-        { status: 409 }
-      );
-    }
+  const usedInWorkflow =
+    Number(attendanceCount?.count ?? 0) > 0 ||
+    Number(leaveCount[0]?.count ?? 0) > 0 ||
+    Number(tripCount[0]?.count ?? 0) > 0 ||
+    Number(reimbursementCount[0]?.count ?? 0) > 0;
+
+  if (usedInWorkflow) {
+    return NextResponse.json(
+      { error: "Employee tidak bisa dihapus karena sudah dipakai transaksi/workflow" },
+      { status: 409 }
+    );
   }
 
   await db.transaction(async (tx) => {

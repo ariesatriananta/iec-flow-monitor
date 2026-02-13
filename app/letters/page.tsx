@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import Image from 'next/image';
 import { AdminLayout } from '@/components/layout/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -1278,9 +1279,12 @@ export default function Letters() {
                 <div className="rounded-xl border border-border/60 bg-muted/40 p-4">
                   <div className="flex items-center gap-4">
                     {settings.companyLogoUrl && (
-                      <img
+                      <Image
                         src={settings.companyLogoUrl}
                         alt="Logo"
+                        width={48}
+                        height={48}
+                        unoptimized
                         className="h-12 w-12 rounded-lg object-contain bg-white"
                       />
                     )}

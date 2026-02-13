@@ -10,6 +10,7 @@ export type SessionUser = {
   username: string;
   name: string;
   role: "ADMIN" | "STAFF";
+  employeeId: string | null;
 };
 
 type GuardResult =
@@ -36,6 +37,7 @@ export async function requireSessionUser(): Promise<GuardResult> {
       username: users.username,
       name: users.name,
       role: users.role,
+      employeeId: users.employeeId,
     })
     .from(users)
     .where(eq(users.id, session.sub))
@@ -56,6 +58,7 @@ export async function requireSessionUser(): Promise<GuardResult> {
       username: user.username,
       name: user.name,
       role: user.role === "STAFF" ? "STAFF" : "ADMIN",
+      employeeId: user.employeeId ?? null,
     },
   };
 }
@@ -77,4 +80,3 @@ export async function requireAdmin(): Promise<GuardResult> {
 
   return auth;
 }
-

@@ -58,7 +58,7 @@ export default function ReimbursementLimitPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [toast]);
 
   const handleSave = async () => {
     setIsSaving(true);

@@ -8,13 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -26,10 +20,9 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { fetchAttendance, submitAttendance } from "@/lib/api/attendance";
-import { fetchUsers } from "@/lib/api/users";
 import { formatDate } from "@/lib/numbering";
 import { useAuth } from "@/contexts/AuthContext";
-import type { AttendanceRecord, User } from "@/types";
+import type { AttendanceRecord } from "@/types";
 import { CalendarCheck2, LogIn, LogOut, Search } from "lucide-react";
 
 const formatDateTime = (value?: Date | string | null) => {
@@ -56,10 +49,8 @@ export default function AttendancePage() {
   const { toast } = useToast();
 
   const [rows, setRows] = useState<AttendanceRecord[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [selectedUserId, setSelectedUserId] = useState<string>("ALL");
   const [location, setLocation] = useState("");
   const [notes, setNotes] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -71,16 +62,18 @@ export default function AttendancePage() {
   const [todayRecord, setTodayRecord] = useState<AttendanceRecord | undefined>(undefined);
   const PAGE_SIZE = 20;
   const debouncedSearch = useDebouncedValue(searchQuery.trim(), 400);
+  const employeeId = user?.employeeId ?? null;
 
   const refreshTodayRecord = useCallback(async () => {
-    if (isAdmin && selectedUserId === "ALL") {
+    if (!employeeId) {
       setTodayRecord(undefined);
       return;
     }
+
     const day = toDayKey(new Date());
     try {
       const data = await fetchAttendance({
-        userId: isAdmin && selectedUserId !== "ALL" ? selectedUserId : undefined,
+        employeeId,
         from: day,
         to: day,
         limit: 1,
@@ -90,13 +83,12 @@ export default function AttendancePage() {
     } catch (error) {
       setTodayRecord(undefined);
     }
-  }, [isAdmin, selectedUserId]);
+  }, [employeeId]);
 
-  const loadAttendance = async () => {
+  const loadAttendance = useCallback(async () => {
     setIsLoading(true);
     try {
       const data = await fetchAttendance({
-        userId: isAdmin && selectedUserId !== "ALL" ? selectedUserId : undefined,
         from: dateFrom || undefined,
         to: dateTo || undefined,
         status: statusFilter !== "ALL" ? statusFilter : undefined,
@@ -106,10 +98,6 @@ export default function AttendancePage() {
       });
       setRows(data.items);
       setTotal(data.total);
-      if (isAdmin && users.length === 0) {
-        const userRows = await fetchUsers();
-        setUsers(userRows);
-      }
     } catch (error) {
       console.error(error);
       toast({
@@ -120,15 +108,15 @@ export default function AttendancePage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [dateFrom, dateTo, statusFilter, debouncedSearch, page, toast]);
 
   useEffect(() => {
     void loadAttendance();
-  }, [isAdmin, selectedUserId, dateFrom, dateTo, statusFilter, debouncedSearch, page]);
+  }, [loadAttendance]);
 
   useEffect(() => {
     setPage(1);
-  }, [selectedUserId, dateFrom, dateTo, statusFilter, debouncedSearch]);
+  }, [dateFrom, dateTo, statusFilter, debouncedSearch]);
 
   useEffect(() => {
     void refreshTodayRecord();
@@ -141,7 +129,6 @@ export default function AttendancePage() {
         action,
         location: location || undefined,
         notes: notes || undefined,
-        userId: isAdmin && selectedUserId !== "ALL" ? selectedUserId : undefined,
       });
       toast({
         title: "Berhasil",
@@ -161,9 +148,9 @@ export default function AttendancePage() {
     }
   };
 
-  const canCheckIn = !todayRecord?.checkInAt;
-  const canCheckOut = Boolean(todayRecord?.checkInAt && !todayRecord?.checkOutAt);
-  const actionBlockedByUserSelection = isAdmin && selectedUserId === "ALL";
+  const hasLinkedEmployee = Boolean(employeeId);
+  const canCheckIn = hasLinkedEmployee && !todayRecord?.checkInAt;
+  const canCheckOut = hasLinkedEmployee && Boolean(todayRecord?.checkInAt && !todayRecord?.checkOutAt);
 
   return (
     <AdminLayout title="Attendance">
@@ -174,24 +161,6 @@ export default function AttendancePage() {
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-2">
             <div className="space-y-3">
-              {isAdmin && (
-                <div className="space-y-2">
-                  <Label>User</Label>
-                  <Select value={selectedUserId} onValueChange={setSelectedUserId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Pilih user" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ALL">Semua User</SelectItem>
-                      {users.map((item) => (
-                        <SelectItem key={item.id} value={item.id}>
-                          {item.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
               <div className="space-y-2">
                 <Label>Lokasi</Label>
                 <Input
@@ -210,7 +179,7 @@ export default function AttendancePage() {
               </div>
               <div className="flex gap-2">
                 <Button
-                  disabled={actionBlockedByUserSelection || !canCheckIn || isSubmitting}
+                  disabled={!canCheckIn || isSubmitting}
                   onClick={() => void handleSubmit("CHECK_IN")}
                 >
                   <LogIn className="mr-2 h-4 w-4" />
@@ -218,16 +187,16 @@ export default function AttendancePage() {
                 </Button>
                 <Button
                   variant="outline"
-                  disabled={actionBlockedByUserSelection || !canCheckOut || isSubmitting}
+                  disabled={!canCheckOut || isSubmitting}
                   onClick={() => void handleSubmit("CHECK_OUT")}
                 >
                   <LogOut className="mr-2 h-4 w-4" />
                   Check Out
                 </Button>
               </div>
-              {actionBlockedByUserSelection && (
+              {!hasLinkedEmployee && (
                 <p className="text-xs text-muted-foreground">
-                  Pilih user tertentu untuk melakukan check in/check out sebagai admin.
+                  Akun ini belum terhubung ke data employee, jadi belum bisa check in/check out.
                 </p>
               )}
             </div>
@@ -346,7 +315,9 @@ export default function AttendancePage() {
                       ) : (
                         rows.map((row) => (
                           <TableRow key={row.id}>
-                            {isAdmin && <TableCell>{row.user?.name ?? "-"}</TableCell>}
+                            {isAdmin && (
+                              <TableCell>{row.employee?.fullName ?? row.user?.name ?? "-"}</TableCell>
+                            )}
                             <TableCell>{formatDate(new Date(row.attendanceDate))}</TableCell>
                             <TableCell>{formatDateTime(row.checkInAt)}</TableCell>
                             <TableCell>{formatDateTime(row.checkOutAt)}</TableCell>
@@ -377,7 +348,9 @@ export default function AttendancePage() {
                           <div>
                             <p className="font-medium">{formatDate(new Date(row.attendanceDate))}</p>
                             <p className="text-xs text-muted-foreground">
-                              {isAdmin ? row.user?.name ?? "-" : "Absensi Saya"}
+                              {isAdmin
+                                ? row.employee?.fullName ?? row.user?.name ?? "-"
+                                : "Absensi Saya"}
                             </p>
                           </div>
                           <Badge variant="outline" className="bg-primary/10 text-primary">

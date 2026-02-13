@@ -5,6 +5,7 @@ import { and, desc, eq, inArray, or, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/lib/db";
 import {
+  employees,
   reimbursementAttachments,
   reimbursements,
   users,
@@ -35,7 +36,6 @@ const querySchema = z.object({
 });
 
 const createSchema = z.object({
-  userId: z.string().trim().min(1).max(128).optional(),
   category: z.string().trim().min(1).max(50),
   amount: z.number().positive().max(999999999999),
   description: z.string().trim().max(2000).optional(),
@@ -68,7 +68,13 @@ export async function GET(request: Request) {
   const conditions: SQL[] = [];
 
   if (auth.user.role !== "ADMIN") {
-    conditions.push(eq(reimbursements.userId, auth.user.id));
+    if (!auth.user.employeeId) {
+      return NextResponse.json(
+        { error: "Akun belum terhubung ke employee" },
+        { status: 403 }
+      );
+    }
+    conditions.push(eq(reimbursements.employeeId, auth.user.employeeId));
   }
   if (status) {
     conditions.push(eq(reimbursements.status, status));
@@ -78,6 +84,7 @@ export async function GET(request: Request) {
     const like = `%${search}%`;
     conditions.push(
       or(
+        sql`lower(coalesce(${employees.fullName}, '')) like ${like}`,
         sql`lower(coalesce(${users.name}, '')) like ${like}`,
         sql`lower(${reimbursements.category}) like ${like}`,
         sql`lower(coalesce(${reimbursements.description}, '')) like ${like}`,
@@ -94,27 +101,31 @@ export async function GET(request: Request) {
     ? await db
         .select({ count: sql<string>`count(*)` })
         .from(reimbursements)
-        .leftJoin(users, eq(reimbursements.userId, users.id))
+        .leftJoin(employees, eq(reimbursements.employeeId, employees.id))
+        .leftJoin(users, eq(users.employeeId, employees.id))
         .where(whereClause)
     : await db
         .select({ count: sql<string>`count(*)` })
         .from(reimbursements)
-        .leftJoin(users, eq(reimbursements.userId, users.id));
+        .leftJoin(employees, eq(reimbursements.employeeId, employees.id))
+        .leftJoin(users, eq(users.employeeId, employees.id));
   const total = Number(totalResult[0]?.count ?? 0);
 
   const rows = whereClause
     ? await db
-        .select({ reimbursement: reimbursements, user: users })
+        .select({ reimbursement: reimbursements, employee: employees, user: users })
         .from(reimbursements)
-        .leftJoin(users, eq(reimbursements.userId, users.id))
+        .leftJoin(employees, eq(reimbursements.employeeId, employees.id))
+        .leftJoin(users, eq(users.employeeId, employees.id))
         .where(whereClause)
         .orderBy(desc(reimbursements.createdAt))
         .limit(limit)
         .offset(offset)
     : await db
-        .select({ reimbursement: reimbursements, user: users })
+        .select({ reimbursement: reimbursements, employee: employees, user: users })
         .from(reimbursements)
-        .leftJoin(users, eq(reimbursements.userId, users.id))
+        .leftJoin(employees, eq(reimbursements.employeeId, employees.id))
+        .leftJoin(users, eq(users.employeeId, employees.id))
         .orderBy(desc(reimbursements.createdAt))
         .limit(limit)
         .offset(offset);
@@ -138,9 +149,18 @@ export async function GET(request: Request) {
     }
   }
 
-  const items = rows.map(({ reimbursement, user }) => ({
+  const items = rows.map(({ reimbursement, employee, user }) => ({
     ...reimbursement,
     attachments: attachmentsByReimbursementId.get(reimbursement.id) ?? [],
+    employee: employee
+      ? {
+          id: employee.id,
+          employeeCode: employee.employeeCode,
+          fullName: employee.fullName,
+          title: employee.title,
+          department: employee.department,
+        }
+      : undefined,
     user: user
       ? {
           id: user.id,
@@ -176,8 +196,13 @@ export async function POST(request: Request) {
   }
 
   const body = parsedBody.data;
-  const targetUserId =
-    auth.user.role === "ADMIN" && body.userId ? body.userId : auth.user.id;
+  const targetEmployeeId = auth.user.employeeId;
+  if (!targetEmployeeId) {
+    return NextResponse.json(
+      { error: "Akun belum terhubung ke employee" },
+      { status: 403 }
+    );
+  }
 
   const now = new Date();
   const incomingAttachments = body.attachments ?? [];
@@ -196,7 +221,7 @@ export async function POST(request: Request) {
     .insert(reimbursements)
     .values({
       id: reimbursementId,
-      userId: targetUserId,
+      employeeId: targetEmployeeId,
       category: body.category,
       amount: body.amount.toString(),
       description: body.description ?? null,

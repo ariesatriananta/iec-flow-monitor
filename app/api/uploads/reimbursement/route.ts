@@ -22,7 +22,7 @@ const normalizeFilename = (filename: string): string => {
 };
 
 const buildObjectKey = (
-  userId: string,
+  ownerKey: string,
   purpose: "receipt" | "paid-proof",
   fileName: string
 ): string => {
@@ -32,7 +32,7 @@ const buildObjectKey = (
   const dd = now.getUTCDate().toString().padStart(2, "0");
   const prefix = (process.env.R2_KEY_PREFIX ?? "uploads").replace(/^\/+|\/+$/g, "");
   const random = crypto.randomUUID();
-  return `${prefix}/reimbursement/${purpose}/${userId}/${yyyy}/${mm}/${dd}/${random}-${fileName}`;
+  return `${prefix}/reimbursement/${purpose}/${ownerKey}/${yyyy}/${mm}/${dd}/${random}-${fileName}`;
 };
 
 export async function POST(request: Request) {
@@ -47,6 +47,13 @@ export async function POST(request: Request) {
   if (purpose === "paid-proof" && auth.user.role !== "ADMIN") {
     return NextResponse.json(
       { error: "Hanya admin yang boleh upload bukti transfer" },
+      { status: 403 }
+    );
+  }
+
+  if (purpose === "receipt" && !auth.user.employeeId) {
+    return NextResponse.json(
+      { error: "Akun belum terhubung ke employee" },
       { status: 403 }
     );
   }
@@ -70,7 +77,11 @@ export async function POST(request: Request) {
   }
 
   const fileName = normalizeFilename(fileValue.name);
-  const objectKey = buildObjectKey(auth.user.id, purpose, fileName);
+  const ownerKey =
+    purpose === "receipt"
+      ? auth.user.employeeId!
+      : auth.user.employeeId ?? auth.user.id;
+  const objectKey = buildObjectKey(ownerKey, purpose, fileName);
   const buffer = Buffer.from(await fileValue.arrayBuffer());
 
   try {

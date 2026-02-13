@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -130,7 +130,7 @@ export default function EmployeesPage() {
   const PAGE_SIZE = 20;
   const debouncedSearch = useDebouncedValue(searchQuery.trim(), 400);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
       const employeeRows = await fetchEmployees({
@@ -150,11 +150,11 @@ export default function EmployeesPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [page, debouncedSearch, toast]);
 
   useEffect(() => {
     void loadData();
-  }, [isAdmin, page, debouncedSearch]);
+  }, [loadData]);
 
   useEffect(() => {
     setPage(1);

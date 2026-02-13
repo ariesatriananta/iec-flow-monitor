@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import { and, desc, eq, or, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/lib/db";
-import { leaveRequests, users } from "@/lib/db/schema";
+import { employees, leaveRequests, users } from "@/lib/db/schema";
 import { requireSessionUser } from "@/lib/auth/server";
 
 const workflowStatusSchema = z.union([
@@ -27,7 +27,6 @@ const querySchema = z.object({
 });
 
 const createSchema = z.object({
-  userId: z.string().trim().min(1).max(128).optional(),
   leaveType: z.string().trim().min(1).max(50),
   reason: z.string().trim().min(1).max(2000),
   startDate: dateStringSchema,
@@ -59,7 +58,13 @@ export async function GET(request: Request) {
   const conditions: SQL[] = [];
 
   if (auth.user.role !== "ADMIN") {
-    conditions.push(eq(leaveRequests.userId, auth.user.id));
+    if (!auth.user.employeeId) {
+      return NextResponse.json(
+        { error: "Akun belum terhubung ke employee" },
+        { status: 403 }
+      );
+    }
+    conditions.push(eq(leaveRequests.employeeId, auth.user.employeeId));
   }
   if (status) {
     conditions.push(eq(leaveRequests.status, status));
@@ -69,6 +74,7 @@ export async function GET(request: Request) {
     const like = `%${search}%`;
     conditions.push(
       or(
+        sql`lower(coalesce(${employees.fullName}, '')) like ${like}`,
         sql`lower(coalesce(${users.name}, '')) like ${like}`,
         sql`lower(${leaveRequests.leaveType}) like ${like}`,
         sql`lower(${leaveRequests.reason}) like ${like}`,
@@ -84,33 +90,46 @@ export async function GET(request: Request) {
     ? await db
         .select({ count: sql<string>`count(*)` })
         .from(leaveRequests)
-        .leftJoin(users, eq(leaveRequests.userId, users.id))
+        .leftJoin(employees, eq(leaveRequests.employeeId, employees.id))
+        .leftJoin(users, eq(users.employeeId, employees.id))
         .where(whereClause)
     : await db
         .select({ count: sql<string>`count(*)` })
         .from(leaveRequests)
-        .leftJoin(users, eq(leaveRequests.userId, users.id));
+        .leftJoin(employees, eq(leaveRequests.employeeId, employees.id))
+        .leftJoin(users, eq(users.employeeId, employees.id));
   const total = Number(totalResult[0]?.count ?? 0);
 
   const rows = whereClause
     ? await db
-        .select({ request: leaveRequests, user: users })
+        .select({ request: leaveRequests, employee: employees, user: users })
         .from(leaveRequests)
-        .leftJoin(users, eq(leaveRequests.userId, users.id))
+        .leftJoin(employees, eq(leaveRequests.employeeId, employees.id))
+        .leftJoin(users, eq(users.employeeId, employees.id))
         .where(whereClause)
         .orderBy(desc(leaveRequests.createdAt))
         .limit(limit)
         .offset(offset)
     : await db
-        .select({ request: leaveRequests, user: users })
+        .select({ request: leaveRequests, employee: employees, user: users })
         .from(leaveRequests)
-        .leftJoin(users, eq(leaveRequests.userId, users.id))
+        .leftJoin(employees, eq(leaveRequests.employeeId, employees.id))
+        .leftJoin(users, eq(users.employeeId, employees.id))
         .orderBy(desc(leaveRequests.createdAt))
         .limit(limit)
         .offset(offset);
 
-  const items = rows.map(({ request, user }) => ({
+  const items = rows.map(({ request, employee, user }) => ({
     ...request,
+    employee: employee
+      ? {
+          id: employee.id,
+          employeeCode: employee.employeeCode,
+          fullName: employee.fullName,
+          title: employee.title,
+          department: employee.department,
+        }
+      : undefined,
     user: user
       ? {
           id: user.id,
@@ -148,6 +167,14 @@ export async function POST(request: Request) {
   }
 
   const body = parsedBody.data;
+  const targetEmployeeId = auth.user.employeeId;
+  if (!targetEmployeeId) {
+    return NextResponse.json(
+      { error: "Akun belum terhubung ke employee" },
+      { status: 403 }
+    );
+  }
+
   const startDate = new Date(body.startDate);
   const endDate = new Date(body.endDate);
   if (endDate < startDate) {
@@ -157,16 +184,13 @@ export async function POST(request: Request) {
     );
   }
 
-  const targetUserId =
-    auth.user.role === "ADMIN" && body.userId ? body.userId : auth.user.id;
-
   const now = new Date();
   const db = getDb();
   const [created] = await db
     .insert(leaveRequests)
     .values({
       id: crypto.randomUUID(),
-      userId: targetUserId,
+      employeeId: targetEmployeeId,
       leaveType: body.leaveType,
       reason: body.reason,
       startDate,

@@ -2,6 +2,7 @@
 
 import { useState, type ComponentType } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
@@ -182,9 +183,11 @@ export function AdminSidebar({ variant = 'default', onNavigate }: AdminSidebarPr
         )}
       >
         <div className={cn('flex items-center gap-3 min-w-0', isCollapsed && 'justify-center')}>
-          <img
+          <Image
             src="/logo-2.jpg"
             alt="IECNET Logo"
+            width={64}
+            height={40}
             className={cn(
               'rounded-md transition-all',
               isCollapsed ? 'w-8 h-8' : 'w-16 h-10'

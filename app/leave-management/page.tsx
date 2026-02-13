@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -73,7 +73,7 @@ export default function LeaveManagementPage() {
   const [endDate, setEndDate] = useState("");
   const [reason, setReason] = useState("");
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
       const data = await fetchLeaveRequests({
@@ -94,11 +94,11 @@ export default function LeaveManagementPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [statusFilter, debouncedSearch, page, toast]);
 
   useEffect(() => {
     void loadData();
-  }, [statusFilter, debouncedSearch, page]);
+  }, [loadData]);
 
   useEffect(() => {
     setPage(1);
@@ -285,7 +285,7 @@ export default function LeaveManagementPage() {
                       ) : (
                         rows.map((row) => (
                           <TableRow key={row.id}>
-                            {isAdmin && <TableCell>{row.user?.name ?? "-"}</TableCell>}
+                            {isAdmin && <TableCell>{row.employee?.fullName ?? row.user?.name ?? "-"}</TableCell>}
                             <TableCell>{row.leaveType}</TableCell>
                             <TableCell>
                               {formatDate(new Date(row.startDate))} - {formatDate(new Date(row.endDate))}
@@ -336,7 +336,7 @@ export default function LeaveManagementPage() {
                           <div>
                             <p className="font-medium">{row.leaveType}</p>
                             <p className="text-xs text-muted-foreground">
-                              {isAdmin ? row.user?.name ?? "-" : "Pengajuan Saya"}
+                              {isAdmin ? row.employee?.fullName ?? row.user?.name ?? "-" : "Pengajuan Saya"}
                             </p>
                           </div>
                           <Badge variant="outline" className={statusClass(row.status)}>

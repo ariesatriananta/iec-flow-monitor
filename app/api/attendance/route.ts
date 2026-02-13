@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import { and, desc, eq, gte, lte, or, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/lib/db";
-import { attendanceRecords, users } from "@/lib/db/schema";
+import { attendanceRecords, employees, users } from "@/lib/db/schema";
 import { requireSessionUser } from "@/lib/auth/server";
 import { getJakartaDayStart, getJakartaParts } from "@/lib/hr/time";
 
@@ -14,7 +14,7 @@ const dateStringSchema = z
   .refine((value) => !Number.isNaN(new Date(value).getTime()), "Format tanggal tidak valid");
 
 const querySchema = z.object({
-  userId: z.string().trim().min(1).max(128).optional(),
+  employeeId: z.string().trim().min(1).max(128).optional(),
   from: dateStringSchema.optional(),
   to: dateStringSchema.optional(),
   status: z.enum(["PRESENT", "SICK", "LEAVE", "ABSENT"]).optional(),
@@ -27,7 +27,6 @@ const actionSchema = z.object({
   action: z.union([z.literal("CHECK_IN"), z.literal("CHECK_OUT")]),
   location: z.string().trim().max(200).optional(),
   notes: z.string().trim().max(1000).optional(),
-  userId: z.string().trim().min(1).max(128).optional(),
 });
 
 const formatZodError = (error: z.ZodError) =>
@@ -39,7 +38,7 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url);
   const parsedQuery = querySchema.safeParse({
-    userId: url.searchParams.get("userId") ?? undefined,
+    employeeId: url.searchParams.get("employeeId") ?? undefined,
     from: url.searchParams.get("from") ?? undefined,
     to: url.searchParams.get("to") ?? undefined,
     status: url.searchParams.get("status") ?? undefined,
@@ -54,11 +53,19 @@ export async function GET(request: Request) {
     );
   }
 
-  const { userId, from, to, status, limit, offset, q } = parsedQuery.data;
-  const targetUserId = auth.user.role === "ADMIN" ? userId : auth.user.id;
+  const { employeeId, from, to, status, limit, offset, q } = parsedQuery.data;
+  const targetEmployeeId =
+    auth.user.role === "ADMIN" ? employeeId : auth.user.employeeId;
+
+  if (auth.user.role !== "ADMIN" && !targetEmployeeId) {
+    return NextResponse.json(
+      { error: "Akun belum terhubung ke employee" },
+      { status: 403 }
+    );
+  }
 
   const conditions: SQL[] = [];
-  if (targetUserId) conditions.push(eq(attendanceRecords.userId, targetUserId));
+  if (targetEmployeeId) conditions.push(eq(attendanceRecords.employeeId, targetEmployeeId));
   if (from) conditions.push(gte(attendanceRecords.attendanceDate, new Date(from)));
   if (to) conditions.push(lte(attendanceRecords.attendanceDate, new Date(to)));
   if (status) conditions.push(eq(attendanceRecords.status, status));
@@ -68,6 +75,7 @@ export async function GET(request: Request) {
     const like = `%${search}%`;
     conditions.push(
       or(
+        sql`lower(coalesce(${employees.fullName}, '')) like ${like}`,
         sql`lower(coalesce(${users.name}, '')) like ${like}`,
         sql`lower(coalesce(${attendanceRecords.checkInLocation}, '')) like ${like}`,
         sql`lower(coalesce(${attendanceRecords.checkOutLocation}, '')) like ${like}`,
@@ -79,36 +87,49 @@ export async function GET(request: Request) {
   const db = getDb();
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
   const totalResult = whereClause
-    ? await db
-        .select({ count: sql<string>`count(*)` })
-        .from(attendanceRecords)
-        .leftJoin(users, eq(attendanceRecords.userId, users.id))
-        .where(whereClause)
-    : await db
-        .select({ count: sql<string>`count(*)` })
-        .from(attendanceRecords)
-        .leftJoin(users, eq(attendanceRecords.userId, users.id));
+      ? await db
+          .select({ count: sql<string>`count(*)` })
+          .from(attendanceRecords)
+          .leftJoin(employees, eq(attendanceRecords.employeeId, employees.id))
+          .leftJoin(users, eq(users.employeeId, employees.id))
+          .where(whereClause)
+      : await db
+          .select({ count: sql<string>`count(*)` })
+          .from(attendanceRecords)
+          .leftJoin(employees, eq(attendanceRecords.employeeId, employees.id))
+          .leftJoin(users, eq(users.employeeId, employees.id));
   const total = Number(totalResult[0]?.count ?? 0);
 
   const rows = whereClause
     ? await db
-        .select({ attendance: attendanceRecords, user: users })
+        .select({ attendance: attendanceRecords, employee: employees, user: users })
         .from(attendanceRecords)
-        .leftJoin(users, eq(attendanceRecords.userId, users.id))
+        .leftJoin(employees, eq(attendanceRecords.employeeId, employees.id))
+        .leftJoin(users, eq(users.employeeId, employees.id))
         .where(whereClause)
         .orderBy(desc(attendanceRecords.attendanceDate), desc(attendanceRecords.updatedAt))
         .limit(limit)
         .offset(offset)
     : await db
-        .select({ attendance: attendanceRecords, user: users })
+        .select({ attendance: attendanceRecords, employee: employees, user: users })
         .from(attendanceRecords)
-        .leftJoin(users, eq(attendanceRecords.userId, users.id))
+        .leftJoin(employees, eq(attendanceRecords.employeeId, employees.id))
+        .leftJoin(users, eq(users.employeeId, employees.id))
         .orderBy(desc(attendanceRecords.attendanceDate), desc(attendanceRecords.updatedAt))
         .limit(limit)
         .offset(offset);
 
-  const items = rows.map(({ attendance, user }) => ({
+  const items = rows.map(({ attendance, employee, user }) => ({
     ...attendance,
+    employee: employee
+      ? {
+          id: employee.id,
+          employeeCode: employee.employeeCode,
+          fullName: employee.fullName,
+          title: employee.title,
+          department: employee.department,
+        }
+      : undefined,
     user: user
       ? {
           id: user.id,
@@ -147,8 +168,14 @@ export async function POST(request: Request) {
 
   const body = parsedBody.data;
   const action = body.action;
-  const targetUserId =
-    auth.user.role === "ADMIN" && body.userId ? body.userId : auth.user.id;
+  const targetEmployeeId = auth.user.employeeId;
+
+  if (!targetEmployeeId) {
+    return NextResponse.json(
+      { error: "Akun belum terhubung ke employee" },
+      { status: 403 }
+    );
+  }
 
   const now = new Date();
   const dayStart = getJakartaDayStart(now);
@@ -160,7 +187,7 @@ export async function POST(request: Request) {
     .from(attendanceRecords)
     .where(
       and(
-        eq(attendanceRecords.userId, targetUserId),
+        eq(attendanceRecords.employeeId, targetEmployeeId),
         eq(attendanceRecords.attendanceDate, dayStart)
       )
     )
@@ -199,7 +226,7 @@ export async function POST(request: Request) {
       .insert(attendanceRecords)
       .values({
         id: crypto.randomUUID(),
-        userId: targetUserId,
+        employeeId: targetEmployeeId,
         attendanceDate: dayStart,
         checkInAt: now,
         checkInLocation: body.location ?? null,

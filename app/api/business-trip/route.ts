@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import { and, desc, eq, or, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/lib/db";
-import { businessTrips, users } from "@/lib/db/schema";
+import { businessTrips, employees, users } from "@/lib/db/schema";
 import { requireSessionUser } from "@/lib/auth/server";
 
 const workflowStatusSchema = z.union([
@@ -27,7 +27,6 @@ const querySchema = z.object({
 });
 
 const createSchema = z.object({
-  userId: z.string().trim().min(1).max(128).optional(),
   destinationCity: z.string().trim().min(1).max(100),
   companyName: z.string().trim().min(1).max(150),
   purpose: z.string().trim().max(2000).optional(),
@@ -60,7 +59,13 @@ export async function GET(request: Request) {
   const conditions: SQL[] = [];
 
   if (auth.user.role !== "ADMIN") {
-    conditions.push(eq(businessTrips.userId, auth.user.id));
+    if (!auth.user.employeeId) {
+      return NextResponse.json(
+        { error: "Akun belum terhubung ke employee" },
+        { status: 403 }
+      );
+    }
+    conditions.push(eq(businessTrips.employeeId, auth.user.employeeId));
   }
   if (status) {
     conditions.push(eq(businessTrips.status, status));
@@ -70,6 +75,7 @@ export async function GET(request: Request) {
     const like = `%${search}%`;
     conditions.push(
       or(
+        sql`lower(coalesce(${employees.fullName}, '')) like ${like}`,
         sql`lower(coalesce(${users.name}, '')) like ${like}`,
         sql`lower(${businessTrips.destinationCity}) like ${like}`,
         sql`lower(${businessTrips.companyName}) like ${like}`,
@@ -86,33 +92,46 @@ export async function GET(request: Request) {
     ? await db
         .select({ count: sql<string>`count(*)` })
         .from(businessTrips)
-        .leftJoin(users, eq(businessTrips.userId, users.id))
+        .leftJoin(employees, eq(businessTrips.employeeId, employees.id))
+        .leftJoin(users, eq(users.employeeId, employees.id))
         .where(whereClause)
     : await db
         .select({ count: sql<string>`count(*)` })
         .from(businessTrips)
-        .leftJoin(users, eq(businessTrips.userId, users.id));
+        .leftJoin(employees, eq(businessTrips.employeeId, employees.id))
+        .leftJoin(users, eq(users.employeeId, employees.id));
   const total = Number(totalResult[0]?.count ?? 0);
 
   const rows = whereClause
     ? await db
-        .select({ trip: businessTrips, user: users })
+        .select({ trip: businessTrips, employee: employees, user: users })
         .from(businessTrips)
-        .leftJoin(users, eq(businessTrips.userId, users.id))
+        .leftJoin(employees, eq(businessTrips.employeeId, employees.id))
+        .leftJoin(users, eq(users.employeeId, employees.id))
         .where(whereClause)
         .orderBy(desc(businessTrips.createdAt))
         .limit(limit)
         .offset(offset)
     : await db
-        .select({ trip: businessTrips, user: users })
+        .select({ trip: businessTrips, employee: employees, user: users })
         .from(businessTrips)
-        .leftJoin(users, eq(businessTrips.userId, users.id))
+        .leftJoin(employees, eq(businessTrips.employeeId, employees.id))
+        .leftJoin(users, eq(users.employeeId, employees.id))
         .orderBy(desc(businessTrips.createdAt))
         .limit(limit)
         .offset(offset);
 
-  const items = rows.map(({ trip, user }) => ({
+  const items = rows.map(({ trip, employee, user }) => ({
     ...trip,
+    employee: employee
+      ? {
+          id: employee.id,
+          employeeCode: employee.employeeCode,
+          fullName: employee.fullName,
+          title: employee.title,
+          department: employee.department,
+        }
+      : undefined,
     user: user
       ? {
           id: user.id,
@@ -150,6 +169,14 @@ export async function POST(request: Request) {
   }
 
   const body = parsedBody.data;
+  const targetEmployeeId = auth.user.employeeId;
+  if (!targetEmployeeId) {
+    return NextResponse.json(
+      { error: "Akun belum terhubung ke employee" },
+      { status: 403 }
+    );
+  }
+
   const startDate = new Date(body.startDate);
   const endDate = new Date(body.endDate);
   if (endDate < startDate) {
@@ -159,16 +186,13 @@ export async function POST(request: Request) {
     );
   }
 
-  const targetUserId =
-    auth.user.role === "ADMIN" && body.userId ? body.userId : auth.user.id;
-
   const now = new Date();
   const db = getDb();
   const [created] = await db
     .insert(businessTrips)
     .values({
       id: crypto.randomUUID(),
-      userId: targetUserId,
+      employeeId: targetEmployeeId,
       destinationCity: body.destinationCity,
       companyName: body.companyName,
       purpose: body.purpose ?? null,

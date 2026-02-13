@@ -55,7 +55,7 @@ export default function ApprovalFlowPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [toast]);
 
   const handleSave = async () => {
     setIsSaving(true);

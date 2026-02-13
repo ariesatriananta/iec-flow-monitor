@@ -273,9 +273,9 @@ export const attendanceRecords = pgTable(
   "attendance_records",
   {
     id: text("id").primaryKey(),
-    userId: text("user_id")
+    employeeId: text("employee_id")
       .notNull()
-      .references(() => users.id),
+      .references(() => employees.id),
     attendanceDate: timestamp("attendance_date", { mode: "date" }).notNull(),
     checkInAt: timestamp("check_in_at", { mode: "date" }),
     checkOutAt: timestamp("check_out_at", { mode: "date" }),
@@ -287,11 +287,11 @@ export const attendanceRecords = pgTable(
     updatedAt: timestamp("updated_at", { mode: "date" }).notNull(),
   },
   (table) => ({
-    attendanceUnique: uniqueIndex("attendance_records_user_date_unique").on(
-      table.userId,
+    attendanceUnique: uniqueIndex("attendance_records_employee_date_unique").on(
+      table.employeeId,
       table.attendanceDate
     ),
-    userIdIdx: index("attendance_records_user_id_idx").on(table.userId),
+    employeeIdIdx: index("attendance_records_employee_id_idx").on(table.employeeId),
     dateIdx: index("attendance_records_date_idx").on(table.attendanceDate),
   })
 );
@@ -300,9 +300,9 @@ export const leaveRequests = pgTable(
   "leave_requests",
   {
     id: text("id").primaryKey(),
-    userId: text("user_id")
+    employeeId: text("employee_id")
       .notNull()
-      .references(() => users.id),
+      .references(() => employees.id),
     leaveType: text("leave_type").notNull(),
     reason: text("reason").notNull(),
     startDate: timestamp("start_date", { mode: "date" }).notNull(),
@@ -315,7 +315,7 @@ export const leaveRequests = pgTable(
     updatedAt: timestamp("updated_at", { mode: "date" }).notNull(),
   },
   (table) => ({
-    userIdIdx: index("leave_requests_user_id_idx").on(table.userId),
+    employeeIdIdx: index("leave_requests_employee_id_idx").on(table.employeeId),
     statusIdx: index("leave_requests_status_idx").on(table.status),
   })
 );
@@ -324,9 +324,9 @@ export const businessTrips = pgTable(
   "business_trips",
   {
     id: text("id").primaryKey(),
-    userId: text("user_id")
+    employeeId: text("employee_id")
       .notNull()
-      .references(() => users.id),
+      .references(() => employees.id),
     destinationCity: text("destination_city").notNull(),
     companyName: text("company_name").notNull(),
     purpose: text("purpose"),
@@ -340,7 +340,7 @@ export const businessTrips = pgTable(
     updatedAt: timestamp("updated_at", { mode: "date" }).notNull(),
   },
   (table) => ({
-    userIdIdx: index("business_trips_user_id_idx").on(table.userId),
+    employeeIdIdx: index("business_trips_employee_id_idx").on(table.employeeId),
     statusIdx: index("business_trips_status_idx").on(table.status),
   })
 );
@@ -349,9 +349,9 @@ export const reimbursements = pgTable(
   "reimbursements",
   {
     id: text("id").primaryKey(),
-    userId: text("user_id")
+    employeeId: text("employee_id")
       .notNull()
-      .references(() => users.id),
+      .references(() => employees.id),
     category: text("category").notNull(),
     amount: numeric("amount", { precision: 15, scale: 0 }).notNull(),
     description: text("description"),
@@ -366,7 +366,7 @@ export const reimbursements = pgTable(
     updatedAt: timestamp("updated_at", { mode: "date" }).notNull(),
   },
   (table) => ({
-    userIdIdx: index("reimbursements_user_id_idx").on(table.userId),
+    employeeIdIdx: index("reimbursements_employee_id_idx").on(table.employeeId),
     statusIdx: index("reimbursements_status_idx").on(table.status),
   })
 );

@@ -70,7 +70,7 @@ export default function WorkSchedulePage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [toast]);
 
   const handleSave = async () => {
     setIsSaving(true);

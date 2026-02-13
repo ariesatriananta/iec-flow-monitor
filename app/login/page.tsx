@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -163,9 +164,12 @@ export default function Login() {
         <div className="pointer-events-none absolute -inset-10 rounded-[32px] bg-[radial-gradient(120px_120px_at_20%_15%,rgba(56,189,248,0.35),transparent_60%),radial-gradient(160px_160px_at_80%_20%,rgba(34,197,94,0.25),transparent_65%),radial-gradient(220px_220px_at_50%_85%,rgba(59,130,246,0.2),transparent_70%)] opacity-70 blur-2xl" />
         {/* Logo and Title */}
         <div className="text-center mb-2">
-          <img
+          <Image
             src="/logo-1.png"
             alt="IECNET Logo"
+            width={320}
+            height={112}
+            priority
             className="mx-auto mb-4 h-auto w-auto max-w-full rounded-lg"
           />
           <h1 className="text-2xl font-bold text-foreground">IECNET Admin System</h1>
