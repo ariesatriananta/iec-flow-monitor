@@ -17,6 +17,13 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Table,
   TableBody,
   TableCell,
@@ -24,10 +31,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import {
   createReimbursement,
+  deleteReimbursement,
   deleteReimbursementAttachment,
   fetchReimbursements,
   updateReimbursement,
@@ -39,9 +53,9 @@ import {
 } from "@/lib/api/uploads";
 import { formatCurrency, formatDate } from "@/lib/numbering";
 import { useAuth } from "@/contexts/AuthContext";
-import type { Reimbursement, ReimbursementAttachment } from "@/types";
+import type { Reimbursement, ReimbursementAttachment, WorkflowEvent } from "@/types";
 import { ActionConfirmDialog } from "@/components/shared/ActionConfirmDialog";
-import { Loader2, Search, Upload, Wallet, X } from "lucide-react";
+import { Eye, Loader2, MoreHorizontal, Search, Trash2, Upload, Wallet, X } from "lucide-react";
 
 const categoryOptions = ["TRANSPORT", "MEAL", "OTHER"];
 const statusOptions = ["ALL", "SUBMITTED", "WAITING_LEVEL_2", "APPROVED", "REJECTED", "PAID", "CANCELLED"];
@@ -72,6 +86,85 @@ const isPurpose = (
   purpose: "RECEIPT" | "PAID_PROOF"
 ) => item.purpose.toUpperCase() === purpose;
 
+const formatActorLabel = (event?: WorkflowEvent | null) => {
+  if (!event) return "-";
+  const name = event.actorEmployee?.fullName ?? event.actorUser?.name ?? "-";
+  const title = event.actorEmployee?.title ?? null;
+  return [name, title].filter(Boolean).join(" - ");
+};
+
+const formatDateTime = (value?: Date | string | null) => {
+  if (!value) return "-";
+  return new Intl.DateTimeFormat("id-ID", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
+};
+
+const findLatestEvent = (
+  events: WorkflowEvent[],
+  predicate: (event: WorkflowEvent) => boolean
+) => {
+  for (let i = events.length - 1; i >= 0; i -= 1) {
+    if (predicate(events[i])) return events[i];
+  }
+  return null;
+};
+
+const getEventDotClass = (event: WorkflowEvent) => {
+  if (event.toStatus === "PAID") return "border-chart-1 bg-chart-1";
+  if (event.toStatus === "APPROVED") return "border-success bg-success";
+  if (event.toStatus === "REJECTED") return "border-destructive bg-destructive";
+  if (event.toStatus === "CANCELLED") return "border-muted-foreground bg-muted-foreground";
+  return "border-warning bg-warning";
+};
+
+const getEventActionLabel = (event: WorkflowEvent) => {
+  switch (event.action) {
+    case "SUBMITTED":
+      return "Pengajuan dibuat";
+    case "APPROVED_L1":
+      return "Disetujui Level 1";
+    case "APPROVED_L2":
+      return "Disetujui Level 2";
+    case "APPROVED":
+      return "Disetujui";
+    case "REJECTED_L1":
+      return "Ditolak Level 1";
+    case "REJECTED_L2":
+      return "Ditolak Level 2";
+    case "CANCELLED":
+      return "Dibatalkan";
+    case "MARKED_PAID":
+      return "Ditandai Sudah Dibayar";
+    case "HARD_DELETED":
+      return "Dihapus Permanen";
+    case "STATUS_CHANGED":
+      return "Perubahan Status";
+    default:
+      return event.action;
+  }
+};
+
+const getWorkflowStatusLabel = (status?: string | null) => {
+  switch (status) {
+    case "SUBMITTED":
+      return "Diajukan";
+    case "WAITING_LEVEL_2":
+      return "Menunggu Level 2";
+    case "APPROVED":
+      return "Disetujui";
+    case "REJECTED":
+      return "Ditolak";
+    case "CANCELLED":
+      return "Dibatalkan";
+    case "PAID":
+      return "Dibayar";
+    default:
+      return status ?? "-";
+  }
+};
+
 export default function ReimbursementPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === "ADMIN";
@@ -85,6 +178,8 @@ export default function ReimbursementPage() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Reimbursement | null>(null);
+  const [detailRow, setDetailRow] = useState<Reimbursement | null>(null);
   const [approvalLevels, setApprovalLevels] = useState<1 | 2>(2);
   const [approverLevel1EmployeeId, setApproverLevel1EmployeeId] = useState<string | null>(null);
   const [approverLevel2EmployeeId, setApproverLevel2EmployeeId] = useState<string | null>(null);
@@ -359,6 +454,24 @@ export default function ReimbursementPage() {
     }
   };
 
+  const handleHardDelete = async (row: Reimbursement) => {
+    try {
+      await deleteReimbursement(row.id);
+      if (rows.length === 1 && page > 1) {
+        setPage((prev) => Math.max(1, prev - 1));
+      } else {
+        await loadData();
+      }
+      setTotal((prev) => Math.max(0, prev - 1));
+      toast({ title: "Berhasil", description: "Reimbursement dihapus permanen" });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Gagal menghapus reimbursement";
+      toast({ title: "Error", description: message, variant: "destructive" });
+    } finally {
+      setDeleteTarget(null);
+    }
+  };
+
   const canDeleteAttachment = (row: Reimbursement, attachment: ReimbursementAttachment) => {
     if (attachment.id.startsWith("legacy-")) return false;
     if (isAdmin) return true;
@@ -450,6 +563,33 @@ export default function ReimbursementPage() {
     if (status === "PAID") return "mark paid";
     if (status === "CANCELLED") return "cancel";
     return "update";
+  };
+
+  const getTrackingMessage = (row: Reimbursement) => {
+    const events = row.workflowEvents ?? [];
+    const paidEvent = findLatestEvent(events, (event) => event.action === "MARKED_PAID");
+    const cancelEvent = findLatestEvent(events, (event) => event.action === "CANCELLED");
+    const rejectEvent = findLatestEvent(events, (event) => event.toStatus === "REJECTED");
+
+    if (paidEvent) {
+      return `Reimbursement dibayarkan oleh ${formatActorLabel(paidEvent)} pada ${formatDateTime(
+        paidEvent.createdAt
+      )}`;
+    }
+    if (cancelEvent) {
+      return `Pengajuan dibatalkan oleh ${formatActorLabel(cancelEvent)} pada ${formatDateTime(
+        cancelEvent.createdAt
+      )}`;
+    }
+    if (rejectEvent) {
+      return `Pengajuan ditolak oleh ${formatActorLabel(rejectEvent)} pada ${formatDateTime(
+        rejectEvent.createdAt
+      )}`;
+    }
+    if (row.status === "WAITING_LEVEL_2") return "Approval level 1 selesai, menunggu level 2";
+    if (row.status === "APPROVED") return "Pengajuan approved, menunggu pencairan";
+    if (row.status === "SUBMITTED") return "Menunggu approval level 1";
+    return "Status reimbursement sedang diproses";
   };
 
   return (
@@ -608,7 +748,7 @@ export default function ReimbursementPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        {isAdmin && <TableHead>User</TableHead>}
+                        {isAdmin && <TableHead>Pemohon</TableHead>}
                         <TableHead>Kategori</TableHead>
                         <TableHead>Nominal</TableHead>
                         <TableHead>Deskripsi</TableHead>
@@ -652,17 +792,7 @@ export default function ReimbursementPage() {
                               </TableCell>
                               <TableCell>{formatDate(new Date(row.createdAt))}</TableCell>
                               <TableCell className="text-right">
-                                <div className="flex justify-end gap-2">
-                                  {isApprover && canApprovalAction(row.status) && (
-                                    <>
-                                      <Button size="sm" onClick={() => setPendingAction({ row, nextStatus: "APPROVED" })}>
-                                        {getApproveLabel(row.status)}
-                                      </Button>
-                                      <Button size="sm" variant="destructive" onClick={() => setPendingAction({ row, nextStatus: "REJECTED" })}>
-                                        Reject
-                                      </Button>
-                                    </>
-                                  )}
+                                <div className="flex flex-col items-end gap-2">
                                   {canMarkPaid(row.status) && (
                                     <div className="flex flex-col items-end gap-2">
                                       <div className="flex w-[260px] items-center gap-2">
@@ -699,21 +829,56 @@ export default function ReimbursementPage() {
                                           Draft bukti bayar terupload: {paidProofDraftCount}
                                         </p>
                                       )}
-                                      <Button
-                                        size="sm"
-                                        variant="secondary"
-                                        onClick={() => setPendingAction({ row, nextStatus: "PAID" })}
-                                        disabled={paidProofAttachments.length === 0 && paidProofDraftCount === 0}
-                                      >
-                                        Mark Paid
-                                      </Button>
                                     </div>
                                   )}
-                                  {!isAdmin && row.status === "SUBMITTED" && (
-                                    <Button size="sm" variant="outline" onClick={() => setPendingAction({ row, nextStatus: "CANCELLED" })}>
-                                      Cancel
-                                    </Button>
-                                  )}
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button variant="ghost" size="icon">
+                                        <MoreHorizontal className="h-4 w-4" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                      <DropdownMenuItem onClick={() => setDetailRow(row)}>
+                                        <Eye className="mr-2 h-4 w-4" />
+                                        Lihat Detail
+                                      </DropdownMenuItem>
+                                      {isApprover && canApprovalAction(row.status) && (
+                                        <DropdownMenuItem onClick={() => setPendingAction({ row, nextStatus: "APPROVED" })}>
+                                          {getApproveLabel(row.status)}
+                                        </DropdownMenuItem>
+                                      )}
+                                      {isApprover && canApprovalAction(row.status) && (
+                                        <DropdownMenuItem
+                                          className="text-destructive focus:text-destructive"
+                                          onClick={() => setPendingAction({ row, nextStatus: "REJECTED" })}
+                                        >
+                                          Reject
+                                        </DropdownMenuItem>
+                                      )}
+                                      {canMarkPaid(row.status) && (
+                                        <DropdownMenuItem
+                                          onClick={() => setPendingAction({ row, nextStatus: "PAID" })}
+                                          disabled={paidProofAttachments.length === 0 && paidProofDraftCount === 0}
+                                        >
+                                          Mark Paid
+                                        </DropdownMenuItem>
+                                      )}
+                                      {!isAdmin && row.status === "SUBMITTED" && (
+                                        <DropdownMenuItem onClick={() => setPendingAction({ row, nextStatus: "CANCELLED" })}>
+                                          Cancel
+                                        </DropdownMenuItem>
+                                      )}
+                                      {isAdmin && row.status === "CANCELLED" && (
+                                        <DropdownMenuItem
+                                          className="text-destructive focus:text-destructive"
+                                          onClick={() => setDeleteTarget(row)}
+                                        >
+                                          <Trash2 className="mr-2 h-4 w-4 text-destructive" />
+                                          Delete Permanen
+                                        </DropdownMenuItem>
+                                      )}
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
                                 </div>
                               </TableCell>
                             </TableRow>
@@ -763,17 +928,7 @@ export default function ReimbursementPage() {
                               {renderAttachmentLinks(row, paidProofAttachments, "-")}
                             </div>
                           </div>
-                          <div className="mt-3 flex justify-end gap-2">
-                            {isApprover && canApprovalAction(row.status) && (
-                              <>
-                                <Button size="sm" onClick={() => setPendingAction({ row, nextStatus: "APPROVED" })}>
-                                  {getApproveLabel(row.status)}
-                                </Button>
-                                <Button size="sm" variant="destructive" onClick={() => setPendingAction({ row, nextStatus: "REJECTED" })}>
-                                  Reject
-                                </Button>
-                              </>
-                            )}
+                          <div className="mt-3 flex flex-col items-end gap-2">
                             {canMarkPaid(row.status) && (
                               <div className="flex w-full flex-col items-end gap-2">
                                 <div className="flex w-full items-center gap-2">
@@ -810,21 +965,56 @@ export default function ReimbursementPage() {
                                     Draft bukti bayar terupload: {paidProofDraftCount}
                                   </p>
                                 )}
-                                <Button
-                                  size="sm"
-                                  variant="secondary"
-                                  onClick={() => setPendingAction({ row, nextStatus: "PAID" })}
-                                  disabled={paidProofAttachments.length === 0 && paidProofDraftCount === 0}
-                                >
-                                  Mark Paid
-                                </Button>
                               </div>
                             )}
-                            {!isAdmin && row.status === "SUBMITTED" && (
-                              <Button size="sm" variant="outline" onClick={() => setPendingAction({ row, nextStatus: "CANCELLED" })}>
-                                Cancel
-                              </Button>
-                            )}
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon">
+                                  <MoreHorizontal className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => setDetailRow(row)}>
+                                  <Eye className="mr-2 h-4 w-4" />
+                                  Lihat Detail
+                                </DropdownMenuItem>
+                                {isApprover && canApprovalAction(row.status) && (
+                                  <DropdownMenuItem onClick={() => setPendingAction({ row, nextStatus: "APPROVED" })}>
+                                    {getApproveLabel(row.status)}
+                                  </DropdownMenuItem>
+                                )}
+                                {isApprover && canApprovalAction(row.status) && (
+                                  <DropdownMenuItem
+                                    className="text-destructive focus:text-destructive"
+                                    onClick={() => setPendingAction({ row, nextStatus: "REJECTED" })}
+                                  >
+                                    Reject
+                                  </DropdownMenuItem>
+                                )}
+                                {canMarkPaid(row.status) && (
+                                  <DropdownMenuItem
+                                    onClick={() => setPendingAction({ row, nextStatus: "PAID" })}
+                                    disabled={paidProofAttachments.length === 0 && paidProofDraftCount === 0}
+                                  >
+                                    Mark Paid
+                                  </DropdownMenuItem>
+                                )}
+                                {!isAdmin && row.status === "SUBMITTED" && (
+                                  <DropdownMenuItem onClick={() => setPendingAction({ row, nextStatus: "CANCELLED" })}>
+                                    Cancel
+                                  </DropdownMenuItem>
+                                )}
+                                {isAdmin && row.status === "CANCELLED" && (
+                                  <DropdownMenuItem
+                                    className="text-destructive focus:text-destructive"
+                                    onClick={() => setDeleteTarget(row)}
+                                  >
+                                    <Trash2 className="mr-2 h-4 w-4 text-destructive" />
+                                    Delete Permanen
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </div>
                         </div>
                       );
@@ -863,6 +1053,104 @@ export default function ReimbursementPage() {
         </Card>
       </div>
 
+      <Dialog open={Boolean(detailRow)} onOpenChange={(open) => !open && setDetailRow(null)}>
+        <DialogContent className="sm:max-w-[820px] p-6">
+          <DialogHeader>
+            <DialogTitle>Detail Reimbursement</DialogTitle>
+            <DialogDescription>Informasi pengajuan, bukti, dan riwayat aksi workflow.</DialogDescription>
+          </DialogHeader>
+          {detailRow && (
+            <div className="grid gap-4">
+              <div className="grid gap-3 rounded-lg border p-4 text-sm md:grid-cols-2">
+                <div>
+                  <p className="text-muted-foreground">Pemohon</p>
+                  <p className="font-medium">{detailRow.employee?.fullName ?? detailRow.user?.name ?? "-"}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Status</p>
+                  <Badge variant="outline" className={statusClass(detailRow.status)}>
+                    {getStatusLabel(detailRow.status)}
+                  </Badge>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Kategori</p>
+                  <p className="font-medium">{detailRow.category}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Nominal</p>
+                  <p className="font-medium">{formatCurrency(Number(detailRow.amount))}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Diajukan</p>
+                  <p className="font-medium">{formatDateTime(detailRow.createdAt)}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Dibayar</p>
+                  <p className="font-medium">{detailRow.paidAt ? formatDateTime(detailRow.paidAt) : "-"}</p>
+                </div>
+                <div className="md:col-span-2">
+                  <p className="text-muted-foreground">Deskripsi</p>
+                  <p className="font-medium">{detailRow.description ?? "-"}</p>
+                </div>
+                <div className="md:col-span-2">
+                  <p className="text-muted-foreground">Bukti Reimbursement</p>
+                  <div className="mt-1">
+                    {renderAttachmentLinks(detailRow, getReceiptAttachments(detailRow), "-")}
+                  </div>
+                </div>
+                <div className="md:col-span-2">
+                  <p className="text-muted-foreground">Bukti Bayar</p>
+                  <div className="mt-1">
+                    {renderAttachmentLinks(detailRow, getPaidProofAttachments(detailRow), "-")}
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-lg border p-4">
+                <p className="mb-2 text-sm font-semibold">Tracking Progress Approval</p>
+                <div className="rounded-md bg-muted/50 p-3 text-sm text-muted-foreground">
+                  {getTrackingMessage(detailRow)}
+                </div>
+              </div>
+
+              <div className="rounded-lg border p-4">
+                <p className="mb-3 text-sm font-semibold">Riwayat Aksi</p>
+                {(detailRow.workflowEvents?.length ?? 0) === 0 ? (
+                  <p className="text-sm text-muted-foreground">Belum ada riwayat aksi.</p>
+                ) : (
+                  <div className="relative pl-6 text-sm">
+                    <div className="absolute left-1.5 top-1 bottom-1 w-px bg-border" />
+                    {[...(detailRow.workflowEvents ?? [])].reverse().map((event) => (
+                      <div key={event.id} className="relative pb-4 last:pb-0">
+                        <span
+                          className={`absolute -left-6 top-1.5 h-3 w-3 rounded-full border-2 ${getEventDotClass(event)}`}
+                        />
+                        <div className="rounded-md border bg-card p-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="font-medium">
+                              {getEventActionLabel(event)}
+                            </p>
+                            <Badge variant="outline" className={statusClass(event.toStatus ?? "SUBMITTED")}>
+                              {getWorkflowStatusLabel(event.toStatus)}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {formatActorLabel(event)} - {formatDateTime(event.createdAt)}
+                          </p>
+                          {event.note ? (
+                            <p className="mt-1 text-xs text-muted-foreground">Catatan: {event.note}</p>
+                          ) : null}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       <ActionConfirmDialog
         open={Boolean(pendingAction)}
         onOpenChange={(open) => {
@@ -876,6 +1164,25 @@ export default function ReimbursementPage() {
           if (!pendingAction) return;
           void handleUpdateStatus(pendingAction.row, pendingAction.nextStatus);
           setPendingAction(null);
+        }}
+      />
+
+      <ActionConfirmDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+        title="Konfirmasi Delete Permanen"
+        description={
+          deleteTarget
+            ? `Yakin ingin menghapus permanen reimbursement ${deleteTarget.category} (${formatCurrency(Number(deleteTarget.amount))})? Aksi ini tidak bisa dibatalkan.`
+            : ""
+        }
+        confirmLabel="DELETE PERMANEN"
+        destructive
+        onConfirm={() => {
+          if (!deleteTarget) return;
+          void handleHardDelete(deleteTarget);
         }}
       />
     </AdminLayout>

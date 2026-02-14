@@ -226,6 +226,22 @@ export type WorkflowStatus =
   | "CANCELLED"
   | "PAID";
 
+export interface WorkflowEvent {
+  id: string;
+  module: "LEAVE" | "BUSINESS_TRIP" | "REIMBURSEMENT" | string;
+  entityId: string;
+  level?: number | null;
+  action: string;
+  fromStatus?: string | null;
+  toStatus?: string | null;
+  note?: string | null;
+  actorUserId?: string | null;
+  actorEmployeeId?: string | null;
+  createdAt: Date;
+  actorUser?: Pick<User, "id" | "username" | "name" | "role"> | null;
+  actorEmployee?: Pick<Employee, "id" | "fullName" | "title" | "department"> | null;
+}
+
 export interface LeaveRequest {
   id: string;
   employeeId: string;
@@ -241,6 +257,7 @@ export interface LeaveRequest {
   updatedAt: Date;
   employee?: Pick<Employee, "id" | "employeeCode" | "fullName" | "title" | "department">;
   user?: Pick<User, "id" | "username" | "name" | "role">;
+  workflowEvents?: WorkflowEvent[];
 }
 
 export interface BusinessTrip {
@@ -259,6 +276,7 @@ export interface BusinessTrip {
   updatedAt: Date;
   employee?: Pick<Employee, "id" | "employeeCode" | "fullName" | "title" | "department">;
   user?: Pick<User, "id" | "username" | "name" | "role">;
+  workflowEvents?: WorkflowEvent[];
 }
 
 export interface Reimbursement {
@@ -279,6 +297,7 @@ export interface Reimbursement {
   employee?: Pick<Employee, "id" | "employeeCode" | "fullName" | "title" | "department">;
   user?: Pick<User, "id" | "username" | "name" | "role">;
   attachments?: ReimbursementAttachment[];
+  workflowEvents?: WorkflowEvent[];
 }
 
 export interface ReimbursementAttachment {

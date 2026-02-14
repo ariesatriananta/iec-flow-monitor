@@ -14,6 +14,7 @@ import type {
   BusinessTrip,
   Reimbursement,
   ReimbursementAttachment,
+  WorkflowEvent,
 } from "@/types";
 
 const toDate = (value: string | Date): Date => {
@@ -106,6 +107,7 @@ export const parseLeaveRequest = (data: LeaveRequest): LeaveRequest => ({
   approvedAt: data.approvedAt ? toDate(data.approvedAt) : null,
   createdAt: toDate(data.createdAt),
   updatedAt: toDate(data.updatedAt),
+  workflowEvents: data.workflowEvents?.map(parseWorkflowEvent),
 });
 
 export const parseBusinessTrip = (data: BusinessTrip): BusinessTrip => ({
@@ -115,6 +117,7 @@ export const parseBusinessTrip = (data: BusinessTrip): BusinessTrip => ({
   approvedAt: data.approvedAt ? toDate(data.approvedAt) : null,
   createdAt: toDate(data.createdAt),
   updatedAt: toDate(data.updatedAt),
+  workflowEvents: data.workflowEvents?.map(parseWorkflowEvent),
 });
 
 export const parseReimbursement = (data: Reimbursement): Reimbursement => ({
@@ -127,6 +130,7 @@ export const parseReimbursement = (data: Reimbursement): Reimbursement => ({
   attachments: data.attachments
     ? data.attachments.map(parseReimbursementAttachment)
     : undefined,
+  workflowEvents: data.workflowEvents?.map(parseWorkflowEvent),
 });
 
 const parseReimbursementAttachment = (
@@ -134,5 +138,10 @@ const parseReimbursementAttachment = (
 ): ReimbursementAttachment => ({
   ...data,
   fileSize: data.fileSize ?? null,
+  createdAt: toDate(data.createdAt),
+});
+
+const parseWorkflowEvent = (data: WorkflowEvent): WorkflowEvent => ({
+  ...data,
   createdAt: toDate(data.createdAt),
 });

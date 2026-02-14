@@ -43,6 +43,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import {
   createLeaveRequest,
+  deleteLeaveRequest,
   fetchLeaveRequests,
   updateLeaveRequest,
 } from "@/lib/api/leaveManagement";
@@ -50,10 +51,10 @@ import { fetchApprovalFlowSettings } from "@/lib/api/settings";
 import { formatDate } from "@/lib/numbering";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
-import type { LeaveRequest } from "@/types";
+import type { LeaveRequest, WorkflowEvent } from "@/types";
 import { ActionConfirmDialog } from "@/components/shared/ActionConfirmDialog";
 import { format } from "date-fns";
-import { CalendarDays, CalendarIcon, Eye, MoreHorizontal, Plus, Search } from "lucide-react";
+import { CalendarDays, CalendarIcon, CheckCircle2, Eye, MoreHorizontal, Plus, Search, Trash2, XCircle } from "lucide-react";
 
 const leaveOptions = ["TAHUNAN", "SAKIT", "MELAHIRKAN", "MENYUSUI", "LAINNYA"];
 const statusOptions = ["ALL", "SUBMITTED", "WAITING_LEVEL_2", "APPROVED", "REJECTED", "CANCELLED"];
@@ -70,6 +71,81 @@ const parseDateKeyToDate = (value: string) => {
   const [year, month, day] = value.split("-").map(Number);
   if (!year || !month || !day) return undefined;
   return new Date(year, month - 1, day);
+};
+
+const formatActorLabel = (event?: WorkflowEvent | null) => {
+  if (!event) return "-";
+  const name = event.actorEmployee?.fullName ?? event.actorUser?.name ?? "-";
+  const title = event.actorEmployee?.title ?? null;
+  return [name, title].filter(Boolean).join(" - ");
+};
+
+const formatEventDateTime = (event?: WorkflowEvent | null) => {
+  if (!event) return "-";
+  return format(new Date(event.createdAt), "dd MMM yyyy HH:mm");
+};
+
+const findLatestEvent = (
+  events: WorkflowEvent[],
+  predicate: (event: WorkflowEvent) => boolean
+) => {
+  for (let i = events.length - 1; i >= 0; i -= 1) {
+    if (predicate(events[i])) return events[i];
+  }
+  return null;
+};
+
+const getEventDotClass = (event: WorkflowEvent) => {
+  if (event.toStatus === "APPROVED") return "border-success bg-success";
+  if (event.toStatus === "REJECTED") return "border-destructive bg-destructive";
+  if (event.toStatus === "CANCELLED") return "border-muted-foreground bg-muted-foreground";
+  return "border-warning bg-warning";
+};
+
+const getEventActionLabel = (event: WorkflowEvent) => {
+  switch (event.action) {
+    case "SUBMITTED":
+      return "Pengajuan dibuat";
+    case "APPROVED_L1":
+      return "Disetujui Level 1";
+    case "APPROVED_L2":
+      return "Disetujui Level 2";
+    case "APPROVED":
+      return "Disetujui";
+    case "REJECTED_L1":
+      return "Ditolak Level 1";
+    case "REJECTED_L2":
+      return "Ditolak Level 2";
+    case "CANCELLED":
+      return "Dibatalkan";
+    case "MARKED_PAID":
+      return "Ditandai Sudah Dibayar";
+    case "HARD_DELETED":
+      return "Dihapus Permanen";
+    case "STATUS_CHANGED":
+      return "Perubahan Status";
+    default:
+      return event.action;
+  }
+};
+
+const getWorkflowStatusLabel = (status?: string | null) => {
+  switch (status) {
+    case "SUBMITTED":
+      return "Diajukan";
+    case "WAITING_LEVEL_2":
+      return "Menunggu Level 2";
+    case "APPROVED":
+      return "Disetujui";
+    case "REJECTED":
+      return "Ditolak";
+    case "CANCELLED":
+      return "Dibatalkan";
+    case "PAID":
+      return "Dibayar";
+    default:
+      return status ?? "-";
+  }
 };
 
 type PendingAction = {
@@ -92,9 +168,12 @@ export default function LeaveManagementPage() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [detailRow, setDetailRow] = useState<LeaveRequest | null>(null);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<LeaveRequest | null>(null);
   const [leaveApprovalLevels, setLeaveApprovalLevels] = useState<1 | 2>(2);
   const [approverLevel1EmployeeId, setApproverLevel1EmployeeId] = useState<string | null>(null);
   const [approverLevel2EmployeeId, setApproverLevel2EmployeeId] = useState<string | null>(null);
+  const [approverLevel1Label, setApproverLevel1Label] = useState("-");
+  const [approverLevel2Label, setApproverLevel2Label] = useState("-");
   const PAGE_SIZE = 20;
   const debouncedSearch = useDebouncedValue(searchQuery.trim(), 400);
 
@@ -137,10 +216,28 @@ export default function LeaveManagementPage() {
         setLeaveApprovalLevels(settings.leaveApprovalLevels);
         setApproverLevel1EmployeeId(settings.leaveApproverLevel1EmployeeId);
         setApproverLevel2EmployeeId(settings.leaveApproverLevel2EmployeeId);
+        setApproverLevel1Label(
+          [
+            settings.leaveApproverLevel1Employee?.fullName ?? "Approver belum diatur",
+            settings.leaveApproverLevel1Employee?.title ?? null,
+          ]
+            .filter(Boolean)
+            .join(" - ")
+        );
+        setApproverLevel2Label(
+          [
+            settings.leaveApproverLevel2Employee?.fullName ?? "Approver belum diatur",
+            settings.leaveApproverLevel2Employee?.title ?? null,
+          ]
+            .filter(Boolean)
+            .join(" - ")
+        );
       } catch {
         setLeaveApprovalLevels(2);
         setApproverLevel1EmployeeId(null);
         setApproverLevel2EmployeeId(null);
+        setApproverLevel1Label("-");
+        setApproverLevel2Label("-");
       }
     })();
   }, []);
@@ -203,6 +300,24 @@ export default function LeaveManagementPage() {
     }
   };
 
+  const handleHardDelete = async (row: LeaveRequest) => {
+    try {
+      await deleteLeaveRequest(row.id);
+      if (rows.length === 1 && page > 1) {
+        setPage((prev) => Math.max(1, prev - 1));
+      } else {
+        await loadData();
+      }
+      setTotal((prev) => Math.max(0, prev - 1));
+      toast({ title: "Berhasil", description: "Pengajuan cuti berhasil dihapus permanen" });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Gagal menghapus pengajuan cuti";
+      toast({ title: "Error", description: message, variant: "destructive" });
+    } finally {
+      setDeleteTarget(null);
+    }
+  };
+
   const getStatusLabel = (status: string) => {
     if (status === "WAITING_LEVEL_2") return "WAITING L2";
     return status;
@@ -235,8 +350,26 @@ export default function LeaveManagementPage() {
     if (row.status === "WAITING_LEVEL_2") return "Approval level 1 selesai, menunggu level 2";
     if (row.status === "APPROVED") return "Pengajuan sudah disetujui final";
     if (row.status === "REJECTED") return "Pengajuan ditolak";
-    if (row.status === "CANCELLED") return "Pengajuan dibatalkan oleh pengaju";
+    if (row.status === "CANCELLED") return "Pengajuan dibatalkan";
     return "Status pengajuan sedang diproses";
+  };
+
+  const getTrackingMessage = (row: LeaveRequest) => {
+    const events = row.workflowEvents ?? [];
+    const cancelEvent = findLatestEvent(events, (event) => event.action === "CANCELLED");
+    const rejectEvent = findLatestEvent(events, (event) => event.toStatus === "REJECTED");
+
+    if (cancelEvent) {
+      return `Pengajuan dibatalkan oleh ${formatActorLabel(cancelEvent)} pada ${formatEventDateTime(
+        cancelEvent
+      )}`;
+    }
+    if (rejectEvent) {
+      return `Pengajuan ditolak oleh ${formatActorLabel(rejectEvent)} pada ${formatEventDateTime(
+        rejectEvent
+      )}`;
+    }
+    return getTrackingLabel(row);
   };
 
   return (
@@ -299,7 +432,7 @@ export default function LeaveManagementPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        {showRequesterColumn && <TableHead>User</TableHead>}
+                        {showRequesterColumn && <TableHead>Pemohon</TableHead>}
                         <TableHead>Jenis</TableHead>
                         <TableHead>Periode</TableHead>
                         <TableHead>Alasan</TableHead>
@@ -347,6 +480,7 @@ export default function LeaveManagementPage() {
                                   </DropdownMenuItem>
                                   {isApprover && canAdminProcess(row.status) && (
                                     <DropdownMenuItem onClick={() => setPendingAction({ row, nextStatus: "APPROVED" })}>
+                                      <CheckCircle2 className="mr-2 h-4 w-4 text-emerald-600" />
                                       {getApproveButtonLabel(row.status)}
                                     </DropdownMenuItem>
                                   )}
@@ -355,12 +489,22 @@ export default function LeaveManagementPage() {
                                       className="text-destructive focus:text-destructive"
                                       onClick={() => setPendingAction({ row, nextStatus: "REJECTED" })}
                                     >
+                                      <XCircle className="mr-2 h-4 w-4 text-destructive" />
                                       Reject
                                     </DropdownMenuItem>
                                   )}
-                                  {!isAdmin && row.status === "SUBMITTED" && (
+                                  {!isAdmin && row.status === "SUBMITTED" && row.employeeId === user?.employeeId && (
                                     <DropdownMenuItem onClick={() => setPendingAction({ row, nextStatus: "CANCELLED" })}>
                                       Cancel
+                                    </DropdownMenuItem>
+                                  )}
+                                  {isAdmin && row.status === "CANCELLED" && (
+                                    <DropdownMenuItem
+                                      className="text-destructive focus:text-destructive"
+                                      onClick={() => setDeleteTarget(row)}
+                                    >
+                                      <Trash2 className="mr-2 h-4 w-4 text-destructive" />
+                                      Delete Permanen
                                     </DropdownMenuItem>
                                   )}
                                 </DropdownMenuContent>
@@ -411,6 +555,7 @@ export default function LeaveManagementPage() {
                               </DropdownMenuItem>
                               {isApprover && canAdminProcess(row.status) && (
                                 <DropdownMenuItem onClick={() => setPendingAction({ row, nextStatus: "APPROVED" })}>
+                                  <CheckCircle2 className="mr-2 h-4 w-4 text-emerald-600" />
                                   {getApproveButtonLabel(row.status)}
                                 </DropdownMenuItem>
                               )}
@@ -419,12 +564,22 @@ export default function LeaveManagementPage() {
                                   className="text-destructive focus:text-destructive"
                                   onClick={() => setPendingAction({ row, nextStatus: "REJECTED" })}
                                 >
+                                  <XCircle className="mr-2 h-4 w-4 text-destructive" />
                                   Reject
                                 </DropdownMenuItem>
                               )}
-                              {!isAdmin && row.status === "SUBMITTED" && (
+                              {!isAdmin && row.status === "SUBMITTED" && row.employeeId === user?.employeeId && (
                                 <DropdownMenuItem onClick={() => setPendingAction({ row, nextStatus: "CANCELLED" })}>
                                   Cancel
+                                </DropdownMenuItem>
+                              )}
+                              {isAdmin && row.status === "CANCELLED" && (
+                                <DropdownMenuItem
+                                  className="text-destructive focus:text-destructive"
+                                  onClick={() => setDeleteTarget(row)}
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4 text-destructive" />
+                                  Delete Permanen
                                 </DropdownMenuItem>
                               )}
                             </DropdownMenuContent>
@@ -600,6 +755,24 @@ export default function LeaveManagementPage() {
           </DialogHeader>
           {detailRow && (
             <div className="grid gap-4">
+              {(() => {
+                const events = detailRow.workflowEvents ?? [];
+                const submittedEvent = findLatestEvent(events, (event) => event.action === "SUBMITTED");
+                const level1Event = findLatestEvent(
+                  events,
+                  (event) =>
+                    event.level === 1 &&
+                    (event.action === "APPROVED_L1" || event.action === "REJECTED_L1")
+                );
+                const level2Event = findLatestEvent(
+                  events,
+                  (event) =>
+                    event.level === 2 &&
+                    (event.action === "APPROVED_L2" || event.action === "REJECTED_L2")
+                );
+
+                return (
+                  <>
               <div className="grid gap-3 rounded-lg border p-4 text-sm md:grid-cols-2">
                 <div>
                   <p className="text-muted-foreground">Karyawan</p>
@@ -631,11 +804,23 @@ export default function LeaveManagementPage() {
                 <p className="mb-3 text-sm font-semibold">Tracking Progress Approval</p>
                 <div className="space-y-3 text-sm">
                   <div className="flex items-start justify-between gap-3">
-                    <span>Submitted</span>
+                    <div>
+                      <span>Submitted</span>
+                      <p className="text-xs text-muted-foreground">
+                        {formatActorLabel(submittedEvent)} - {formatEventDateTime(submittedEvent)}
+                      </p>
+                    </div>
                     <Badge variant="outline">DONE</Badge>
                   </div>
                   <div className="flex items-start justify-between gap-3">
-                    <span>Approval Level 1</span>
+                    <div>
+                      <span>Approval Level 1: {approverLevel1Label}</span>
+                      {level1Event && (
+                        <p className="text-xs text-muted-foreground">
+                          {formatActorLabel(level1Event)} - {formatEventDateTime(level1Event)}
+                        </p>
+                      )}
+                    </div>
                     <Badge variant="outline" className={statusClass(detailRow.status === "SUBMITTED" ? "SUBMITTED" : detailRow.status === "CANCELLED" ? "CANCELLED" : detailRow.status === "REJECTED" ? "REJECTED" : "APPROVED")}>
                       {detailRow.status === "SUBMITTED"
                         ? "PENDING"
@@ -650,7 +835,14 @@ export default function LeaveManagementPage() {
                   </div>
                   {leaveApprovalLevels === 2 && (
                     <div className="flex items-start justify-between gap-3">
-                      <span>Approval Level 2</span>
+                      <div>
+                        <span>Approval Level 2: {approverLevel2Label}</span>
+                        {level2Event && (
+                          <p className="text-xs text-muted-foreground">
+                            {formatActorLabel(level2Event)} - {formatEventDateTime(level2Event)}
+                          </p>
+                        )}
+                      </div>
                       <Badge
                         variant="outline"
                         className={statusClass(
@@ -678,10 +870,50 @@ export default function LeaveManagementPage() {
                     </div>
                   )}
                   <div className="rounded-md bg-muted/50 p-3 text-muted-foreground">
-                    {getTrackingLabel(detailRow)}
+                    {getTrackingMessage(detailRow)}
                   </div>
                 </div>
               </div>
+
+              <div className="rounded-lg border p-4">
+                <p className="mb-3 text-sm font-semibold">Riwayat Aksi</p>
+                {events.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Belum ada riwayat aksi.</p>
+                ) : (
+                  <div className="relative pl-6 text-sm">
+                    <div className="absolute left-1.5 top-1 bottom-1 w-px bg-border" />
+                    {[...events].reverse().map((event) => (
+                      <div key={event.id} className="relative pb-4 last:pb-0">
+                        <span
+                          className={cn(
+                            "absolute -left-6 top-1.5 h-3 w-3 rounded-full border-2",
+                            getEventDotClass(event)
+                          )}
+                        />
+                        <div className="rounded-md border bg-card p-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="font-medium">
+                              {getEventActionLabel(event)}
+                            </p>
+                            <Badge variant="outline" className={statusClass(event.toStatus ?? "SUBMITTED")}>
+                              {getWorkflowStatusLabel(event.toStatus)}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {formatActorLabel(event)} - {formatEventDateTime(event)}
+                          </p>
+                          {event.note ? (
+                            <p className="mt-1 text-xs text-muted-foreground">Catatan: {event.note}</p>
+                          ) : null}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+                  </>
+                );
+              })()}
             </div>
           )}
         </DialogContent>
@@ -706,6 +938,25 @@ export default function LeaveManagementPage() {
           if (!pendingAction) return;
           void handleUpdateStatus(pendingAction.row, pendingAction.nextStatus);
           setPendingAction(null);
+        }}
+      />
+
+      <ActionConfirmDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+        title="Konfirmasi Delete Permanen"
+        description={
+          deleteTarget
+            ? `Yakin ingin menghapus permanen pengajuan ${deleteTarget.leaveType} milik ${deleteTarget.employee?.fullName ?? deleteTarget.user?.name ?? "-" }? Aksi ini tidak bisa dibatalkan.`
+            : ""
+        }
+        confirmLabel="DELETE PERMANEN"
+        destructive
+        onConfirm={() => {
+          if (!deleteTarget) return;
+          void handleHardDelete(deleteTarget);
         }}
       />
     </AdminLayout>

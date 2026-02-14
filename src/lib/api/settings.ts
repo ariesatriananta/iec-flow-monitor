@@ -16,12 +16,42 @@ export interface ApprovalFlowPayload {
   leaveApprovalLevels: 1 | 2;
   leaveApproverLevel1EmployeeId: string | null;
   leaveApproverLevel2EmployeeId: string | null;
+  leaveApproverLevel1Employee?: {
+    id: string;
+    fullName: string | null;
+    title: string | null;
+  } | null;
+  leaveApproverLevel2Employee?: {
+    id: string;
+    fullName: string | null;
+    title: string | null;
+  } | null;
   reimbursementApprovalLevels: 1 | 2;
   reimbursementApproverLevel1EmployeeId: string | null;
   reimbursementApproverLevel2EmployeeId: string | null;
+  reimbursementApproverLevel1Employee?: {
+    id: string;
+    fullName: string | null;
+    title: string | null;
+  } | null;
+  reimbursementApproverLevel2Employee?: {
+    id: string;
+    fullName: string | null;
+    title: string | null;
+  } | null;
   businessTripApprovalLevels: 1 | 2;
   businessTripApproverLevel1EmployeeId: string | null;
   businessTripApproverLevel2EmployeeId: string | null;
+  businessTripApproverLevel1Employee?: {
+    id: string;
+    fullName: string | null;
+    title: string | null;
+  } | null;
+  businessTripApproverLevel2Employee?: {
+    id: string;
+    fullName: string | null;
+    title: string | null;
+  } | null;
 }
 
 export interface WorkSchedulePayload {

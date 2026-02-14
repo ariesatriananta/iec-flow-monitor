@@ -4,8 +4,12 @@ import { NextResponse } from "next/server";
 import { and, desc, eq, or, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/lib/db";
-import { employees, leaveRequests, users } from "@/lib/db/schema";
+import { employees, leaveRequests, settingsApprovalFlow, users } from "@/lib/db/schema";
 import { requireSessionUser } from "@/lib/auth/server";
+import {
+  createWorkflowEvent,
+  fetchWorkflowEventsByEntityIds,
+} from "@/lib/workflow-events";
 
 const workflowStatusSchema = z.union([
   z.literal("SUBMITTED"),
@@ -57,6 +61,7 @@ export async function GET(request: Request) {
 
   const { status, limit, offset, q } = parsedQuery.data;
   const conditions: SQL[] = [];
+  const db = getDb();
 
   if (auth.user.role !== "ADMIN") {
     if (!auth.user.employeeId) {
@@ -65,7 +70,27 @@ export async function GET(request: Request) {
         { status: 403 }
       );
     }
-    conditions.push(eq(leaveRequests.employeeId, auth.user.employeeId));
+
+    const [approvalFlow] = await db.select().from(settingsApprovalFlow).limit(1);
+    const leaveApprovalLevels = approvalFlow?.leaveApprovalLevels ?? 2;
+    const isApproverLevel1 =
+      auth.user.employeeId === (approvalFlow?.leaveApproverLevel1EmployeeId ?? null);
+    const isApproverLevel2 =
+      leaveApprovalLevels === 2 &&
+      auth.user.employeeId === (approvalFlow?.leaveApproverLevel2EmployeeId ?? null);
+
+    const visibilityConditions: SQL[] = [
+      eq(leaveRequests.employeeId, auth.user.employeeId),
+    ];
+
+    if (isApproverLevel1) {
+      visibilityConditions.push(eq(leaveRequests.status, "SUBMITTED"));
+    }
+    if (isApproverLevel2) {
+      visibilityConditions.push(eq(leaveRequests.status, "WAITING_LEVEL_2"));
+    }
+
+    conditions.push(or(...visibilityConditions) as SQL);
   }
   if (status) {
     conditions.push(eq(leaveRequests.status, status));
@@ -84,7 +109,6 @@ export async function GET(request: Request) {
     );
   }
 
-  const db = getDb();
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
   const totalResult = whereClause
@@ -140,11 +164,20 @@ export async function GET(request: Request) {
         }
       : undefined,
   }));
+  const eventsByEntity = await fetchWorkflowEventsByEntityIds(
+    db,
+    "LEAVE",
+    items.map((item) => item.id)
+  );
+  const itemsWithEvents = items.map((item) => ({
+    ...item,
+    workflowEvents: eventsByEntity.get(item.id) ?? [],
+  }));
   const hasMore = offset + items.length < total;
 
   return NextResponse.json(
     {
-      items,
+      items: itemsWithEvents,
       total,
       limit,
       offset,
@@ -204,6 +237,17 @@ export async function POST(request: Request) {
       updatedAt: now,
     })
     .returning();
+
+  await createWorkflowEvent(db, {
+    module: "LEAVE",
+    entityId: created.id,
+    action: "SUBMITTED",
+    fromStatus: null,
+    toStatus: created.status,
+    note: body.reason,
+    actorUserId: auth.user.id,
+    actorEmployeeId: auth.user.employeeId,
+  });
 
   return NextResponse.json(created, { status: 201 });
 }

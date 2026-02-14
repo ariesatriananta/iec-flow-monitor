@@ -11,6 +11,10 @@ import {
   users,
 } from "@/lib/db/schema";
 import { requireSessionUser } from "@/lib/auth/server";
+import {
+  createWorkflowEvent,
+  fetchWorkflowEventsByEntityIds,
+} from "@/lib/workflow-events";
 
 const workflowStatusSchema = z.union([
   z.literal("SUBMITTED"),
@@ -171,10 +175,19 @@ export async function GET(request: Request) {
         }
       : undefined,
   }));
+  const eventsByEntity = await fetchWorkflowEventsByEntityIds(
+    db,
+    "REIMBURSEMENT",
+    items.map((item) => item.id)
+  );
+  const itemsWithEvents = items.map((item) => ({
+    ...item,
+    workflowEvents: eventsByEntity.get(item.id) ?? [],
+  }));
   const hasMore = offset + items.length < total;
 
   return NextResponse.json({
-    items,
+    items: itemsWithEvents,
     total,
     limit,
     offset,
@@ -237,6 +250,17 @@ export async function POST(request: Request) {
       updatedAt: now,
     })
     .returning();
+
+  await createWorkflowEvent(db, {
+    module: "REIMBURSEMENT",
+    entityId: created.id,
+    action: "SUBMITTED",
+    fromStatus: null,
+    toStatus: created.status,
+    note: body.description ?? null,
+    actorUserId: auth.user.id,
+    actorEmployeeId: auth.user.employeeId,
+  });
 
   if (incomingAttachments.length > 0) {
     await db.insert(reimbursementAttachments).values(

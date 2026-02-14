@@ -17,6 +17,13 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Table,
   TableBody,
   TableCell,
@@ -24,19 +31,26 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import {
   createBusinessTrip,
+  deleteBusinessTrip,
   fetchBusinessTrips,
   updateBusinessTrip,
 } from "@/lib/api/businessTrip";
 import { fetchApprovalFlowSettings } from "@/lib/api/settings";
 import { formatDate } from "@/lib/numbering";
 import { useAuth } from "@/contexts/AuthContext";
-import type { BusinessTrip } from "@/types";
+import type { BusinessTrip, WorkflowEvent } from "@/types";
 import { ActionConfirmDialog } from "@/components/shared/ActionConfirmDialog";
-import { PlaneTakeoff, Search } from "lucide-react";
+import { Eye, MoreHorizontal, PlaneTakeoff, Search, Trash2 } from "lucide-react";
 
 const statusOptions = ["ALL", "SUBMITTED", "WAITING_LEVEL_2", "APPROVED", "REJECTED", "CANCELLED"];
 
@@ -52,6 +66,84 @@ type PendingAction = {
   nextStatus: string;
 };
 
+const formatActorLabel = (event?: WorkflowEvent | null) => {
+  if (!event) return "-";
+  const name = event.actorEmployee?.fullName ?? event.actorUser?.name ?? "-";
+  const title = event.actorEmployee?.title ?? null;
+  return [name, title].filter(Boolean).join(" - ");
+};
+
+const formatDateTime = (value?: Date | string | null) => {
+  if (!value) return "-";
+  return new Intl.DateTimeFormat("id-ID", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
+};
+
+const findLatestEvent = (
+  events: WorkflowEvent[],
+  predicate: (event: WorkflowEvent) => boolean
+) => {
+  for (let i = events.length - 1; i >= 0; i -= 1) {
+    if (predicate(events[i])) return events[i];
+  }
+  return null;
+};
+
+const getEventDotClass = (event: WorkflowEvent) => {
+  if (event.toStatus === "APPROVED") return "border-success bg-success";
+  if (event.toStatus === "REJECTED") return "border-destructive bg-destructive";
+  if (event.toStatus === "CANCELLED") return "border-muted-foreground bg-muted-foreground";
+  return "border-warning bg-warning";
+};
+
+const getEventActionLabel = (event: WorkflowEvent) => {
+  switch (event.action) {
+    case "SUBMITTED":
+      return "Pengajuan dibuat";
+    case "APPROVED_L1":
+      return "Disetujui Level 1";
+    case "APPROVED_L2":
+      return "Disetujui Level 2";
+    case "APPROVED":
+      return "Disetujui";
+    case "REJECTED_L1":
+      return "Ditolak Level 1";
+    case "REJECTED_L2":
+      return "Ditolak Level 2";
+    case "CANCELLED":
+      return "Dibatalkan";
+    case "MARKED_PAID":
+      return "Ditandai Sudah Dibayar";
+    case "HARD_DELETED":
+      return "Dihapus Permanen";
+    case "STATUS_CHANGED":
+      return "Perubahan Status";
+    default:
+      return event.action;
+  }
+};
+
+const getWorkflowStatusLabel = (status?: string | null) => {
+  switch (status) {
+    case "SUBMITTED":
+      return "Diajukan";
+    case "WAITING_LEVEL_2":
+      return "Menunggu Level 2";
+    case "APPROVED":
+      return "Disetujui";
+    case "REJECTED":
+      return "Ditolak";
+    case "CANCELLED":
+      return "Dibatalkan";
+    case "PAID":
+      return "Dibayar";
+    default:
+      return status ?? "-";
+  }
+};
+
 export default function BusinessTripPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === "ADMIN";
@@ -65,6 +157,8 @@ export default function BusinessTripPage() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<BusinessTrip | null>(null);
+  const [detailRow, setDetailRow] = useState<BusinessTrip | null>(null);
   const [approvalLevels, setApprovalLevels] = useState<1 | 2>(2);
   const [approverLevel1EmployeeId, setApproverLevel1EmployeeId] = useState<string | null>(null);
   const [approverLevel2EmployeeId, setApproverLevel2EmployeeId] = useState<string | null>(null);
@@ -193,11 +287,46 @@ export default function BusinessTripPage() {
     }
   };
 
+  const handleHardDelete = async (row: BusinessTrip) => {
+    try {
+      await deleteBusinessTrip(row.id);
+      if (rows.length === 1 && page > 1) {
+        setPage((prev) => Math.max(1, prev - 1));
+      } else {
+        await loadData();
+      }
+      setTotal((prev) => Math.max(0, prev - 1));
+      toast({ title: "Berhasil", description: "Pengajuan perjalanan dinas dihapus permanen" });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Gagal menghapus pengajuan";
+      toast({ title: "Error", description: message, variant: "destructive" });
+    } finally {
+      setDeleteTarget(null);
+    }
+  };
+
   const actionText = (status: string) => {
     if (status === "APPROVED") return "approve";
     if (status === "REJECTED") return "reject";
     if (status === "CANCELLED") return "cancel";
     return "update";
+  };
+
+  const getTrackingMessage = (row: BusinessTrip) => {
+    const events = row.workflowEvents ?? [];
+    const cancelEvent = findLatestEvent(events, (event) => event.action === "CANCELLED");
+    const rejectEvent = findLatestEvent(events, (event) => event.toStatus === "REJECTED");
+
+    if (cancelEvent) {
+      return `Pengajuan dibatalkan oleh ${formatActorLabel(cancelEvent)} pada ${formatDateTime(cancelEvent.createdAt)}`;
+    }
+    if (rejectEvent) {
+      return `Pengajuan ditolak oleh ${formatActorLabel(rejectEvent)} pada ${formatDateTime(rejectEvent.createdAt)}`;
+    }
+    if (row.status === "WAITING_LEVEL_2") return "Approval level 1 selesai, menunggu level 2";
+    if (row.status === "APPROVED") return "Pengajuan sudah disetujui final";
+    if (row.status === "SUBMITTED") return "Menunggu approval level 1";
+    return "Status pengajuan sedang diproses";
   };
 
   return (
@@ -300,7 +429,7 @@ export default function BusinessTripPage() {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        {showRequesterColumn && <TableHead>User</TableHead>}
+                        {showRequesterColumn && <TableHead>Pemohon</TableHead>}
                         <TableHead>Tujuan</TableHead>
                         <TableHead>Perusahaan</TableHead>
                         <TableHead>Periode</TableHead>
@@ -335,23 +464,46 @@ export default function BusinessTripPage() {
                               </Badge>
                             </TableCell>
                             <TableCell className="text-right">
-                              <div className="flex justify-end gap-2">
-                                {isApprover && canAdminProcess(row.status) && (
-                                  <>
-                                    <Button size="sm" onClick={() => setPendingAction({ row, nextStatus: "APPROVED" })}>
-                                      {getApproveButtonLabel(row.status)}
-                                    </Button>
-                                    <Button size="sm" variant="destructive" onClick={() => setPendingAction({ row, nextStatus: "REJECTED" })}>
-                                      Reject
-                                    </Button>
-                                  </>
-                                )}
-                                {!isAdmin && row.status === "SUBMITTED" && (
-                                  <Button size="sm" variant="outline" onClick={() => setPendingAction({ row, nextStatus: "CANCELLED" })}>
-                                    Cancel
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="icon">
+                                    <MoreHorizontal className="h-4 w-4" />
                                   </Button>
-                                )}
-                              </div>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => setDetailRow(row)}>
+                                    <Eye className="mr-2 h-4 w-4" />
+                                    Lihat Detail
+                                  </DropdownMenuItem>
+                                  {isApprover && canAdminProcess(row.status) && (
+                                    <DropdownMenuItem onClick={() => setPendingAction({ row, nextStatus: "APPROVED" })}>
+                                      {getApproveButtonLabel(row.status)}
+                                    </DropdownMenuItem>
+                                  )}
+                                  {isApprover && canAdminProcess(row.status) && (
+                                    <DropdownMenuItem
+                                      className="text-destructive focus:text-destructive"
+                                      onClick={() => setPendingAction({ row, nextStatus: "REJECTED" })}
+                                    >
+                                      Reject
+                                    </DropdownMenuItem>
+                                  )}
+                                  {!isAdmin && row.status === "SUBMITTED" && (
+                                    <DropdownMenuItem onClick={() => setPendingAction({ row, nextStatus: "CANCELLED" })}>
+                                      Cancel
+                                    </DropdownMenuItem>
+                                  )}
+                                  {isAdmin && row.status === "CANCELLED" && (
+                                    <DropdownMenuItem
+                                      className="text-destructive focus:text-destructive"
+                                      onClick={() => setDeleteTarget(row)}
+                                    >
+                                      <Trash2 className="mr-2 h-4 w-4 text-destructive" />
+                                      Delete Permanen
+                                    </DropdownMenuItem>
+                                  )}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
                             </TableCell>
                           </TableRow>
                         ))
@@ -389,22 +541,47 @@ export default function BusinessTripPage() {
                           {formatDate(new Date(row.startDate))} - {formatDate(new Date(row.endDate))}
                         </p>
                         <p className="mt-2 text-sm">{row.purpose ?? "-"}</p>
-                        <div className="mt-3 flex justify-end gap-2">
-                          {isApprover && canAdminProcess(row.status) && (
-                            <>
-                              <Button size="sm" onClick={() => setPendingAction({ row, nextStatus: "APPROVED" })}>
-                                {getApproveButtonLabel(row.status)}
+                        <div className="mt-3 flex justify-end">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon">
+                                <MoreHorizontal className="h-4 w-4" />
                               </Button>
-                              <Button size="sm" variant="destructive" onClick={() => setPendingAction({ row, nextStatus: "REJECTED" })}>
-                                Reject
-                              </Button>
-                            </>
-                          )}
-                          {!isAdmin && row.status === "SUBMITTED" && (
-                            <Button size="sm" variant="outline" onClick={() => setPendingAction({ row, nextStatus: "CANCELLED" })}>
-                              Cancel
-                            </Button>
-                          )}
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => setDetailRow(row)}>
+                                <Eye className="mr-2 h-4 w-4" />
+                                Lihat Detail
+                              </DropdownMenuItem>
+                              {isApprover && canAdminProcess(row.status) && (
+                                <DropdownMenuItem onClick={() => setPendingAction({ row, nextStatus: "APPROVED" })}>
+                                  {getApproveButtonLabel(row.status)}
+                                </DropdownMenuItem>
+                              )}
+                              {isApprover && canAdminProcess(row.status) && (
+                                <DropdownMenuItem
+                                  className="text-destructive focus:text-destructive"
+                                  onClick={() => setPendingAction({ row, nextStatus: "REJECTED" })}
+                                >
+                                  Reject
+                                </DropdownMenuItem>
+                              )}
+                              {!isAdmin && row.status === "SUBMITTED" && (
+                                <DropdownMenuItem onClick={() => setPendingAction({ row, nextStatus: "CANCELLED" })}>
+                                  Cancel
+                                </DropdownMenuItem>
+                              )}
+                              {isAdmin && row.status === "CANCELLED" && (
+                                <DropdownMenuItem
+                                  className="text-destructive focus:text-destructive"
+                                  onClick={() => setDeleteTarget(row)}
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4 text-destructive" />
+                                  Delete Permanen
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </div>
                     ))
@@ -442,6 +619,94 @@ export default function BusinessTripPage() {
         </Card>
       </div>
 
+      <Dialog open={Boolean(detailRow)} onOpenChange={(open) => !open && setDetailRow(null)}>
+        <DialogContent className="sm:max-w-[760px] p-6">
+          <DialogHeader>
+            <DialogTitle>Detail Business Trip</DialogTitle>
+            <DialogDescription>Informasi pengajuan dan riwayat aksi approval.</DialogDescription>
+          </DialogHeader>
+          {detailRow && (
+            <div className="grid gap-4">
+              <div className="grid gap-3 rounded-lg border p-4 text-sm md:grid-cols-2">
+                <div>
+                  <p className="text-muted-foreground">Pemohon</p>
+                  <p className="font-medium">{detailRow.employee?.fullName ?? detailRow.user?.name ?? "-"}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Status</p>
+                  <Badge variant="outline" className={statusClass(detailRow.status)}>
+                    {getStatusLabel(detailRow.status)}
+                  </Badge>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Tujuan</p>
+                  <p className="font-medium">{detailRow.destinationCity}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Perusahaan</p>
+                  <p className="font-medium">{detailRow.companyName}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Periode</p>
+                  <p className="font-medium">
+                    {formatDate(new Date(detailRow.startDate))} - {formatDate(new Date(detailRow.endDate))}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Diajukan</p>
+                  <p className="font-medium">{formatDateTime(detailRow.createdAt)}</p>
+                </div>
+                <div className="md:col-span-2">
+                  <p className="text-muted-foreground">Rincian</p>
+                  <p className="font-medium">{detailRow.purpose ?? "-"}</p>
+                </div>
+              </div>
+
+              <div className="rounded-lg border p-4">
+                <p className="mb-2 text-sm font-semibold">Tracking Progress Approval</p>
+                <div className="rounded-md bg-muted/50 p-3 text-sm text-muted-foreground">
+                  {getTrackingMessage(detailRow)}
+                </div>
+              </div>
+
+              <div className="rounded-lg border p-4">
+                <p className="mb-3 text-sm font-semibold">Riwayat Aksi</p>
+                {(detailRow.workflowEvents?.length ?? 0) === 0 ? (
+                  <p className="text-sm text-muted-foreground">Belum ada riwayat aksi.</p>
+                ) : (
+                  <div className="relative pl-6 text-sm">
+                    <div className="absolute left-1.5 top-1 bottom-1 w-px bg-border" />
+                    {[...(detailRow.workflowEvents ?? [])].reverse().map((event) => (
+                      <div key={event.id} className="relative pb-4 last:pb-0">
+                        <span
+                          className={`absolute -left-6 top-1.5 h-3 w-3 rounded-full border-2 ${getEventDotClass(event)}`}
+                        />
+                        <div className="rounded-md border bg-card p-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="font-medium">
+                              {getEventActionLabel(event)}
+                            </p>
+                            <Badge variant="outline" className={statusClass(event.toStatus ?? "SUBMITTED")}>
+                              {getWorkflowStatusLabel(event.toStatus)}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {formatActorLabel(event)} - {formatDateTime(event.createdAt)}
+                          </p>
+                          {event.note ? (
+                            <p className="mt-1 text-xs text-muted-foreground">Catatan: {event.note}</p>
+                          ) : null}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       <ActionConfirmDialog
         open={Boolean(pendingAction)}
         onOpenChange={(open) => {
@@ -455,6 +720,25 @@ export default function BusinessTripPage() {
           if (!pendingAction) return;
           void handleUpdateStatus(pendingAction.row, pendingAction.nextStatus);
           setPendingAction(null);
+        }}
+      />
+
+      <ActionConfirmDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+        title="Konfirmasi Delete Permanen"
+        description={
+          deleteTarget
+            ? `Yakin ingin menghapus permanen pengajuan perjalanan dinas ke ${deleteTarget.destinationCity}? Aksi ini tidak bisa dibatalkan.`
+            : ""
+        }
+        confirmLabel="DELETE PERMANEN"
+        destructive
+        onConfirm={() => {
+          if (!deleteTarget) return;
+          void handleHardDelete(deleteTarget);
         }}
       />
     </AdminLayout>

@@ -5,7 +5,8 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/lib/db";
 import { businessTrips, settingsApprovalFlow } from "@/lib/db/schema";
-import { requireSessionUser } from "@/lib/auth/server";
+import { requireAdmin, requireSessionUser } from "@/lib/auth/server";
+import { createWorkflowEvent } from "@/lib/workflow-events";
 
 const dateStringSchema = z
   .string()
@@ -120,6 +121,19 @@ export async function PUT(
       .where(eq(businessTrips.id, params.id))
       .returning();
 
+    if (updated.status !== existing.status && updated.status === "CANCELLED") {
+      await createWorkflowEvent(db, {
+        module: "BUSINESS_TRIP",
+        entityId: updated.id,
+        action: "CANCELLED",
+        fromStatus: existing.status,
+        toStatus: updated.status,
+        note: "Dibatalkan oleh pengaju",
+        actorUserId: auth.user.id,
+        actorEmployeeId: auth.user.employeeId,
+      });
+    }
+
     return NextResponse.json(updated);
   }
 
@@ -219,5 +233,78 @@ export async function PUT(
     .where(eq(businessTrips.id, params.id))
     .returning();
 
+  if (updated.status !== existing.status) {
+    let action = "STATUS_CHANGED";
+    let level: number | null = null;
+
+    if (updated.status === "WAITING_LEVEL_2") {
+      action = "APPROVED_L1";
+      level = 1;
+    } else if (updated.status === "APPROVED") {
+      action = existing.status === "WAITING_LEVEL_2" ? "APPROVED_L2" : "APPROVED";
+      level = existing.status === "WAITING_LEVEL_2" ? 2 : 1;
+    } else if (updated.status === "REJECTED") {
+      action = existing.status === "WAITING_LEVEL_2" ? "REJECTED_L2" : "REJECTED_L1";
+      level = existing.status === "WAITING_LEVEL_2" ? 2 : 1;
+    } else if (updated.status === "CANCELLED") {
+      action = "CANCELLED";
+    }
+
+    await createWorkflowEvent(db, {
+      module: "BUSINESS_TRIP",
+      entityId: updated.id,
+      level,
+      action,
+      fromStatus: existing.status,
+      toStatus: updated.status,
+      note: body.adminNote ?? null,
+      actorUserId: auth.user.id,
+      actorEmployeeId: auth.user.employeeId,
+    });
+  }
+
   return NextResponse.json(updated);
+}
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: { id: string } }
+) {
+  const auth = await requireAdmin();
+  if ("response" in auth) return auth.response;
+
+  const db = getDb();
+  const [existing] = await db
+    .select()
+    .from(businessTrips)
+    .where(eq(businessTrips.id, params.id))
+    .limit(1);
+
+  if (!existing) {
+    return NextResponse.json(
+      { error: "Perjalanan dinas tidak ditemukan" },
+      { status: 404 }
+    );
+  }
+
+  if (existing.status !== "CANCELLED") {
+    return NextResponse.json(
+      { error: "Hard delete hanya diizinkan untuk status CANCELLED" },
+      { status: 400 }
+    );
+  }
+
+  await createWorkflowEvent(db, {
+    module: "BUSINESS_TRIP",
+    entityId: existing.id,
+    action: "HARD_DELETED",
+    fromStatus: existing.status,
+    toStatus: null,
+    note: "Hard delete oleh admin",
+    actorUserId: auth.user.id,
+    actorEmployeeId: auth.user.employeeId,
+  });
+
+  await db.delete(businessTrips).where(eq(businessTrips.id, params.id));
+  return NextResponse.json({ ok: true });
 }

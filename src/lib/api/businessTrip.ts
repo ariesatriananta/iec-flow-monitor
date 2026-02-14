@@ -49,3 +49,9 @@ export async function updateBusinessTrip(
   });
   return parseBusinessTrip(data);
 }
+
+export async function deleteBusinessTrip(id: string): Promise<void> {
+  await requestJson<{ ok: boolean }>(`/api/business-trip/${id}`, {
+    method: "DELETE",
+  });
+}

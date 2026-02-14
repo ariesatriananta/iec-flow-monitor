@@ -58,6 +58,12 @@ export async function updateReimbursement(
   return parseReimbursement(data);
 }
 
+export async function deleteReimbursement(id: string): Promise<void> {
+  await requestJson<{ ok: boolean }>(`/api/reimbursement/${id}`, {
+    method: "DELETE",
+  });
+}
+
 export async function deleteReimbursementAttachment(
   attachmentId: string
 ): Promise<void> {

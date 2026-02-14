@@ -414,3 +414,27 @@ export const reimbursementAttachments = pgTable(
     purposeIdx: index("reimbursement_attachments_purpose_idx").on(table.purpose),
   })
 );
+
+export const workflowEvents = pgTable(
+  "workflow_events",
+  {
+    id: text("id").primaryKey(),
+    module: text("module").notNull(),
+    entityId: text("entity_id").notNull(),
+    level: integer("level"),
+    action: text("action").notNull(),
+    fromStatus: text("from_status"),
+    toStatus: text("to_status"),
+    note: text("note"),
+    actorUserId: text("actor_user_id").references(() => users.id),
+    actorEmployeeId: text("actor_employee_id").references(() => employees.id),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull(),
+  },
+  (table) => ({
+    moduleEntityIdx: index("workflow_events_module_entity_idx").on(
+      table.module,
+      table.entityId
+    ),
+    createdAtIdx: index("workflow_events_created_at_idx").on(table.createdAt),
+  })
+);

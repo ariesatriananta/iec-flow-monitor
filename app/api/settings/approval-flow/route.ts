@@ -3,9 +3,9 @@ export const dynamic = "force-dynamic";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getDb } from "@/lib/db";
-import { settingsApprovalFlow, users } from "@/lib/db/schema";
+import { employees, settingsApprovalFlow, users } from "@/lib/db/schema";
 import { requireAdmin, requireSessionUser } from "@/lib/auth/server";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 
 const defaultPayload = {
   leaveApprovalLevels: 2,
@@ -68,6 +68,29 @@ const payloadSchema = z.object({
 const formatZodError = (error: z.ZodError) =>
   error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; ");
 
+const getApproverProfiles = async (ids: Array<string | null>) => {
+  const employeeIds = Array.from(new Set(ids.filter((id): id is string => Boolean(id))));
+  if (employeeIds.length === 0) {
+    return new Map<string, { id: string; fullName: string | null; title: string | null }>();
+  }
+
+  const db = getDb();
+  const rows = await db
+    .select({
+      id: employees.id,
+      fullName: employees.fullName,
+      title: employees.title,
+    })
+    .from(employees)
+    .where(inArray(employees.id, employeeIds));
+
+  const map = new Map<string, { id: string; fullName: string | null; title: string | null }>();
+  for (const row of rows) {
+    map.set(row.id, row);
+  }
+  return map;
+};
+
 export async function GET() {
   const auth = await requireSessionUser();
   if ("response" in auth) return auth.response;
@@ -78,16 +101,43 @@ export async function GET() {
     return NextResponse.json(defaultPayload);
   }
 
+  const approverProfiles = await getApproverProfiles([
+    row.leaveApproverLevel1EmployeeId,
+    row.leaveApproverLevel2EmployeeId,
+    row.reimbursementApproverLevel1EmployeeId,
+    row.reimbursementApproverLevel2EmployeeId,
+    row.businessTripApproverLevel1EmployeeId,
+    row.businessTripApproverLevel2EmployeeId,
+  ]);
+
   return NextResponse.json({
     leaveApprovalLevels: row.leaveApprovalLevels,
     leaveApproverLevel1EmployeeId: row.leaveApproverLevel1EmployeeId,
     leaveApproverLevel2EmployeeId: row.leaveApproverLevel2EmployeeId,
+    leaveApproverLevel1Employee: row.leaveApproverLevel1EmployeeId
+      ? approverProfiles.get(row.leaveApproverLevel1EmployeeId) ?? null
+      : null,
+    leaveApproverLevel2Employee: row.leaveApproverLevel2EmployeeId
+      ? approverProfiles.get(row.leaveApproverLevel2EmployeeId) ?? null
+      : null,
     reimbursementApprovalLevels: row.reimbursementApprovalLevels,
     reimbursementApproverLevel1EmployeeId: row.reimbursementApproverLevel1EmployeeId,
     reimbursementApproverLevel2EmployeeId: row.reimbursementApproverLevel2EmployeeId,
+    reimbursementApproverLevel1Employee: row.reimbursementApproverLevel1EmployeeId
+      ? approverProfiles.get(row.reimbursementApproverLevel1EmployeeId) ?? null
+      : null,
+    reimbursementApproverLevel2Employee: row.reimbursementApproverLevel2EmployeeId
+      ? approverProfiles.get(row.reimbursementApproverLevel2EmployeeId) ?? null
+      : null,
     businessTripApprovalLevels: row.businessTripApprovalLevels,
     businessTripApproverLevel1EmployeeId: row.businessTripApproverLevel1EmployeeId,
     businessTripApproverLevel2EmployeeId: row.businessTripApproverLevel2EmployeeId,
+    businessTripApproverLevel1Employee: row.businessTripApproverLevel1EmployeeId
+      ? approverProfiles.get(row.businessTripApproverLevel1EmployeeId) ?? null
+      : null,
+    businessTripApproverLevel2Employee: row.businessTripApproverLevel2EmployeeId
+      ? approverProfiles.get(row.businessTripApproverLevel2EmployeeId) ?? null
+      : null,
   });
 }
 
@@ -193,15 +243,42 @@ export async function PUT(request: Request) {
     })
     .returning();
 
+  const approverProfiles = await getApproverProfiles([
+    updated.leaveApproverLevel1EmployeeId,
+    updated.leaveApproverLevel2EmployeeId,
+    updated.reimbursementApproverLevel1EmployeeId,
+    updated.reimbursementApproverLevel2EmployeeId,
+    updated.businessTripApproverLevel1EmployeeId,
+    updated.businessTripApproverLevel2EmployeeId,
+  ]);
+
   return NextResponse.json({
     leaveApprovalLevels: updated.leaveApprovalLevels,
     leaveApproverLevel1EmployeeId: updated.leaveApproverLevel1EmployeeId,
     leaveApproverLevel2EmployeeId: updated.leaveApproverLevel2EmployeeId,
+    leaveApproverLevel1Employee: updated.leaveApproverLevel1EmployeeId
+      ? approverProfiles.get(updated.leaveApproverLevel1EmployeeId) ?? null
+      : null,
+    leaveApproverLevel2Employee: updated.leaveApproverLevel2EmployeeId
+      ? approverProfiles.get(updated.leaveApproverLevel2EmployeeId) ?? null
+      : null,
     reimbursementApprovalLevels: updated.reimbursementApprovalLevels,
     reimbursementApproverLevel1EmployeeId: updated.reimbursementApproverLevel1EmployeeId,
     reimbursementApproverLevel2EmployeeId: updated.reimbursementApproverLevel2EmployeeId,
+    reimbursementApproverLevel1Employee: updated.reimbursementApproverLevel1EmployeeId
+      ? approverProfiles.get(updated.reimbursementApproverLevel1EmployeeId) ?? null
+      : null,
+    reimbursementApproverLevel2Employee: updated.reimbursementApproverLevel2EmployeeId
+      ? approverProfiles.get(updated.reimbursementApproverLevel2EmployeeId) ?? null
+      : null,
     businessTripApprovalLevels: updated.businessTripApprovalLevels,
     businessTripApproverLevel1EmployeeId: updated.businessTripApproverLevel1EmployeeId,
     businessTripApproverLevel2EmployeeId: updated.businessTripApproverLevel2EmployeeId,
+    businessTripApproverLevel1Employee: updated.businessTripApproverLevel1EmployeeId
+      ? approverProfiles.get(updated.businessTripApproverLevel1EmployeeId) ?? null
+      : null,
+    businessTripApproverLevel2Employee: updated.businessTripApproverLevel2EmployeeId
+      ? approverProfiles.get(updated.businessTripApproverLevel2EmployeeId) ?? null
+      : null,
   });
 }

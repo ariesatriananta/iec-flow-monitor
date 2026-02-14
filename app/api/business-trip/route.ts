@@ -6,6 +6,10 @@ import { z } from "zod";
 import { getDb } from "@/lib/db";
 import { businessTrips, employees, users } from "@/lib/db/schema";
 import { requireSessionUser } from "@/lib/auth/server";
+import {
+  createWorkflowEvent,
+  fetchWorkflowEventsByEntityIds,
+} from "@/lib/workflow-events";
 
 const workflowStatusSchema = z.union([
   z.literal("SUBMITTED"),
@@ -142,11 +146,20 @@ export async function GET(request: Request) {
         }
       : undefined,
   }));
+  const eventsByEntity = await fetchWorkflowEventsByEntityIds(
+    db,
+    "BUSINESS_TRIP",
+    items.map((item) => item.id)
+  );
+  const itemsWithEvents = items.map((item) => ({
+    ...item,
+    workflowEvents: eventsByEntity.get(item.id) ?? [],
+  }));
   const hasMore = offset + items.length < total;
 
   return NextResponse.json(
     {
-      items,
+      items: itemsWithEvents,
       total,
       limit,
       offset,
@@ -207,6 +220,17 @@ export async function POST(request: Request) {
       updatedAt: now,
     })
     .returning();
+
+  await createWorkflowEvent(db, {
+    module: "BUSINESS_TRIP",
+    entityId: created.id,
+    action: "SUBMITTED",
+    fromStatus: null,
+    toStatus: created.status,
+    note: body.purpose ?? null,
+    actorUserId: auth.user.id,
+    actorEmployeeId: auth.user.employeeId,
+  });
 
   return NextResponse.json(created, { status: 201 });
 }

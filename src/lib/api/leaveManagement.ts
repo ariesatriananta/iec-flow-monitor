@@ -48,3 +48,9 @@ export async function updateLeaveRequest(
   });
   return parseLeaveRequest(data);
 }
+
+export async function deleteLeaveRequest(id: string): Promise<void> {
+  await requestJson<{ ok: boolean }>(`/api/leave-management/${id}`, {
+    method: "DELETE",
+  });
+}
