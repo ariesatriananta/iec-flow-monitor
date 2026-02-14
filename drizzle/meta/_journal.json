@@ -141,6 +141,20 @@
       "when": 1767902400000,
       "tag": "0019_workflow_events",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1767992400000,
+      "tag": "0020_business_trip_allowance",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1768078800000,
+      "tag": "0021_business_trip_compensation_model",
+      "breakpoints": true
     }
   ]
 }

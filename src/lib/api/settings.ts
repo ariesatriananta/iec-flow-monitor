@@ -88,6 +88,27 @@ export interface ReimbursementLimitPayload {
   maxFileSizeMb: number;
 }
 
+export interface BusinessTripOpeRulePayload {
+  id: string;
+  label: string;
+  titles: string[];
+  dailyAllowance: number;
+}
+
+export interface BusinessTripTransportOptionPayload {
+  id: string;
+  label: string;
+  amount: number;
+}
+
+export interface BusinessTripAllowancePayload {
+  opeRules: BusinessTripOpeRulePayload[];
+  mealPerDay: number;
+  laundryPerWeek: number;
+  laundryMinDays: number;
+  transportOptions: BusinessTripTransportOptionPayload[];
+}
+
 export async function fetchSettings(): Promise<SettingsPayload | null> {
   return requestJson<SettingsPayload | null>("/api/settings", {
     cache: "no-store",
@@ -146,6 +167,21 @@ export async function updateReimbursementLimitSettings(
   payload: ReimbursementLimitPayload
 ): Promise<ReimbursementLimitPayload> {
   return requestJson<ReimbursementLimitPayload>("/api/settings/reimbursement-limit", {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function fetchBusinessTripAllowanceSettings(): Promise<BusinessTripAllowancePayload> {
+  return requestJson<BusinessTripAllowancePayload>("/api/settings/business-trip-allowance", {
+    cache: "no-store",
+  });
+}
+
+export async function updateBusinessTripAllowanceSettings(
+  payload: BusinessTripAllowancePayload
+): Promise<BusinessTripAllowancePayload> {
+  return requestJson<BusinessTripAllowancePayload>("/api/settings/business-trip-allowance", {
     method: "PUT",
     body: JSON.stringify(payload),
   });

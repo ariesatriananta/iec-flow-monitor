@@ -4,9 +4,23 @@ import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/lib/db";
-import { businessTrips, settingsApprovalFlow } from "@/lib/db/schema";
+import {
+  businessTrips,
+  employees,
+  settingsApprovalFlow,
+  settingsBusinessTripAllowance,
+} from "@/lib/db/schema";
 import { requireAdmin, requireSessionUser } from "@/lib/auth/server";
 import { createWorkflowEvent } from "@/lib/workflow-events";
+import {
+  calculateBusinessTripCompensation,
+  DEFAULT_BUSINESS_TRIP_COMPENSATION_SETTINGS,
+  normalizeOpeRules,
+  normalizeTransportOptions,
+  type BusinessTripCompensationSettings,
+  type OpeRule,
+  type TransportOption,
+} from "@/lib/business-trip-allowance";
 
 const dateStringSchema = z
   .string()
@@ -19,6 +33,8 @@ const staffUpdateSchema = z.object({
   purpose: z.string().trim().max(2000).optional(),
   startDate: dateStringSchema.optional(),
   endDate: dateStringSchema.optional(),
+  isOutOfTownOvernight: z.boolean().optional(),
+  transportOptionId: z.string().trim().min(1).max(64).optional(),
   status: z.literal("CANCELLED").optional(),
 });
 
@@ -28,6 +44,8 @@ const adminUpdateSchema = z.object({
   purpose: z.string().trim().max(2000).optional(),
   startDate: dateStringSchema.optional(),
   endDate: dateStringSchema.optional(),
+  isOutOfTownOvernight: z.boolean().optional(),
+  transportOptionId: z.string().trim().min(1).max(64).optional(),
   status: z
     .union([
       z.literal("SUBMITTED"),
@@ -42,6 +60,45 @@ const adminUpdateSchema = z.object({
 
 const formatZodError = (error: z.ZodError) =>
   error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; ");
+
+const parseOpeRules = (value: string | null | undefined): OpeRule[] => {
+  if (!value) return DEFAULT_BUSINESS_TRIP_COMPENSATION_SETTINGS.opeRules;
+  try {
+    const parsed = JSON.parse(value) as OpeRule[];
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      return DEFAULT_BUSINESS_TRIP_COMPENSATION_SETTINGS.opeRules;
+    }
+    return normalizeOpeRules(parsed);
+  } catch {
+    return DEFAULT_BUSINESS_TRIP_COMPENSATION_SETTINGS.opeRules;
+  }
+};
+
+const parseTransportOptions = (value: string | null | undefined): TransportOption[] => {
+  if (!value) return DEFAULT_BUSINESS_TRIP_COMPENSATION_SETTINGS.transportOptions;
+  try {
+    const parsed = JSON.parse(value) as TransportOption[];
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      return DEFAULT_BUSINESS_TRIP_COMPENSATION_SETTINGS.transportOptions;
+    }
+    return normalizeTransportOptions(parsed);
+  } catch {
+    return DEFAULT_BUSINESS_TRIP_COMPENSATION_SETTINGS.transportOptions;
+  }
+};
+
+const parseCompensationSettings = (
+  row: typeof settingsBusinessTripAllowance.$inferSelect | undefined
+): BusinessTripCompensationSettings => {
+  if (!row) return DEFAULT_BUSINESS_TRIP_COMPENSATION_SETTINGS;
+  return {
+    opeRules: parseOpeRules(row.allowanceRuleJson),
+    mealPerDay: Number(row.mealPerDay),
+    laundryPerWeek: Number(row.laundryPerWeek),
+    laundryMinDays: row.laundryMinDays,
+    transportOptions: parseTransportOptions(row.transportOptionJson),
+  }
+};
 
 export async function PUT(
   request: Request,
@@ -62,6 +119,27 @@ export async function PUT(
   if (!existing) {
     return NextResponse.json({ error: "Perjalanan dinas tidak ditemukan" }, { status: 404 });
   }
+
+  const [employee] = await db
+    .select({
+      id: employees.id,
+      title: employees.title,
+    })
+    .from(employees)
+    .where(eq(employees.id, existing.employeeId))
+    .limit(1);
+  if (!employee) {
+    return NextResponse.json(
+      { error: "Data employee tidak ditemukan" },
+      { status: 404 }
+    );
+  }
+
+  const [allowanceSetting] = await db
+    .select()
+    .from(settingsBusinessTripAllowance)
+    .limit(1);
+  const compensationSettings = parseCompensationSettings(allowanceSetting);
 
   const [approvalFlow] = await db.select().from(settingsApprovalFlow).limit(1);
   const approvalLevels = approvalFlow?.businessTripApprovalLevels ?? 2;
@@ -106,6 +184,15 @@ export async function PUT(
         { status: 400 }
       );
     }
+    const compensation = calculateBusinessTripCompensation({
+      employeeTitle: employee.title,
+      startDate,
+      endDate,
+      isOutOfTownOvernight:
+        body.isOutOfTownOvernight ?? existing.isOutOfTownOvernight ?? false,
+      transportOptionId: body.transportOptionId ?? existing.transportOptionId ?? null,
+      settings: compensationSettings,
+    });
 
     const [updated] = await db
       .update(businessTrips)
@@ -115,6 +202,16 @@ export async function PUT(
         purpose: body.purpose ?? undefined,
         startDate: body.startDate ? new Date(body.startDate) : undefined,
         endDate: body.endDate ? new Date(body.endDate) : undefined,
+        allowanceRuleId: compensation.ope.ruleId,
+        allowanceRuleLabel: compensation.ope.ruleLabel,
+        allowanceDaily: compensation.ope.daily.toString(),
+        allowanceDays: compensation.days,
+        allowanceTotal: compensation.ope.total.toString(),
+        isOutOfTownOvernight:
+          body.isOutOfTownOvernight ?? existing.isOutOfTownOvernight ?? false,
+        transportOptionId: body.transportOptionId ?? existing.transportOptionId ?? null,
+        compensationBreakdownJson: JSON.stringify(compensation),
+        compensationTotal: compensation.total.toString(),
         status: body.status === "CANCELLED" ? "CANCELLED" : existing.status,
         updatedAt: new Date(),
       })
@@ -134,7 +231,10 @@ export async function PUT(
       });
     }
 
-    return NextResponse.json(updated);
+    return NextResponse.json({
+      ...updated,
+      compensationBreakdown: compensation,
+    });
   }
 
   const parsedBody = adminUpdateSchema.safeParse(rawBody);
@@ -156,6 +256,15 @@ export async function PUT(
       { status: 400 }
     );
   }
+  const compensation = calculateBusinessTripCompensation({
+    employeeTitle: employee.title,
+    startDate,
+    endDate,
+    isOutOfTownOvernight:
+      body.isOutOfTownOvernight ?? existing.isOutOfTownOvernight ?? false,
+    transportOptionId: body.transportOptionId ?? existing.transportOptionId ?? null,
+    settings: compensationSettings,
+  });
 
   let approvedBy: string | null | undefined = undefined;
   let approvedAt: Date | null | undefined = undefined;
@@ -224,6 +333,16 @@ export async function PUT(
       purpose: body.purpose ?? undefined,
       startDate: body.startDate ? new Date(body.startDate) : undefined,
       endDate: body.endDate ? new Date(body.endDate) : undefined,
+      allowanceRuleId: compensation.ope.ruleId,
+      allowanceRuleLabel: compensation.ope.ruleLabel,
+      allowanceDaily: compensation.ope.daily.toString(),
+      allowanceDays: compensation.days,
+      allowanceTotal: compensation.ope.total.toString(),
+      isOutOfTownOvernight:
+        body.isOutOfTownOvernight ?? existing.isOutOfTownOvernight ?? false,
+      transportOptionId: body.transportOptionId ?? existing.transportOptionId ?? null,
+      compensationBreakdownJson: JSON.stringify(compensation),
+      compensationTotal: compensation.total.toString(),
       status: nextStatus,
       adminNote: body.adminNote ?? undefined,
       approvedBy,
@@ -263,7 +382,10 @@ export async function PUT(
     });
   }
 
-  return NextResponse.json(updated);
+  return NextResponse.json({
+    ...updated,
+    compensationBreakdown: compensation,
+  });
 }
 
 export async function DELETE(

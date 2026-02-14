@@ -114,6 +114,22 @@ export const parseBusinessTrip = (data: BusinessTrip): BusinessTrip => ({
   ...data,
   startDate: toDate(data.startDate),
   endDate: toDate(data.endDate),
+  allowanceDaily:
+    data.allowanceDaily === null || data.allowanceDaily === undefined
+      ? null
+      : toNumber(data.allowanceDaily),
+  allowanceDays:
+    data.allowanceDays === null || data.allowanceDays === undefined
+      ? null
+      : toNumber(data.allowanceDays),
+  allowanceTotal:
+    data.allowanceTotal === null || data.allowanceTotal === undefined
+      ? null
+      : toNumber(data.allowanceTotal),
+  compensationTotal:
+    data.compensationTotal === null || data.compensationTotal === undefined
+      ? null
+      : toNumber(data.compensationTotal),
   approvedAt: data.approvedAt ? toDate(data.approvedAt) : null,
   createdAt: toDate(data.createdAt),
   updatedAt: toDate(data.updatedAt),

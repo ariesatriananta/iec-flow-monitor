@@ -268,13 +268,52 @@ export interface BusinessTrip {
   purpose?: string | null;
   startDate: Date;
   endDate: Date;
+  allowanceRuleId?: string | null;
+  allowanceRuleLabel?: string | null;
+  allowanceDaily?: number | null;
+  allowanceDays?: number | null;
+  allowanceTotal?: number | null;
+  isOutOfTownOvernight?: boolean;
+  transportOptionId?: string | null;
+  compensationBreakdown?: {
+    days: number;
+    isOutOfTownOvernight: boolean;
+    ope: {
+      ruleId: string | null;
+      ruleLabel: string | null;
+      daily: number;
+      days: number;
+      total: number;
+    };
+    meal: {
+      daily: number;
+      days: number;
+      total: number;
+    };
+    laundry: {
+      weekly: number;
+      weeks: number;
+      minDays: number;
+      total: number;
+    };
+    transport: {
+      optionId: string | null;
+      label: string | null;
+      amount: number;
+    };
+    total: number;
+  } | null;
+  compensationTotal?: number | null;
   status: WorkflowStatus | string;
   adminNote?: string | null;
   approvedBy?: string | null;
   approvedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
-  employee?: Pick<Employee, "id" | "employeeCode" | "fullName" | "title" | "department">;
+  employee?: Pick<
+    Employee,
+    "id" | "employeeCode" | "fullName" | "title" | "department" | "bankAccountName" | "bankAccountNumber"
+  >;
   user?: Pick<User, "id" | "username" | "name" | "role">;
   workflowEvents?: WorkflowEvent[];
 }

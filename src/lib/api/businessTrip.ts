@@ -31,6 +31,8 @@ export async function createBusinessTrip(payload: {
   purpose?: string;
   startDate: string;
   endDate: string;
+  isOutOfTownOvernight: boolean;
+  transportOptionId?: string;
 }): Promise<BusinessTrip> {
   const data = await requestJson<BusinessTrip>("/api/business-trip", {
     method: "POST",

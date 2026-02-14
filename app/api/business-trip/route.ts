@@ -4,12 +4,27 @@ import { NextResponse } from "next/server";
 import { and, desc, eq, or, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/lib/db";
-import { businessTrips, employees, users } from "@/lib/db/schema";
+import {
+  businessTrips,
+  employees,
+  settingsApprovalFlow,
+  settingsBusinessTripAllowance,
+  users,
+} from "@/lib/db/schema";
 import { requireSessionUser } from "@/lib/auth/server";
 import {
   createWorkflowEvent,
   fetchWorkflowEventsByEntityIds,
 } from "@/lib/workflow-events";
+import {
+  calculateBusinessTripCompensation,
+  DEFAULT_BUSINESS_TRIP_COMPENSATION_SETTINGS,
+  normalizeOpeRules,
+  normalizeTransportOptions,
+  type BusinessTripCompensationSettings,
+  type OpeRule,
+  type TransportOption,
+} from "@/lib/business-trip-allowance";
 
 const workflowStatusSchema = z.union([
   z.literal("SUBMITTED"),
@@ -37,10 +52,51 @@ const createSchema = z.object({
   purpose: z.string().trim().max(2000).optional(),
   startDate: dateStringSchema,
   endDate: dateStringSchema,
+  isOutOfTownOvernight: z.boolean().optional().default(false),
+  transportOptionId: z.string().trim().min(1).max(64),
 });
 
 const formatZodError = (error: z.ZodError) =>
   error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; ");
+
+const parseOpeRules = (value: string | null | undefined): OpeRule[] => {
+  if (!value) return DEFAULT_BUSINESS_TRIP_COMPENSATION_SETTINGS.opeRules;
+  try {
+    const parsed = JSON.parse(value) as OpeRule[];
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      return DEFAULT_BUSINESS_TRIP_COMPENSATION_SETTINGS.opeRules;
+    }
+    return normalizeOpeRules(parsed);
+  } catch {
+    return DEFAULT_BUSINESS_TRIP_COMPENSATION_SETTINGS.opeRules;
+  }
+};
+
+const parseTransportOptions = (value: string | null | undefined): TransportOption[] => {
+  if (!value) return DEFAULT_BUSINESS_TRIP_COMPENSATION_SETTINGS.transportOptions;
+  try {
+    const parsed = JSON.parse(value) as TransportOption[];
+    if (!Array.isArray(parsed) || parsed.length === 0) {
+      return DEFAULT_BUSINESS_TRIP_COMPENSATION_SETTINGS.transportOptions;
+    }
+    return normalizeTransportOptions(parsed);
+  } catch {
+    return DEFAULT_BUSINESS_TRIP_COMPENSATION_SETTINGS.transportOptions;
+  }
+};
+
+const parseCompensationSettings = (
+  row: typeof settingsBusinessTripAllowance.$inferSelect | undefined
+): BusinessTripCompensationSettings => {
+  if (!row) return DEFAULT_BUSINESS_TRIP_COMPENSATION_SETTINGS;
+  return {
+    opeRules: parseOpeRules(row.allowanceRuleJson),
+    mealPerDay: Number(row.mealPerDay),
+    laundryPerWeek: Number(row.laundryPerWeek),
+    laundryMinDays: row.laundryMinDays,
+    transportOptions: parseTransportOptions(row.transportOptionJson),
+  }
+};
 
 export async function GET(request: Request) {
   const auth = await requireSessionUser();
@@ -70,7 +126,26 @@ export async function GET(request: Request) {
         { status: 403 }
       );
     }
-    conditions.push(eq(businessTrips.employeeId, auth.user.employeeId));
+
+    const [approvalFlow] = await getDb().select().from(settingsApprovalFlow).limit(1);
+    const approvalLevels = approvalFlow?.businessTripApprovalLevels ?? 2;
+    const isApproverLevel1 =
+      auth.user.employeeId === (approvalFlow?.businessTripApproverLevel1EmployeeId ?? null);
+    const isApproverLevel2 =
+      approvalLevels === 2 &&
+      auth.user.employeeId === (approvalFlow?.businessTripApproverLevel2EmployeeId ?? null);
+
+    const visibilityConditions: SQL[] = [
+      eq(businessTrips.employeeId, auth.user.employeeId),
+    ];
+    if (isApproverLevel1) {
+      visibilityConditions.push(eq(businessTrips.status, "SUBMITTED"));
+    }
+    if (isApproverLevel2) {
+      visibilityConditions.push(eq(businessTrips.status, "WAITING_LEVEL_2"));
+    }
+
+    conditions.push(or(...visibilityConditions) as SQL);
   }
   if (status) {
     conditions.push(eq(businessTrips.status, status));
@@ -128,6 +203,14 @@ export async function GET(request: Request) {
 
   const items = rows.map(({ trip, employee, user }) => ({
     ...trip,
+    compensationBreakdown: (() => {
+      if (!trip.compensationBreakdownJson) return null;
+      try {
+        return JSON.parse(trip.compensationBreakdownJson);
+      } catch {
+        return null;
+      }
+    })(),
     employee: employee
       ? {
           id: employee.id,
@@ -135,6 +218,8 @@ export async function GET(request: Request) {
           fullName: employee.fullName,
           title: employee.title,
           department: employee.department,
+          bankAccountName: employee.bankAccountName,
+          bankAccountNumber: employee.bankAccountNumber,
         }
       : undefined,
     user: user
@@ -202,6 +287,38 @@ export async function POST(request: Request) {
 
   const now = new Date();
   const db = getDb();
+  const [employee] = await db
+    .select({
+      id: employees.id,
+      title: employees.title,
+    })
+    .from(employees)
+    .where(eq(employees.id, targetEmployeeId))
+    .limit(1);
+  if (!employee) {
+    return NextResponse.json(
+      { error: "Data employee tidak ditemukan" },
+      { status: 404 }
+    );
+  }
+
+  const [allowanceSetting] = await db
+    .select()
+    .from(settingsBusinessTripAllowance)
+    .limit(1);
+  const compensationSettings = parseCompensationSettings(allowanceSetting);
+  const compensation = calculateBusinessTripCompensation({
+    employeeTitle: employee.title,
+    startDate,
+    endDate,
+    isOutOfTownOvernight: body.isOutOfTownOvernight,
+    transportOptionId: body.transportOptionId,
+    settings: compensationSettings,
+  });
+  const allowanceDaily = compensation.ope.daily;
+  const allowanceDays = compensation.days;
+  const allowanceTotal = compensation.ope.total;
+
   const [created] = await db
     .insert(businessTrips)
     .values({
@@ -214,6 +331,15 @@ export async function POST(request: Request) {
       endDate,
       status: "SUBMITTED",
       adminNote: null,
+      allowanceRuleId: compensation.ope.ruleId,
+      allowanceRuleLabel: compensation.ope.ruleLabel,
+      allowanceDaily: allowanceDaily.toString(),
+      allowanceDays,
+      allowanceTotal: allowanceTotal.toString(),
+      isOutOfTownOvernight: body.isOutOfTownOvernight,
+      transportOptionId: body.transportOptionId,
+      compensationBreakdownJson: JSON.stringify(compensation),
+      compensationTotal: compensation.total.toString(),
       approvedBy: null,
       approvedAt: null,
       createdAt: now,
@@ -232,5 +358,11 @@ export async function POST(request: Request) {
     actorEmployeeId: auth.user.employeeId,
   });
 
-  return NextResponse.json(created, { status: 201 });
+  return NextResponse.json(
+    {
+      ...created,
+      compensationBreakdown: compensation,
+    },
+    { status: 201 }
+  );
 }

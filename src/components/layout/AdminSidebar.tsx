@@ -15,6 +15,7 @@ import {
   FileCheck,
   Plane,
   Wallet,
+  HandCoins,
   GitBranch,
   Scale,
   ChevronLeft,
@@ -131,6 +132,12 @@ const navSections: NavSection[] = [
         title: 'Reimbursement Limit',
         href: '/settings/reimbursement-limit',
         icon: Scale,
+        roles: ['ADMIN']
+      },
+      {
+        title: 'Business Trip Compensation',
+        href: '/settings/business-trip-allowance',
+        icon: HandCoins,
         roles: ['ADMIN']
       },
     ],

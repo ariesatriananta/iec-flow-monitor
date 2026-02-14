@@ -23,6 +23,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import {
   Table,
   TableBody,
@@ -45,12 +47,32 @@ import {
   fetchBusinessTrips,
   updateBusinessTrip,
 } from "@/lib/api/businessTrip";
-import { fetchApprovalFlowSettings } from "@/lib/api/settings";
-import { formatDate } from "@/lib/numbering";
+import {
+  fetchApprovalFlowSettings,
+  fetchBusinessTripAllowanceSettings,
+  type BusinessTripAllowancePayload,
+} from "@/lib/api/settings";
+import { formatCurrency, formatDate } from "@/lib/numbering";
+import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import type { BusinessTrip, WorkflowEvent } from "@/types";
 import { ActionConfirmDialog } from "@/components/shared/ActionConfirmDialog";
-import { Eye, MoreHorizontal, PlaneTakeoff, Search, Trash2 } from "lucide-react";
+import {
+  calculateBusinessTripCompensation,
+  DEFAULT_BUSINESS_TRIP_COMPENSATION_SETTINGS,
+} from "@/lib/business-trip-allowance";
+import { format } from "date-fns";
+import {
+  CalendarIcon,
+  CheckCircle2,
+  Eye,
+  MoreHorizontal,
+  PlaneTakeoff,
+  Plus,
+  Search,
+  Trash2,
+  XCircle,
+} from "lucide-react";
 
 const statusOptions = ["ALL", "SUBMITTED", "WAITING_LEVEL_2", "APPROVED", "REJECTED", "CANCELLED"];
 
@@ -64,6 +86,13 @@ const statusClass = (status: string) => {
 type PendingAction = {
   row: BusinessTrip;
   nextStatus: string;
+};
+
+const parseDateKeyToDate = (value: string) => {
+  if (!value) return undefined;
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return undefined;
+  return new Date(year, month - 1, day);
 };
 
 const formatActorLabel = (event?: WorkflowEvent | null) => {
@@ -156,6 +185,7 @@ export default function BusinessTripPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<BusinessTrip | null>(null);
   const [detailRow, setDetailRow] = useState<BusinessTrip | null>(null);
@@ -170,6 +200,11 @@ export default function BusinessTripPage() {
   const [purpose, setPurpose] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [isOutOfTownOvernight, setIsOutOfTownOvernight] = useState<"YES" | "NO">("YES");
+  const [transportOptionId, setTransportOptionId] = useState("");
+  const [compensationSetting, setCompensationSetting] = useState<BusinessTripAllowancePayload>(
+    DEFAULT_BUSINESS_TRIP_COMPENSATION_SETTINGS
+  );
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -214,6 +249,17 @@ export default function BusinessTripPage() {
   }, []);
 
   useEffect(() => {
+    void (async () => {
+      try {
+        const settings = await fetchBusinessTripAllowanceSettings();
+        setCompensationSetting(settings);
+      } catch {
+        setCompensationSetting(DEFAULT_BUSINESS_TRIP_COMPENSATION_SETTINGS);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
     setPage(1);
   }, [statusFilter, debouncedSearch]);
 
@@ -242,6 +288,14 @@ export default function BusinessTripPage() {
       });
       return;
     }
+    if (!transportOptionId) {
+      toast({
+        title: "Error",
+        description: "Pilih transport PP untuk pengajuan ini",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setIsSaving(true);
     try {
@@ -251,12 +305,17 @@ export default function BusinessTripPage() {
         purpose: purpose || undefined,
         startDate,
         endDate,
+        isOutOfTownOvernight: isOutOfTownOvernight === "YES",
+        transportOptionId,
       });
+      setIsCreateDialogOpen(false);
       setDestinationCity("");
       setCompanyName("");
       setPurpose("");
       setStartDate("");
       setEndDate("");
+      setIsOutOfTownOvernight("YES");
+      setTransportOptionId("");
       if (page === 1) {
         await loadData();
       } else {
@@ -329,61 +388,42 @@ export default function BusinessTripPage() {
     return "Status pengajuan sedang diproses";
   };
 
+  const compensationPreview =
+    startDate && endDate
+      ? calculateBusinessTripCompensation({
+          employeeTitle: user?.employee?.title ?? null,
+          startDate: parseDateKeyToDate(startDate) ?? new Date(startDate),
+          endDate: parseDateKeyToDate(endDate) ?? new Date(endDate),
+          isOutOfTownOvernight: isOutOfTownOvernight === "YES",
+          transportOptionId: transportOptionId || null,
+          settings: compensationSetting,
+        })
+      : null;
+  const hasMissingOpeRule =
+    isOutOfTownOvernight === "YES" && Boolean(compensationPreview) && !compensationPreview.ope.ruleId;
+  const canSubmitCreate =
+    destinationCity.trim().length > 0 &&
+    companyName.trim().length > 0 &&
+    Boolean(startDate) &&
+    Boolean(endDate) &&
+    Boolean(transportOptionId) &&
+    !hasMissingOpeRule;
+
   return (
     <AdminLayout title="Business Trip">
       <div className="grid gap-6">
         <Card>
-          <CardHeader>
-            <CardTitle>Pengajuan Perjalanan Dinas</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleCreate} className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Kota / Daerah Tujuan</Label>
-                <Input
-                  value={destinationCity}
-                  onChange={(event) => setDestinationCity(event.target.value)}
-                  placeholder="Bandung"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Nama Perusahaan</Label>
-                <Input
-                  value={companyName}
-                  onChange={(event) => setCompanyName(event.target.value)}
-                  placeholder="PT Contoh"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Tanggal Berangkat</Label>
-                <Input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label>Tanggal Pulang</Label>
-                <Input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} />
-              </div>
-              <div className="space-y-2 md:col-span-2">
-                <Label>Tujuan / Rincian</Label>
-                <Textarea
-                  rows={3}
-                  value={purpose}
-                  onChange={(event) => setPurpose(event.target.value)}
-                  placeholder="Jelaskan tujuan perjalanan"
-                />
-              </div>
-              <div className="md:col-span-2 flex justify-end">
-                <Button type="submit" disabled={isSaving}>
-                  {isSaving ? "Menyimpan..." : "Ajukan Perjalanan"}
-                </Button>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-
-        <Card>
           <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <CardTitle>Daftar Pengajuan</CardTitle>
             <div className="flex w-full flex-col gap-2 md:w-auto md:flex-row">
+              <Button
+                type="button"
+                onClick={() => setIsCreateDialogOpen(true)}
+                className="md:order-2"
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Ajukan Perjalanan
+              </Button>
               <div className="relative md:w-[220px]">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
@@ -433,6 +473,7 @@ export default function BusinessTripPage() {
                         <TableHead>Tujuan</TableHead>
                         <TableHead>Perusahaan</TableHead>
                         <TableHead>Periode</TableHead>
+                        <TableHead>Uang Saku</TableHead>
                         <TableHead>Rincian</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead className="text-right">Aksi</TableHead>
@@ -441,7 +482,7 @@ export default function BusinessTripPage() {
                     <TableBody>
                       {rows.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={showRequesterColumn ? 7 : 6} className="py-8 text-center text-muted-foreground">
+                          <TableCell colSpan={showRequesterColumn ? 8 : 7} className="py-8 text-center text-muted-foreground">
                             <div className="flex flex-col items-center gap-2">
                               <PlaneTakeoff className="h-8 w-8" />
                               <p>Belum ada pengajuan perjalanan dinas</p>
@@ -456,6 +497,26 @@ export default function BusinessTripPage() {
                             <TableCell>{row.companyName}</TableCell>
                             <TableCell>
                               {formatDate(new Date(row.startDate))} - {formatDate(new Date(row.endDate))}
+                            </TableCell>
+                            <TableCell>
+                              {row.compensationTotal !== null && row.compensationTotal !== undefined ? (
+                                <div>
+                                  <p className="font-medium">{formatCurrency(Number(row.compensationTotal))}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {row.compensationBreakdown
+                                      ? `${formatCurrency(row.compensationBreakdown.ope.total)} OPE + ${formatCurrency(
+                                          row.compensationBreakdown.meal.total
+                                        )} Makan + ${formatCurrency(
+                                          row.compensationBreakdown.laundry.total
+                                        )} Laundry + ${formatCurrency(
+                                          row.compensationBreakdown.transport.amount
+                                        )} Transport`
+                                      : "-"}
+                                  </p>
+                                </div>
+                              ) : (
+                                "-"
+                              )}
                             </TableCell>
                             <TableCell className="max-w-[240px] truncate">{row.purpose ?? "-"}</TableCell>
                             <TableCell>
@@ -477,6 +538,7 @@ export default function BusinessTripPage() {
                                   </DropdownMenuItem>
                                   {isApprover && canAdminProcess(row.status) && (
                                     <DropdownMenuItem onClick={() => setPendingAction({ row, nextStatus: "APPROVED" })}>
+                                      <CheckCircle2 className="mr-2 h-4 w-4 text-emerald-600" />
                                       {getApproveButtonLabel(row.status)}
                                     </DropdownMenuItem>
                                   )}
@@ -485,6 +547,7 @@ export default function BusinessTripPage() {
                                       className="text-destructive focus:text-destructive"
                                       onClick={() => setPendingAction({ row, nextStatus: "REJECTED" })}
                                     >
+                                      <XCircle className="mr-2 h-4 w-4 text-destructive" />
                                       Reject
                                     </DropdownMenuItem>
                                   )}
@@ -540,6 +603,11 @@ export default function BusinessTripPage() {
                         <p className="mt-2 text-sm text-muted-foreground">
                           {formatDate(new Date(row.startDate))} - {formatDate(new Date(row.endDate))}
                         </p>
+                        <p className="mt-1 text-sm font-medium">
+                          {row.compensationTotal !== null && row.compensationTotal !== undefined
+                            ? formatCurrency(Number(row.compensationTotal))
+                            : "-"}
+                        </p>
                         <p className="mt-2 text-sm">{row.purpose ?? "-"}</p>
                         <div className="mt-3 flex justify-end">
                           <DropdownMenu>
@@ -555,6 +623,7 @@ export default function BusinessTripPage() {
                               </DropdownMenuItem>
                               {isApprover && canAdminProcess(row.status) && (
                                 <DropdownMenuItem onClick={() => setPendingAction({ row, nextStatus: "APPROVED" })}>
+                                  <CheckCircle2 className="mr-2 h-4 w-4 text-emerald-600" />
                                   {getApproveButtonLabel(row.status)}
                                 </DropdownMenuItem>
                               )}
@@ -563,6 +632,7 @@ export default function BusinessTripPage() {
                                   className="text-destructive focus:text-destructive"
                                   onClick={() => setPendingAction({ row, nextStatus: "REJECTED" })}
                                 >
+                                  <XCircle className="mr-2 h-4 w-4 text-destructive" />
                                   Reject
                                 </DropdownMenuItem>
                               )}
@@ -619,6 +689,195 @@ export default function BusinessTripPage() {
         </Card>
       </div>
 
+      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <DialogContent className="sm:max-w-[640px] p-6">
+          <DialogHeader>
+            <DialogTitle>Pengajuan Perjalanan Dinas</DialogTitle>
+            <DialogDescription>
+              Isi data perjalanan dinas untuk dikirim ke approver.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleCreate} className="mt-4 grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Kota / Daerah Tujuan</Label>
+              <Input
+                value={destinationCity}
+                onChange={(event) => setDestinationCity(event.target.value)}
+                placeholder="Bandung"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Nama Perusahaan</Label>
+              <Input
+                value={companyName}
+                onChange={(event) => setCompanyName(event.target.value)}
+                placeholder="PT Contoh"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Tanggal Berangkat</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !startDate && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {startDate
+                      ? format(parseDateKeyToDate(startDate) ?? new Date(startDate), "dd MMM yyyy")
+                      : "Pilih tanggal berangkat"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={parseDateKeyToDate(startDate)}
+                    onSelect={(date) => {
+                      if (!date) {
+                        setStartDate("");
+                        return;
+                      }
+                      setStartDate(format(date, "yyyy-MM-dd"));
+                      if (endDate && new Date(format(date, "yyyy-MM-dd")) > new Date(endDate)) {
+                        setEndDate("");
+                      }
+                    }}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+            <div className="space-y-2">
+              <Label>Tanggal Pulang</Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !endDate && "text-muted-foreground"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {endDate
+                      ? format(parseDateKeyToDate(endDate) ?? new Date(endDate), "dd MMM yyyy")
+                      : "Pilih tanggal pulang"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={parseDateKeyToDate(endDate)}
+                    onSelect={(date) => {
+                      if (!date) {
+                        setEndDate("");
+                        return;
+                      }
+                      setEndDate(format(date, "yyyy-MM-dd"));
+                    }}
+                    disabled={(date) => {
+                      if (!startDate) return false;
+                      const start = parseDateKeyToDate(startDate);
+                      if (!start) return false;
+                      return date < start;
+                    }}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label>Tujuan / Rincian</Label>
+              <Textarea
+                rows={3}
+                value={purpose}
+                onChange={(event) => setPurpose(event.target.value)}
+                placeholder="Jelaskan tujuan perjalanan"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Luar Kota / Menginap</Label>
+              <Select value={isOutOfTownOvernight} onValueChange={(value: "YES" | "NO") => setIsOutOfTownOvernight(value)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="YES">Ya</SelectItem>
+                  <SelectItem value="NO">Tidak</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Transport PP</Label>
+              <Select value={transportOptionId || undefined} onValueChange={setTransportOptionId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Pilih transport PP" />
+                </SelectTrigger>
+                <SelectContent>
+                  {compensationSetting.transportOptions.map((item) => (
+                    <SelectItem key={item.id} value={item.id}>
+                      {item.label} - {formatCurrency(item.amount)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="md:col-span-2 rounded-md border p-3">
+              <p className="text-sm font-semibold">Estimasi Kompensasi</p>
+              {compensationPreview ? (
+                <div className="mt-2 space-y-1 text-sm">
+                  <p>
+                    OPE: {formatCurrency(compensationPreview.ope.daily)} x {compensationPreview.ope.days} hari ={" "}
+                    {formatCurrency(compensationPreview.ope.total)}
+                  </p>
+                  <p>
+                    Makan: {formatCurrency(compensationPreview.meal.daily)} x {compensationPreview.meal.days} hari ={" "}
+                    {formatCurrency(compensationPreview.meal.total)}
+                  </p>
+                  <p>
+                    Laundry: {formatCurrency(compensationPreview.laundry.weekly)} x {compensationPreview.laundry.weeks} minggu ={" "}
+                    {formatCurrency(compensationPreview.laundry.total)}
+                  </p>
+                  <p>
+                    Transport PP: {formatCurrency(compensationPreview.transport.amount)}
+                  </p>
+                  <p className="pt-1 font-semibold">
+                    Total: {formatCurrency(compensationPreview.total)}
+                  </p>
+                  {hasMissingOpeRule ? (
+                    <p className="pt-1 text-sm font-medium text-destructive">
+                      Rule OPE untuk title kamu belum diatur admin. Silakan hubungi admin atau ubah
+                      opsi &quot;Luar Kota / Menginap&quot; ke &quot;Tidak&quot;.
+                    </p>
+                  ) : null}
+                </div>
+              ) : (
+                <p className="mt-2 text-sm text-muted-foreground">Pilih tanggal perjalanan untuk melihat estimasi.</p>
+              )}
+            </div>
+            <div className="md:col-span-2 flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsCreateDialogOpen(false)}
+                disabled={isSaving}
+              >
+                Batal
+              </Button>
+              <Button type="submit" disabled={isSaving || !canSubmitCreate}>
+                {isSaving ? "Menyimpan..." : "Ajukan Perjalanan"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={Boolean(detailRow)} onOpenChange={(open) => !open && setDetailRow(null)}>
         <DialogContent className="sm:max-w-[760px] p-6">
           <DialogHeader>
@@ -659,6 +918,37 @@ export default function BusinessTripPage() {
                 <div className="md:col-span-2">
                   <p className="text-muted-foreground">Rincian</p>
                   <p className="font-medium">{detailRow.purpose ?? "-"}</p>
+                </div>
+                <div className="md:col-span-2">
+                  <p className="text-muted-foreground">Detail Kompensasi</p>
+                  {detailRow.compensationBreakdown ? (
+                    <div className="mt-1 space-y-1 text-sm">
+                      <p>
+                        OPE: {formatCurrency(detailRow.compensationBreakdown.ope.daily)} x{" "}
+                        {detailRow.compensationBreakdown.ope.days} hari ={" "}
+                        {formatCurrency(detailRow.compensationBreakdown.ope.total)}
+                      </p>
+                      <p>
+                        Makan: {formatCurrency(detailRow.compensationBreakdown.meal.daily)} x{" "}
+                        {detailRow.compensationBreakdown.meal.days} hari ={" "}
+                        {formatCurrency(detailRow.compensationBreakdown.meal.total)}
+                      </p>
+                      <p>
+                        Laundry: {formatCurrency(detailRow.compensationBreakdown.laundry.weekly)} x{" "}
+                        {detailRow.compensationBreakdown.laundry.weeks} minggu ={" "}
+                        {formatCurrency(detailRow.compensationBreakdown.laundry.total)}
+                      </p>
+                      <p>
+                        Transport PP ({detailRow.compensationBreakdown.transport.label ?? "-"}):{" "}
+                        {formatCurrency(detailRow.compensationBreakdown.transport.amount)}
+                      </p>
+                      <p className="font-semibold">
+                        Total: {formatCurrency(detailRow.compensationBreakdown.total)}
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="font-medium">-</p>
+                  )}
                 </div>
               </div>
 
@@ -702,6 +992,22 @@ export default function BusinessTripPage() {
                   </div>
                 )}
               </div>
+
+              {isAdmin && (
+                <div className="rounded-lg border p-4">
+                  <p className="mb-3 text-sm font-semibold">Informasi Bank Pemohon</p>
+                  <div className="grid gap-3 text-sm md:grid-cols-2">
+                    <div>
+                      <p className="text-muted-foreground">Bank Name</p>
+                      <p className="font-medium">{detailRow.employee?.bankAccountName ?? "-"}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Bank Number</p>
+                      <p className="font-medium">{detailRow.employee?.bankAccountNumber ?? "-"}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </DialogContent>

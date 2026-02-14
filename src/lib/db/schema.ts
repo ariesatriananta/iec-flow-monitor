@@ -261,6 +261,20 @@ export const settingsReimbursementLimit = pgTable("settings_reimbursement_limit"
   updatedAt: timestamp("updated_at", { mode: "date" }).notNull(),
 });
 
+export const settingsBusinessTripAllowance = pgTable(
+  "settings_business_trip_allowance",
+  {
+    id: text("id").primaryKey(),
+    allowanceRuleJson: text("allowance_rule_json").notNull(),
+    mealPerDay: numeric("meal_per_day", { precision: 15, scale: 0 }).notNull().default("50000"),
+    laundryPerWeek: numeric("laundry_per_week", { precision: 15, scale: 0 }).notNull().default("30000"),
+    laundryMinDays: integer("laundry_min_days").notNull().default(3),
+    transportOptionJson: text("transport_option_json").notNull().default("[]"),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date" }).notNull(),
+  }
+);
+
 export const employees = pgTable(
   "employees",
   {
@@ -352,6 +366,15 @@ export const businessTrips = pgTable(
     endDate: timestamp("end_date", { mode: "date" }).notNull(),
     status: text("status").notNull().default("SUBMITTED"),
     adminNote: text("admin_note"),
+    allowanceRuleId: text("allowance_rule_id"),
+    allowanceRuleLabel: text("allowance_rule_label"),
+    allowanceDaily: numeric("allowance_daily", { precision: 15, scale: 0 }),
+    allowanceDays: integer("allowance_days"),
+    allowanceTotal: numeric("allowance_total", { precision: 15, scale: 0 }),
+    isOutOfTownOvernight: boolean("is_out_of_town_overnight").notNull().default(false),
+    transportOptionId: text("transport_option_id"),
+    compensationBreakdownJson: text("compensation_breakdown_json"),
+    compensationTotal: numeric("compensation_total", { precision: 15, scale: 0 }),
     approvedBy: text("approved_by").references(() => users.id),
     approvedAt: timestamp("approved_at", { mode: "date" }),
     createdAt: timestamp("created_at", { mode: "date" }).notNull(),
