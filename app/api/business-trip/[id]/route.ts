@@ -13,6 +13,10 @@ import {
 import { requireAdmin, requireSessionUser } from "@/lib/auth/server";
 import { createWorkflowEvent } from "@/lib/workflow-events";
 import {
+  createNotificationsForUsers,
+  resolveUserIdsByEmployeeIds,
+} from "@/lib/notifications";
+import {
   calculateBusinessTripCompensation,
   DEFAULT_BUSINESS_TRIP_COMPENSATION_SETTINGS,
   normalizeOpeRules,
@@ -229,6 +233,21 @@ export async function PUT(
         actorUserId: auth.user.id,
         actorEmployeeId: auth.user.employeeId,
       });
+
+      const approverMap = await resolveUserIdsByEmployeeIds(db, [
+        approverLevel1EmployeeId,
+        approverLevel2EmployeeId,
+      ]);
+      const targetUserIds = [approverLevel1EmployeeId, approverLevel2EmployeeId]
+        .map((employeeId) => (employeeId ? approverMap.get(employeeId) ?? null : null))
+        .filter((userId): userId is string => Boolean(userId) && userId !== auth.user.id);
+      await createNotificationsForUsers(db, targetUserIds, {
+        type: "BUSINESS_TRIP_CANCELLED",
+        title: "Perjalanan Dinas Dibatalkan",
+        message: "Pengaju membatalkan pengajuan perjalanan dinas.",
+        entityType: "BUSINESS_TRIP",
+        entityId: updated.id,
+      });
     }
 
     return NextResponse.json({
@@ -379,6 +398,37 @@ export async function PUT(
       note: body.adminNote ?? null,
       actorUserId: auth.user.id,
       actorEmployeeId: auth.user.employeeId,
+    });
+
+    const userByEmployee = await resolveUserIdsByEmployeeIds(db, [
+      existing.employeeId,
+      approverLevel2EmployeeId,
+    ]);
+    const requesterUserId = userByEmployee.get(existing.employeeId);
+    const notificationTargets: string[] = [];
+
+    if (requesterUserId && requesterUserId !== auth.user.id) {
+      notificationTargets.push(requesterUserId);
+    }
+    if (updated.status === "WAITING_LEVEL_2" && approverLevel2EmployeeId) {
+      const approverL2UserId = userByEmployee.get(approverLevel2EmployeeId);
+      if (approverL2UserId && approverL2UserId !== auth.user.id) {
+        notificationTargets.push(approverL2UserId);
+      }
+    }
+
+    await createNotificationsForUsers(db, notificationTargets, {
+      type: `BUSINESS_TRIP_${updated.status}`,
+      title:
+        updated.status === "WAITING_LEVEL_2"
+          ? "Perjalanan Dinas Menunggu Approval L2"
+          : "Update Status Perjalanan Dinas",
+      message:
+        updated.status === "WAITING_LEVEL_2"
+          ? "Ada pengajuan perjalanan dinas yang perlu Anda review di level 2."
+          : `Status perjalanan dinas berubah menjadi ${updated.status}.`,
+      entityType: "BUSINESS_TRIP",
+      entityId: updated.id,
     });
   }
 

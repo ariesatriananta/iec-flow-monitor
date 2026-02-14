@@ -7,6 +7,10 @@ import { getDb } from "@/lib/db";
 import { leaveRequests, settingsApprovalFlow } from "@/lib/db/schema";
 import { requireAdmin, requireSessionUser } from "@/lib/auth/server";
 import { createWorkflowEvent } from "@/lib/workflow-events";
+import {
+  createNotificationsForUsers,
+  resolveUserIdsByEmployeeIds,
+} from "@/lib/notifications";
 
 const dateStringSchema = z
   .string()
@@ -126,6 +130,21 @@ export async function PUT(
         note: "Dibatalkan oleh pengaju",
         actorUserId: auth.user.id,
         actorEmployeeId: auth.user.employeeId,
+      });
+
+      const approverMap = await resolveUserIdsByEmployeeIds(db, [
+        approverLevel1EmployeeId,
+        approverLevel2EmployeeId,
+      ]);
+      const targetUserIds = [approverLevel1EmployeeId, approverLevel2EmployeeId]
+        .map((employeeId) => (employeeId ? approverMap.get(employeeId) ?? null : null))
+        .filter((userId): userId is string => Boolean(userId) && userId !== auth.user.id);
+      await createNotificationsForUsers(db, targetUserIds, {
+        type: "LEAVE_CANCELLED",
+        title: "Pengajuan Cuti Dibatalkan",
+        message: "Pengaju membatalkan pengajuan cuti sebelum diproses.",
+        entityType: "LEAVE",
+        entityId: updated.id,
       });
     }
 
@@ -254,6 +273,37 @@ export async function PUT(
       note: body.adminNote ?? null,
       actorUserId: auth.user.id,
       actorEmployeeId: auth.user.employeeId,
+    });
+
+    const userByEmployee = await resolveUserIdsByEmployeeIds(db, [
+      existing.employeeId,
+      approverLevel2EmployeeId,
+    ]);
+    const requesterUserId = userByEmployee.get(existing.employeeId);
+    const notificationTargets: string[] = [];
+
+    if (requesterUserId && requesterUserId !== auth.user.id) {
+      notificationTargets.push(requesterUserId);
+    }
+    if (updated.status === "WAITING_LEVEL_2" && approverLevel2EmployeeId) {
+      const approverL2UserId = userByEmployee.get(approverLevel2EmployeeId);
+      if (approverL2UserId && approverL2UserId !== auth.user.id) {
+        notificationTargets.push(approverL2UserId);
+      }
+    }
+
+    await createNotificationsForUsers(db, notificationTargets, {
+      type: `LEAVE_${updated.status}`,
+      title:
+        updated.status === "WAITING_LEVEL_2"
+          ? "Pengajuan Cuti Menunggu Approval L2"
+          : "Update Status Pengajuan Cuti",
+      message:
+        updated.status === "WAITING_LEVEL_2"
+          ? "Ada pengajuan cuti yang perlu Anda review di level 2."
+          : `Status pengajuan cuti berubah menjadi ${updated.status}.`,
+      entityType: "LEAVE",
+      entityId: updated.id,
     });
   }
 

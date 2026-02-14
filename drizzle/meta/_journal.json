@@ -155,6 +155,13 @@
       "when": 1768078800000,
       "tag": "0021_business_trip_compensation_model",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1768165200000,
+      "tag": "0022_in_app_notifications",
+      "breakpoints": true
     }
   ]
 }

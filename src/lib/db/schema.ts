@@ -461,3 +461,29 @@ export const workflowEvents = pgTable(
     createdAtIdx: index("workflow_events_created_at_idx").on(table.createdAt),
   })
 );
+
+export const notifications = pgTable(
+  "notifications",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    type: text("type").notNull(),
+    title: text("title").notNull(),
+    message: text("message").notNull(),
+    entityType: text("entity_type"),
+    entityId: text("entity_id"),
+    isRead: boolean("is_read").notNull().default(false),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull(),
+    readAt: timestamp("read_at", { mode: "date" }),
+  },
+  (table) => ({
+    userIdIdx: index("notifications_user_id_idx").on(table.userId),
+    unreadIdx: index("notifications_user_unread_created_idx").on(
+      table.userId,
+      table.isRead,
+      table.createdAt
+    ),
+  })
+);

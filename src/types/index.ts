@@ -351,3 +351,16 @@ export interface ReimbursementAttachment {
   uploadedBy: string;
   createdAt: Date;
 }
+
+export interface InAppNotification {
+  id: string;
+  userId: string;
+  type: string;
+  title: string;
+  message: string;
+  entityType?: "LEAVE" | "BUSINESS_TRIP" | "REIMBURSEMENT" | string | null;
+  entityId?: string | null;
+  isRead: boolean;
+  createdAt: Date;
+  readAt?: Date | null;
+}

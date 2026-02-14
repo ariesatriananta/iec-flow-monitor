@@ -10,6 +10,10 @@ import {
   createWorkflowEvent,
   fetchWorkflowEventsByEntityIds,
 } from "@/lib/workflow-events";
+import {
+  createNotificationsForUsers,
+  resolveUserIdsByEmployeeIds,
+} from "@/lib/notifications";
 
 const workflowStatusSchema = z.union([
   z.literal("SUBMITTED"),
@@ -248,6 +252,23 @@ export async function POST(request: Request) {
     actorUserId: auth.user.id,
     actorEmployeeId: auth.user.employeeId,
   });
+
+  const [approvalFlow] = await db.select().from(settingsApprovalFlow).limit(1);
+  const approverMap = await resolveUserIdsByEmployeeIds(db, [
+    approvalFlow?.leaveApproverLevel1EmployeeId ?? null,
+  ]);
+  const approverUserId = approvalFlow?.leaveApproverLevel1EmployeeId
+    ? approverMap.get(approvalFlow.leaveApproverLevel1EmployeeId)
+    : null;
+  if (approverUserId && approverUserId !== auth.user.id) {
+    await createNotificationsForUsers(db, [approverUserId], {
+      type: "LEAVE_SUBMITTED",
+      title: "Pengajuan Cuti Baru",
+      message: "Ada pengajuan cuti baru yang menunggu approval level 1.",
+      entityType: "LEAVE",
+      entityId: created.id,
+    });
+  }
 
   return NextResponse.json(created, { status: 201 });
 }

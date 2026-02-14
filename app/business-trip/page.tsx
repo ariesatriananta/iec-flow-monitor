@@ -400,7 +400,8 @@ export default function BusinessTripPage() {
         })
       : null;
   const hasMissingOpeRule =
-    isOutOfTownOvernight === "YES" && Boolean(compensationPreview) && !compensationPreview.ope.ruleId;
+    isOutOfTownOvernight === "YES" &&
+    Boolean(compensationPreview && !compensationPreview.ope.ruleId);
   const canSubmitCreate =
     destinationCity.trim().length > 0 &&
     companyName.trim().length > 0 &&

@@ -17,6 +17,10 @@ import {
   fetchWorkflowEventsByEntityIds,
 } from "@/lib/workflow-events";
 import {
+  createNotificationsForUsers,
+  resolveUserIdsByEmployeeIds,
+} from "@/lib/notifications";
+import {
   calculateBusinessTripCompensation,
   DEFAULT_BUSINESS_TRIP_COMPENSATION_SETTINGS,
   normalizeOpeRules,
@@ -357,6 +361,23 @@ export async function POST(request: Request) {
     actorUserId: auth.user.id,
     actorEmployeeId: auth.user.employeeId,
   });
+
+  const [approvalFlow] = await db.select().from(settingsApprovalFlow).limit(1);
+  const approverMap = await resolveUserIdsByEmployeeIds(db, [
+    approvalFlow?.businessTripApproverLevel1EmployeeId ?? null,
+  ]);
+  const approverUserId = approvalFlow?.businessTripApproverLevel1EmployeeId
+    ? approverMap.get(approvalFlow.businessTripApproverLevel1EmployeeId)
+    : null;
+  if (approverUserId && approverUserId !== auth.user.id) {
+    await createNotificationsForUsers(db, [approverUserId], {
+      type: "BUSINESS_TRIP_SUBMITTED",
+      title: "Pengajuan Perjalanan Dinas Baru",
+      message: "Ada pengajuan perjalanan dinas baru yang menunggu approval level 1.",
+      entityType: "BUSINESS_TRIP",
+      entityId: created.id,
+    });
+  }
 
   return NextResponse.json(
     {

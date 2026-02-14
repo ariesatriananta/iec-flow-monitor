@@ -2,6 +2,7 @@
 
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,9 +12,12 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
-import { Search, Sun, Moon, User, LogOut, UserCircle, Menu, Settings } from 'lucide-react';
+import { fetchNotifications, markAllNotificationsRead, markNotificationRead } from '@/lib/api/notifications';
+import type { InAppNotification } from '@/types';
+import { Search, Sun, Moon, User, LogOut, UserCircle, Menu, Settings, Bell, CheckCheck } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
+import { useCallback, useEffect, useState } from 'react';
 
 interface AdminHeaderProps {
   title?: string;
@@ -26,10 +30,85 @@ export function AdminHeader({ title, onOpenSidebar }: AdminHeaderProps) {
   const { theme, setTheme } = useTheme();
   const isDark = theme === 'dark';
   const displayName = user?.employee?.fullName?.trim() || user?.name || '-';
+  const [notifications, setNotifications] = useState<InAppNotification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [isNotificationLoading, setIsNotificationLoading] = useState(false);
+
+  const loadNotifications = useCallback(async () => {
+    if (!user) return;
+    setIsNotificationLoading(true);
+    try {
+      const result = await fetchNotifications(20, 0);
+      setNotifications(result.items);
+      setUnreadCount(result.unreadCount);
+    } catch {
+      setNotifications([]);
+      setUnreadCount(0);
+    } finally {
+      setIsNotificationLoading(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    void loadNotifications();
+    const intervalId = window.setInterval(() => {
+      void loadNotifications();
+    }, 30000);
+
+    return () => window.clearInterval(intervalId);
+  }, [loadNotifications, user]);
 
   const handleLogout = async () => {
     await logout();
     window.location.replace('/login');
+  };
+
+  const resolveNotificationPath = (item: InAppNotification) => {
+    if (item.entityType === 'LEAVE') return '/leave-management';
+    if (item.entityType === 'BUSINESS_TRIP') return '/business-trip';
+    if (item.entityType === 'REIMBURSEMENT') return '/reimbursement';
+    return '/dashboard';
+  };
+
+  const handleNotificationClick = async (item: InAppNotification) => {
+    if (!item.isRead) {
+      try {
+        await markNotificationRead(item.id);
+        setNotifications((prev) =>
+          prev.map((entry) =>
+            entry.id === item.id
+              ? {
+                  ...entry,
+                  isRead: true,
+                  readAt: new Date(),
+                }
+              : entry
+          )
+        );
+        setUnreadCount((prev) => Math.max(0, prev - 1));
+      } catch {
+        // no-op; fallback to navigation
+      }
+    }
+    router.push(resolveNotificationPath(item));
+  };
+
+  const handleMarkAllRead = async () => {
+    try {
+      await markAllNotificationsRead();
+      setNotifications((prev) =>
+        prev.map((entry) => ({
+          ...entry,
+          isRead: true,
+          readAt: entry.readAt ?? new Date(),
+        }))
+      );
+      setUnreadCount(0);
+    } catch {
+      // no-op
+    }
   };
 
   return (
@@ -69,6 +148,61 @@ export function AdminHeader({ title, onOpenSidebar }: AdminHeaderProps) {
         >
           {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
         </Button>
+
+        <DropdownMenu onOpenChange={(open) => open && void loadNotifications()}>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="relative" aria-label="Notifications">
+              <Bell className="w-5 h-5" />
+              {unreadCount > 0 && (
+                <span className="absolute -right-0.5 -top-0.5 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold text-destructive-foreground">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-[360px] p-0">
+            <div className="flex items-center justify-between px-3 py-2">
+              <DropdownMenuLabel className="p-0">Notifikasi</DropdownMenuLabel>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 px-2 text-xs"
+                disabled={unreadCount === 0}
+                onClick={handleMarkAllRead}
+              >
+                <CheckCheck className="mr-1.5 h-3.5 w-3.5" />
+                Mark all read
+              </Button>
+            </div>
+            <DropdownMenuSeparator className="m-0" />
+            <ScrollArea className="max-h-80">
+              <div className="p-1">
+                {isNotificationLoading ? (
+                  <p className="px-2 py-6 text-center text-sm text-muted-foreground">Memuat notifikasi...</p>
+                ) : notifications.length === 0 ? (
+                  <p className="px-2 py-6 text-center text-sm text-muted-foreground">Belum ada notifikasi.</p>
+                ) : (
+                  notifications.map((item) => (
+                    <DropdownMenuItem
+                      key={item.id}
+                      onClick={() => void handleNotificationClick(item)}
+                      className={`mb-1 flex flex-col items-start rounded-md px-2 py-2 focus:bg-accent/80 ${
+                        item.isRead ? 'opacity-80' : 'bg-primary/5'
+                      }`}
+                    >
+                      <div className="flex w-full items-start justify-between gap-2">
+                        <p className="text-sm font-medium leading-tight">{item.title}</p>
+                        {!item.isRead && <span className="mt-1 h-2 w-2 rounded-full bg-primary" />}
+                      </div>
+                      <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{item.message}</p>
+                    </DropdownMenuItem>
+                  ))
+                )}
+              </div>
+            </ScrollArea>
+          </DropdownMenuContent>
+        </DropdownMenu>
 
         {/* User Menu */}
         <DropdownMenu>

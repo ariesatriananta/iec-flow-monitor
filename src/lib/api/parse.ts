@@ -15,6 +15,7 @@ import type {
   Reimbursement,
   ReimbursementAttachment,
   WorkflowEvent,
+  InAppNotification,
 } from "@/types";
 
 const toDate = (value: string | Date): Date => {
@@ -160,4 +161,10 @@ const parseReimbursementAttachment = (
 const parseWorkflowEvent = (data: WorkflowEvent): WorkflowEvent => ({
   ...data,
   createdAt: toDate(data.createdAt),
+});
+
+export const parseInAppNotification = (data: InAppNotification): InAppNotification => ({
+  ...data,
+  createdAt: toDate(data.createdAt),
+  readAt: data.readAt ? toDate(data.readAt) : null,
 });

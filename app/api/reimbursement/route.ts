@@ -8,6 +8,7 @@ import {
   employees,
   reimbursementAttachments,
   reimbursements,
+  settingsApprovalFlow,
   users,
 } from "@/lib/db/schema";
 import { requireSessionUser } from "@/lib/auth/server";
@@ -15,6 +16,10 @@ import {
   createWorkflowEvent,
   fetchWorkflowEventsByEntityIds,
 } from "@/lib/workflow-events";
+import {
+  createNotificationsForUsers,
+  resolveUserIdsByEmployeeIds,
+} from "@/lib/notifications";
 
 const workflowStatusSchema = z.union([
   z.literal("SUBMITTED"),
@@ -261,6 +266,23 @@ export async function POST(request: Request) {
     actorUserId: auth.user.id,
     actorEmployeeId: auth.user.employeeId,
   });
+
+  const [approvalFlow] = await db.select().from(settingsApprovalFlow).limit(1);
+  const approverMap = await resolveUserIdsByEmployeeIds(db, [
+    approvalFlow?.reimbursementApproverLevel1EmployeeId ?? null,
+  ]);
+  const approverUserId = approvalFlow?.reimbursementApproverLevel1EmployeeId
+    ? approverMap.get(approvalFlow.reimbursementApproverLevel1EmployeeId)
+    : null;
+  if (approverUserId && approverUserId !== auth.user.id) {
+    await createNotificationsForUsers(db, [approverUserId], {
+      type: "REIMBURSEMENT_SUBMITTED",
+      title: "Pengajuan Reimbursement Baru",
+      message: "Ada pengajuan reimbursement baru yang menunggu approval level 1.",
+      entityType: "REIMBURSEMENT",
+      entityId: created.id,
+    });
+  }
 
   if (incomingAttachments.length > 0) {
     await db.insert(reimbursementAttachments).values(
