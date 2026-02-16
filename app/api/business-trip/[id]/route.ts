@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/lib/db";
 import {
@@ -64,6 +64,8 @@ const adminUpdateSchema = z.object({
 
 const formatZodError = (error: z.ZodError) =>
   error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; ");
+
+const ACTIVE_TRIP_STATUSES = ["SUBMITTED", "WAITING_LEVEL_2", "APPROVED"] as const;
 
 const parseOpeRules = (value: string | null | undefined): OpeRule[] => {
   if (!value) return DEFAULT_BUSINESS_TRIP_COMPENSATION_SETTINGS.opeRules;
@@ -188,6 +190,31 @@ export async function PUT(
         { status: 400 }
       );
     }
+    const nextStatus = body.status === "CANCELLED" ? "CANCELLED" : existing.status;
+    if (nextStatus !== "CANCELLED") {
+      const [overlap] = await db
+        .select({ id: businessTrips.id })
+        .from(businessTrips)
+        .where(
+          and(
+            eq(businessTrips.employeeId, existing.employeeId),
+            inArray(businessTrips.status, [...ACTIVE_TRIP_STATUSES]),
+            sql`${businessTrips.startDate} <= ${endDate}`,
+            sql`${businessTrips.endDate} >= ${startDate}`,
+            sql`${businessTrips.id} <> ${params.id}`
+          )
+        )
+        .limit(1);
+      if (overlap) {
+        return NextResponse.json(
+          {
+            error:
+              "Tanggal perjalanan dinas bentrok dengan pengajuan lain yang masih aktif.",
+          },
+          { status: 400 }
+        );
+      }
+    }
     const compensation = calculateBusinessTripCompensation({
       employeeTitle: employee.title,
       startDate,
@@ -216,11 +243,22 @@ export async function PUT(
         transportOptionId: body.transportOptionId ?? existing.transportOptionId ?? null,
         compensationBreakdownJson: JSON.stringify(compensation),
         compensationTotal: compensation.total.toString(),
-        status: body.status === "CANCELLED" ? "CANCELLED" : existing.status,
+        status: nextStatus,
         updatedAt: new Date(),
       })
-      .where(eq(businessTrips.id, params.id))
+      .where(
+        and(eq(businessTrips.id, params.id), eq(businessTrips.status, existing.status))
+      )
       .returning();
+    if (!updated) {
+      return NextResponse.json(
+        {
+          error:
+            "Data sudah berubah oleh proses lain. Silakan refresh lalu coba lagi.",
+        },
+        { status: 409 }
+      );
+    }
 
     if (updated.status !== existing.status && updated.status === "CANCELLED") {
       await createWorkflowEvent(db, {
@@ -344,6 +382,31 @@ export async function PUT(
     );
   }
 
+  if (nextStatus !== "CANCELLED") {
+    const [overlap] = await db
+      .select({ id: businessTrips.id })
+      .from(businessTrips)
+      .where(
+        and(
+          eq(businessTrips.employeeId, existing.employeeId),
+          inArray(businessTrips.status, [...ACTIVE_TRIP_STATUSES]),
+          sql`${businessTrips.startDate} <= ${endDate}`,
+          sql`${businessTrips.endDate} >= ${startDate}`,
+          sql`${businessTrips.id} <> ${params.id}`
+        )
+      )
+      .limit(1);
+    if (overlap) {
+      return NextResponse.json(
+        {
+          error:
+            "Tanggal perjalanan dinas bentrok dengan pengajuan lain yang masih aktif.",
+        },
+        { status: 400 }
+      );
+    }
+  }
+
   const [updated] = await db
     .update(businessTrips)
     .set({
@@ -368,8 +431,17 @@ export async function PUT(
       approvedAt,
       updatedAt: new Date(),
     })
-    .where(eq(businessTrips.id, params.id))
+    .where(and(eq(businessTrips.id, params.id), eq(businessTrips.status, existing.status)))
     .returning();
+  if (!updated) {
+    return NextResponse.json(
+      {
+        error:
+          "Data sudah berubah oleh proses lain. Silakan refresh lalu coba lagi.",
+      },
+      { status: 409 }
+    );
+  }
 
   if (updated.status !== existing.status) {
     let action = "STATUS_CHANGED";

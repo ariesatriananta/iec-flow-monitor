@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
-import { and, desc, eq, or, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, inArray, or, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/lib/db";
 import {
@@ -62,6 +62,8 @@ const createSchema = z.object({
 
 const formatZodError = (error: z.ZodError) =>
   error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`).join("; ");
+
+const ACTIVE_TRIP_STATUSES = ["SUBMITTED", "WAITING_LEVEL_2", "APPROVED"] as const;
 
 const parseOpeRules = (value: string | null | undefined): OpeRule[] => {
   if (!value) return DEFAULT_BUSINESS_TRIP_COMPENSATION_SETTINGS.opeRules;
@@ -303,6 +305,28 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: "Data employee tidak ditemukan" },
       { status: 404 }
+    );
+  }
+
+  const [overlap] = await db
+    .select({ id: businessTrips.id })
+    .from(businessTrips)
+    .where(
+      and(
+        eq(businessTrips.employeeId, targetEmployeeId),
+        inArray(businessTrips.status, [...ACTIVE_TRIP_STATUSES]),
+        sql`${businessTrips.startDate} <= ${endDate}`,
+        sql`${businessTrips.endDate} >= ${startDate}`
+      )
+    )
+    .limit(1);
+  if (overlap) {
+    return NextResponse.json(
+      {
+        error:
+          "Tanggal perjalanan dinas bentrok dengan pengajuan lain yang masih aktif.",
+      },
+      { status: 400 }
     );
   }
 

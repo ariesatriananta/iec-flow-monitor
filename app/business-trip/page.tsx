@@ -20,6 +20,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -69,6 +70,7 @@ import {
   MoreHorizontal,
   PlaneTakeoff,
   Plus,
+  Printer,
   Search,
   Trash2,
   XCircle,
@@ -94,6 +96,14 @@ const parseDateKeyToDate = (value: string) => {
   if (!year || !month || !day) return undefined;
   return new Date(year, month - 1, day);
 };
+
+const escapeHtml = (value: string) =>
+  value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 
 const formatActorLabel = (event?: WorkflowEvent | null) => {
   if (!event) return "-";
@@ -189,6 +199,8 @@ export default function BusinessTripPage() {
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<BusinessTrip | null>(null);
   const [detailRow, setDetailRow] = useState<BusinessTrip | null>(null);
+  const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
+  const [printRow, setPrintRow] = useState<BusinessTrip | null>(null);
   const [approvalLevels, setApprovalLevels] = useState<1 | 2>(2);
   const [approverLevel1EmployeeId, setApproverLevel1EmployeeId] = useState<string | null>(null);
   const [approverLevel2EmployeeId, setApproverLevel2EmployeeId] = useState<string | null>(null);
@@ -205,6 +217,7 @@ export default function BusinessTripPage() {
   const [compensationSetting, setCompensationSetting] = useState<BusinessTripAllowancePayload>(
     DEFAULT_BUSINESS_TRIP_COMPENSATION_SETTINGS
   );
+  const [headerDataUrl, setHeaderDataUrl] = useState<string>("");
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -257,6 +270,28 @@ export default function BusinessTripPage() {
         setCompensationSetting(DEFAULT_BUSINESS_TRIP_COMPENSATION_SETTINGS);
       }
     })();
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const loadHeader = async () => {
+      try {
+        const response = await fetch("/invoice-header.png");
+        const blob = await response.blob();
+        const reader = new FileReader();
+        reader.onload = () => {
+          if (!active) return;
+          setHeaderDataUrl(typeof reader.result === "string" ? reader.result : "");
+        };
+        reader.readAsDataURL(blob);
+      } catch (error) {
+        console.error(error);
+      }
+    };
+    void loadHeader();
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -362,6 +397,180 @@ export default function BusinessTripPage() {
     } finally {
       setDeleteTarget(null);
     }
+  };
+
+  const openPrintForm = (row: BusinessTrip) => {
+    setPrintRow(row);
+    setIsPrintPreviewOpen(true);
+    if (row.status !== "APPROVED") {
+      toast({
+        title: "Belum Approved",
+        description:
+          "Form tetap bisa dicetak untuk arsip draft, namun status pengajuan belum APPROVED.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handlePrintBusinessTrip = () => {
+    if (!printRow) return;
+    const printWindow = window.open("", "_blank", "width=1000,height=850");
+    if (!printWindow) return;
+    const headerUrl = headerDataUrl || `${window.location.origin}/invoice-header.png`;
+
+    const approvedEvent = findLatestEvent(
+      printRow.workflowEvents ?? [],
+      (event) => event.toStatus === "APPROVED"
+    );
+    const approvedByLabel = formatActorLabel(approvedEvent);
+    const approvedAtLabel = approvedEvent
+      ? formatDateTime(approvedEvent.createdAt)
+      : printRow.approvedAt
+      ? formatDateTime(printRow.approvedAt)
+      : "-";
+    const totalDays =
+      printRow.allowanceDays ??
+      Math.max(
+        1,
+        Math.floor(
+          (new Date(printRow.endDate).getTime() - new Date(printRow.startDate).getTime()) /
+            (1000 * 60 * 60 * 24)
+        ) + 1
+      );
+
+    const html = `
+      <!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>FORM BUSINESS TRIP</title>
+          <style>
+            body { font-family: Arial, sans-serif; color: #111; margin: 0; padding: 24px; }
+            .sheet { max-width: 860px; margin: 0 auto; border: 1px solid #111; padding: 20px; }
+            .title { text-align: center; font-size: 22px; font-weight: 700; letter-spacing: .03em; }
+            .header { position: relative; height: 170px; margin-bottom: 10px; }
+            .header-bg { position: absolute; inset: 0; background-image: url('${headerUrl}'); background-size: cover; background-position: top center; }
+            .grid { display: grid; grid-template-columns: 220px 20px 1fr; gap: 6px 0; font-size: 13px; margin-top: 18px; }
+            .box { margin-top: 14px; border: 1px solid #111; padding: 10px; font-size: 13px; }
+            .box-title { font-weight: 700; margin: 0 0 8px; }
+            .comp-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+            .comp-table th, .comp-table td { border: 1px solid #111; padding: 6px 8px; }
+            .comp-table th { text-align: left; background: #f3f4f6; }
+            .sig { margin-top: 28px; display: grid; grid-template-columns: 1fr 1fr; gap: 32px; text-align: center; font-size: 13px; }
+            .sig-space { height: 86px; }
+            @media print {
+              @page { size: A4; margin: 14mm; }
+              body { padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            }
+          </style>
+        </head>
+        <body>
+          <section class="sheet">
+            <div class="header"><div class="header-bg"></div></div>
+            <div class="title">FORM BUSINESS TRIP</div>
+
+            <div class="grid">
+              <div>Client</div><div>:</div><div>${escapeHtml(printRow.companyName)}</div>
+              <div>Period</div><div>:</div><div>${escapeHtml(formatDate(new Date(printRow.startDate)))} - ${escapeHtml(
+      formatDate(new Date(printRow.endDate))
+    )}</div>
+              <div>Location</div><div>:</div><div>${escapeHtml(printRow.destinationCity)}</div>
+              <div>Date of Assignment</div><div>:</div><div>${escapeHtml(
+                formatDate(new Date(printRow.createdAt))
+              )} (Approved: ${escapeHtml(approvedAtLabel)})</div>
+            </div>
+
+            <hr style="margin:14px 0;border:none;border-top:1px solid #111" />
+
+            <div class="grid">
+              <div>Name</div><div>:</div><div>${escapeHtml(
+                printRow.employee?.fullName ?? printRow.user?.name ?? "-"
+              )}</div>
+              <div>Title - Department</div><div>:</div><div>${escapeHtml(
+                printRow.employee?.title ?? "-"
+              )} - ${escapeHtml(printRow.employee?.department ?? "-")}</div>
+              <div>Number of Days</div><div>:</div><div>${totalDays} days</div>
+              <div>Purpose</div><div>:</div><div>${escapeHtml(printRow.purpose ?? "-")}</div>
+            </div>
+
+            <div class="box">
+              <p class="box-title">Compensation</p>
+              <table class="comp-table">
+                <thead>
+                  <tr>
+                    <th>Komponen</th>
+                    <th>Rumus</th>
+                    <th>Nominal</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>OPE</td>
+                    <td>${formatCurrency(Number(printRow.compensationBreakdown?.ope.daily ?? 0))} x ${
+      printRow.compensationBreakdown?.ope.days ?? 0
+    } hari</td>
+                    <td>${formatCurrency(Number(printRow.compensationBreakdown?.ope.total ?? 0))}</td>
+                  </tr>
+                  <tr>
+                    <td>Makan</td>
+                    <td>${formatCurrency(Number(printRow.compensationBreakdown?.meal.daily ?? 0))} x ${
+      printRow.compensationBreakdown?.meal.days ?? 0
+    } hari</td>
+                    <td>${formatCurrency(Number(printRow.compensationBreakdown?.meal.total ?? 0))}</td>
+                  </tr>
+                  <tr>
+                    <td>Laundry</td>
+                    <td>${formatCurrency(Number(printRow.compensationBreakdown?.laundry.weekly ?? 0))} x ${
+      printRow.compensationBreakdown?.laundry.weeks ?? 0
+    } minggu</td>
+                    <td>${formatCurrency(Number(printRow.compensationBreakdown?.laundry.total ?? 0))}</td>
+                  </tr>
+                  <tr>
+                    <td>Transport PP</td>
+                    <td>${escapeHtml(printRow.compensationBreakdown?.transport.label ?? "-")}</td>
+                    <td>${formatCurrency(Number(printRow.compensationBreakdown?.transport.amount ?? 0))}</td>
+                  </tr>
+                  <tr>
+                    <td colspan="2" style="text-align:right;font-weight:700">Total</td>
+                    <td style="font-weight:700">${formatCurrency(
+                      Number(printRow.compensationBreakdown?.total ?? printRow.compensationTotal ?? 0)
+                    )}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="box">
+              <p class="box-title">Please transfer your payment to account:</p>
+              <div class="grid" style="margin-top:0">
+                <div>Name</div><div>:</div><div>${escapeHtml(printRow.employee?.fullName ?? "-")}</div>
+                <div>Bank</div><div>:</div><div>${escapeHtml(printRow.employee?.bankAccountName ?? "-")}</div>
+                <div>A/C</div><div>:</div><div>${escapeHtml(printRow.employee?.bankAccountNumber ?? "-")}</div>
+              </div>
+            </div>
+
+            <div class="sig">
+              <div>
+                <p><strong>Submitted by,</strong></p>
+                <div class="sig-space"></div>
+                <p>(${escapeHtml(printRow.employee?.fullName ?? printRow.user?.name ?? "-")})</p>
+              </div>
+              <div>
+                <p><strong>Approved by,</strong></p>
+                <div class="sig-space"></div>
+                <p>(${escapeHtml(approvedByLabel)})</p>
+              </div>
+            </div>
+          </section>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
   };
 
   const actionText = (status: string) => {
@@ -537,6 +746,10 @@ export default function BusinessTripPage() {
                                     <Eye className="mr-2 h-4 w-4" />
                                     Lihat Detail
                                   </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => openPrintForm(row)}>
+                                    <Printer className="mr-2 h-4 w-4" />
+                                    Cetak Form
+                                  </DropdownMenuItem>
                                   {isApprover && canAdminProcess(row.status) && (
                                     <DropdownMenuItem onClick={() => setPendingAction({ row, nextStatus: "APPROVED" })}>
                                       <CheckCircle2 className="mr-2 h-4 w-4 text-emerald-600" />
@@ -621,6 +834,10 @@ export default function BusinessTripPage() {
                               <DropdownMenuItem onClick={() => setDetailRow(row)}>
                                 <Eye className="mr-2 h-4 w-4" />
                                 Lihat Detail
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => openPrintForm(row)}>
+                                <Printer className="mr-2 h-4 w-4" />
+                                Cetak Form
                               </DropdownMenuItem>
                               {isApprover && canAdminProcess(row.status) && (
                                 <DropdownMenuItem onClick={() => setPendingAction({ row, nextStatus: "APPROVED" })}>
@@ -887,6 +1104,12 @@ export default function BusinessTripPage() {
           </DialogHeader>
           {detailRow && (
             <div className="grid gap-4">
+              <div className="flex items-center justify-end gap-3">
+                <Button type="button" variant="outline" onClick={() => openPrintForm(detailRow)}>
+                  <Printer className="mr-2 h-4 w-4" />
+                  Cetak Form
+                </Button>
+              </div>
               <div className="grid gap-3 rounded-lg border p-4 text-sm md:grid-cols-2">
                 <div>
                   <p className="text-muted-foreground">Pemohon</p>
@@ -923,29 +1146,63 @@ export default function BusinessTripPage() {
                 <div className="md:col-span-2">
                   <p className="text-muted-foreground">Detail Kompensasi</p>
                   {detailRow.compensationBreakdown ? (
-                    <div className="mt-1 space-y-1 text-sm">
-                      <p>
-                        OPE: {formatCurrency(detailRow.compensationBreakdown.ope.daily)} x{" "}
-                        {detailRow.compensationBreakdown.ope.days} hari ={" "}
-                        {formatCurrency(detailRow.compensationBreakdown.ope.total)}
-                      </p>
-                      <p>
-                        Makan: {formatCurrency(detailRow.compensationBreakdown.meal.daily)} x{" "}
-                        {detailRow.compensationBreakdown.meal.days} hari ={" "}
-                        {formatCurrency(detailRow.compensationBreakdown.meal.total)}
-                      </p>
-                      <p>
-                        Laundry: {formatCurrency(detailRow.compensationBreakdown.laundry.weekly)} x{" "}
-                        {detailRow.compensationBreakdown.laundry.weeks} minggu ={" "}
-                        {formatCurrency(detailRow.compensationBreakdown.laundry.total)}
-                      </p>
-                      <p>
-                        Transport PP ({detailRow.compensationBreakdown.transport.label ?? "-"}):{" "}
-                        {formatCurrency(detailRow.compensationBreakdown.transport.amount)}
-                      </p>
-                      <p className="font-semibold">
-                        Total: {formatCurrency(detailRow.compensationBreakdown.total)}
-                      </p>
+                    <div className="mt-2 overflow-auto rounded-md border">
+                      <table className="w-full text-sm">
+                        <thead className="bg-muted/60">
+                          <tr>
+                            <th className="p-2 text-left font-medium">Komponen</th>
+                            <th className="p-2 text-left font-medium">Rumus</th>
+                            <th className="p-2 text-right font-medium">Nominal</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr className="border-t">
+                            <td className="p-2">OPE</td>
+                            <td className="p-2">
+                              {formatCurrency(detailRow.compensationBreakdown.ope.daily)} x{" "}
+                              {detailRow.compensationBreakdown.ope.days} hari
+                            </td>
+                            <td className="p-2 text-right">
+                              {formatCurrency(detailRow.compensationBreakdown.ope.total)}
+                            </td>
+                          </tr>
+                          <tr className="border-t">
+                            <td className="p-2">Makan</td>
+                            <td className="p-2">
+                              {formatCurrency(detailRow.compensationBreakdown.meal.daily)} x{" "}
+                              {detailRow.compensationBreakdown.meal.days} hari
+                            </td>
+                            <td className="p-2 text-right">
+                              {formatCurrency(detailRow.compensationBreakdown.meal.total)}
+                            </td>
+                          </tr>
+                          <tr className="border-t">
+                            <td className="p-2">Laundry</td>
+                            <td className="p-2">
+                              {formatCurrency(detailRow.compensationBreakdown.laundry.weekly)} x{" "}
+                              {detailRow.compensationBreakdown.laundry.weeks} minggu
+                            </td>
+                            <td className="p-2 text-right">
+                              {formatCurrency(detailRow.compensationBreakdown.laundry.total)}
+                            </td>
+                          </tr>
+                          <tr className="border-t">
+                            <td className="p-2">Transport PP</td>
+                            <td className="p-2">{detailRow.compensationBreakdown.transport.label ?? "-"}</td>
+                            <td className="p-2 text-right">
+                              {formatCurrency(detailRow.compensationBreakdown.transport.amount)}
+                            </td>
+                          </tr>
+                          <tr className="border-t bg-muted/40">
+                            <td className="p-2 text-right font-semibold" colSpan={2}>
+                              Total
+                            </td>
+                            <td className="p-2 text-right font-semibold">
+                              {formatCurrency(detailRow.compensationBreakdown.total)}
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
                     </div>
                   ) : (
                     <p className="font-medium">-</p>
@@ -1014,6 +1271,41 @@ export default function BusinessTripPage() {
         </DialogContent>
       </Dialog>
 
+      <Dialog
+        open={isPrintPreviewOpen}
+        onOpenChange={(open) => {
+          setIsPrintPreviewOpen(open);
+          if (!open) setPrintRow(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-[900px] h-[85vh] bg-muted p-0 grid grid-rows-[auto,1fr,auto]">
+          <DialogHeader className="bg-muted/95 px-6 py-4 backdrop-blur">
+            <DialogTitle>Preview Business Trip</DialogTitle>
+            <DialogDescription>
+              Pastikan data sudah sesuai sebelum print.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="overflow-auto px-6 pb-6">
+            {!printRow && (
+              <div className="flex h-full min-h-[420px] items-center justify-center">
+                <span className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              </div>
+            )}
+            {printRow && (
+              <BusinessTripPrintPreview row={printRow} headerSrc={headerDataUrl || "/invoice-header.png"} />
+            )}
+          </div>
+          <DialogFooter className="gap-2 bg-muted/95 px-6 py-4 backdrop-blur border-t">
+            <Button variant="outline" onClick={() => setIsPrintPreviewOpen(false)}>
+              Tutup
+            </Button>
+            <Button onClick={handlePrintBusinessTrip} disabled={!printRow}>
+              Print
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <ActionConfirmDialog
         open={Boolean(pendingAction)}
         onOpenChange={(open) => {
@@ -1049,6 +1341,155 @@ export default function BusinessTripPage() {
         }}
       />
     </AdminLayout>
+  );
+}
+
+function BusinessTripPrintPreview({
+  row,
+  headerSrc,
+}: {
+  row: BusinessTrip;
+  headerSrc: string;
+}) {
+  const approvedEvent = findLatestEvent(
+    row.workflowEvents ?? [],
+    (event) => event.toStatus === "APPROVED"
+  );
+  const approvedByLabel = formatActorLabel(approvedEvent);
+  const approvedAtLabel = approvedEvent
+    ? formatDateTime(approvedEvent.createdAt)
+    : row.approvedAt
+    ? formatDateTime(row.approvedAt)
+    : "-";
+  const totalDays =
+    row.allowanceDays ??
+    Math.max(
+      1,
+      Math.floor(
+        (new Date(row.endDate).getTime() - new Date(row.startDate).getTime()) /
+          (1000 * 60 * 60 * 24)
+      ) + 1
+    );
+
+  return (
+    <div className="mx-auto mt-4 max-w-[840px] space-y-4 rounded-md bg-white p-6 text-black font-[Arial] shadow-sm">
+      <div className="relative h-44 overflow-hidden rounded-md border border-border/50">
+        <div
+          className="absolute inset-0 bg-cover bg-top"
+          style={{ backgroundImage: `url(${headerSrc})` }}
+        />
+      </div>
+      <h3 className="text-center text-xl font-bold tracking-wide text-primary">FORM BUSINESS TRIP</h3>
+      {row.status !== "APPROVED" ? (
+        <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          Status pengajuan belum APPROVED. Dokumen ini tercetak sebagai draft arsip.
+        </div>
+      ) : null}
+      <div className="grid grid-cols-[220px_20px_1fr] gap-y-1 text-sm">
+        <p>Client</p><p>:</p><p>{row.companyName}</p>
+        <p>Period</p><p>:</p><p>{formatDate(new Date(row.startDate))} - {formatDate(new Date(row.endDate))}</p>
+        <p>Location</p><p>:</p><p>{row.destinationCity}</p>
+        <p>Date of Assignment</p><p>:</p>
+        <p>
+          {formatDate(new Date(row.createdAt))} (Approved: {approvedAtLabel})
+        </p>
+      </div>
+
+      <div className="border-t border-black" />
+
+      <div className="grid grid-cols-[220px_20px_1fr] gap-y-1 text-sm">
+        <p>Name</p><p>:</p><p>{row.employee?.fullName ?? row.user?.name ?? "-"}</p>
+        <p>Title - Department</p><p>:</p><p>{row.employee?.title ?? "-"} - {row.employee?.department ?? "-"}</p>
+        <p>Number of Days</p><p>:</p><p>{totalDays} days</p>
+        <p>Purpose</p><p>:</p><p>{row.purpose ?? "-"}</p>
+      </div>
+
+      <div className="rounded border border-black p-3 text-sm">
+        <p className="mb-2 font-semibold">Compensation</p>
+        <div className="overflow-auto rounded border border-black/80">
+          <table className="w-full border-collapse text-xs">
+            <thead className="bg-muted/60">
+              <tr>
+                <th className="border border-black/80 p-2 text-left">Komponen</th>
+                <th className="border border-black/80 p-2 text-left">Rumus</th>
+                <th className="border border-black/80 p-2 text-right">Nominal</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td className="border border-black/80 p-2">OPE</td>
+                <td className="border border-black/80 p-2">
+                  {formatCurrency(Number(row.compensationBreakdown?.ope.daily ?? 0))} x{" "}
+                  {row.compensationBreakdown?.ope.days ?? 0} hari
+                </td>
+                <td className="border border-black/80 p-2 text-right">
+                  {formatCurrency(Number(row.compensationBreakdown?.ope.total ?? 0))}
+                </td>
+              </tr>
+              <tr>
+                <td className="border border-black/80 p-2">Makan</td>
+                <td className="border border-black/80 p-2">
+                  {formatCurrency(Number(row.compensationBreakdown?.meal.daily ?? 0))} x{" "}
+                  {row.compensationBreakdown?.meal.days ?? 0} hari
+                </td>
+                <td className="border border-black/80 p-2 text-right">
+                  {formatCurrency(Number(row.compensationBreakdown?.meal.total ?? 0))}
+                </td>
+              </tr>
+              <tr>
+                <td className="border border-black/80 p-2">Laundry</td>
+                <td className="border border-black/80 p-2">
+                  {formatCurrency(Number(row.compensationBreakdown?.laundry.weekly ?? 0))} x{" "}
+                  {row.compensationBreakdown?.laundry.weeks ?? 0} minggu
+                </td>
+                <td className="border border-black/80 p-2 text-right">
+                  {formatCurrency(Number(row.compensationBreakdown?.laundry.total ?? 0))}
+                </td>
+              </tr>
+              <tr>
+                <td className="border border-black/80 p-2">Transport PP</td>
+                <td className="border border-black/80 p-2">
+                  {row.compensationBreakdown?.transport.label ?? "-"}
+                </td>
+                <td className="border border-black/80 p-2 text-right">
+                  {formatCurrency(Number(row.compensationBreakdown?.transport.amount ?? 0))}
+                </td>
+              </tr>
+              <tr>
+                <td className="border border-black/80 p-2 text-right font-semibold" colSpan={2}>
+                  Total
+                </td>
+                <td className="border border-black/80 p-2 text-right font-semibold">
+                  {formatCurrency(Number(row.compensationBreakdown?.total ?? row.compensationTotal ?? 0))}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="rounded border border-black p-3 text-sm">
+        <p className="mb-2 font-semibold">Please transfer your payment to account:</p>
+        <div className="grid grid-cols-[220px_20px_1fr] gap-y-1">
+          <p>Name</p><p>:</p><p>{row.employee?.fullName ?? "-"}</p>
+          <p>Bank</p><p>:</p><p>{row.employee?.bankAccountName ?? "-"}</p>
+          <p>A/C</p><p>:</p><p>{row.employee?.bankAccountNumber ?? "-"}</p>
+        </div>
+      </div>
+
+      <div className="mt-6 grid grid-cols-2 gap-8 text-center text-sm">
+        <div>
+          <p className="font-semibold">Submitted by,</p>
+          <div className="h-20" />
+          <p>({row.employee?.fullName ?? row.user?.name ?? "-"})</p>
+        </div>
+        <div>
+          <p className="font-semibold">Approved by,</p>
+          <div className="h-20" />
+          <p>({approvedByLabel})</p>
+        </div>
+      </div>
+    </div>
   );
 }
 

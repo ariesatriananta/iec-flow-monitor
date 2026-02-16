@@ -115,7 +115,7 @@ export const DEFAULT_BUSINESS_TRIP_COMPENSATION_SETTINGS: BusinessTripCompensati
   opeRules: DEFAULT_OPE_RULES,
   mealPerDay: 50000,
   laundryPerWeek: 30000,
-  laundryMinDays: 3,
+  laundryMinDays: 7,
   transportOptions: DEFAULT_TRANSPORT_OPTIONS,
 };
 
