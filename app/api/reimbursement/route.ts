@@ -7,6 +7,7 @@ import { getDb } from "@/lib/db";
 import {
   employees,
   reimbursementAttachments,
+  reimbursementItems,
   reimbursements,
   settingsApprovalFlow,
   users,
@@ -20,6 +21,9 @@ import {
   createNotificationsForUsers,
   resolveUserIdsByEmployeeIds,
 } from "@/lib/notifications";
+
+const MAX_REIMBURSEMENT_FILES = 5;
+const MAX_REIMBURSEMENT_FILE_SIZE_BYTES = 2 * 1024 * 1024;
 
 const workflowStatusSchema = z.union([
   z.literal("SUBMITTED"),
@@ -35,7 +39,7 @@ const attachmentSchema = z.object({
   key: z.string().trim().min(1).max(2000).optional(),
   fileName: z.string().trim().min(1).max(255).optional(),
   contentType: z.string().trim().min(1).max(128).optional(),
-  size: z.number().int().min(0).max(20 * 1024 * 1024).optional(),
+  size: z.number().int().min(0).max(MAX_REIMBURSEMENT_FILE_SIZE_BYTES).optional(),
 });
 
 const querySchema = z.object({
@@ -46,11 +50,27 @@ const querySchema = z.object({
 });
 
 const createSchema = z.object({
-  category: z.string().trim().min(1).max(50),
-  amount: z.number().positive().max(999999999999),
+  submissionDate: z
+    .string()
+    .trim()
+    .refine((value) => !Number.isNaN(new Date(value).getTime()), "Format tanggal pengajuan tidak valid"),
+  items: z
+    .array(
+      z.object({
+        expenseDate: z
+          .string()
+          .trim()
+          .refine((value) => !Number.isNaN(new Date(value).getTime()), "Format tanggal item tidak valid"),
+        category: z.string().trim().min(1).max(50),
+        clientName: z.string().trim().max(255).optional(),
+        description: z.string().trim().max(2000).optional(),
+        amount: z.number().positive().max(999999999999),
+        attachment: attachmentSchema,
+      })
+    )
+    .min(1)
+    .max(MAX_REIMBURSEMENT_FILES),
   description: z.string().trim().max(2000).optional(),
-  receiptUrl: z.string().trim().min(1).max(2000).optional(),
-  attachments: z.array(attachmentSchema).max(20).optional(),
 });
 
 const formatZodError = (error: z.ZodError) =>
@@ -76,6 +96,7 @@ export async function GET(request: Request) {
 
   const { status, limit, offset, q } = parsedQuery.data;
   const conditions: SQL[] = [];
+  const db = getDb();
 
   if (auth.user.role !== "ADMIN") {
     if (!auth.user.employeeId) {
@@ -84,7 +105,26 @@ export async function GET(request: Request) {
         { status: 403 }
       );
     }
-    conditions.push(eq(reimbursements.employeeId, auth.user.employeeId));
+
+    const [approvalFlow] = await db.select().from(settingsApprovalFlow).limit(1);
+    const reimbursementApprovalLevels = approvalFlow?.reimbursementApprovalLevels ?? 2;
+    const isApproverLevel1 =
+      auth.user.employeeId === (approvalFlow?.reimbursementApproverLevel1EmployeeId ?? null);
+    const isApproverLevel2 =
+      reimbursementApprovalLevels === 2 &&
+      auth.user.employeeId === (approvalFlow?.reimbursementApproverLevel2EmployeeId ?? null);
+
+    const visibilityConditions: SQL[] = [
+      eq(reimbursements.employeeId, auth.user.employeeId),
+    ];
+    if (isApproverLevel1) {
+      visibilityConditions.push(eq(reimbursements.status, "SUBMITTED"));
+    }
+    if (isApproverLevel2) {
+      visibilityConditions.push(eq(reimbursements.status, "WAITING_LEVEL_2"));
+    }
+
+    conditions.push(or(...visibilityConditions) as SQL);
   }
   if (status) {
     conditions.push(eq(reimbursements.status, status));
@@ -104,7 +144,6 @@ export async function GET(request: Request) {
     );
   }
 
-  const db = getDb();
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
   const totalResult = whereClause
@@ -141,6 +180,14 @@ export async function GET(request: Request) {
         .offset(offset);
 
   const reimbursementIds = rows.map(({ reimbursement }) => reimbursement.id);
+  const itemRows =
+    reimbursementIds.length > 0
+      ? await db
+          .select()
+          .from(reimbursementItems)
+          .where(inArray(reimbursementItems.reimbursementId, reimbursementIds))
+      : [];
+
   const attachments =
     reimbursementIds.length > 0
       ? await db
@@ -149,6 +196,7 @@ export async function GET(request: Request) {
           .where(inArray(reimbursementAttachments.reimbursementId, reimbursementIds))
       : [];
   const attachmentsByReimbursementId = new Map<string, typeof attachments>();
+  const receiptAttachmentByItemId = new Map<string, (typeof attachments)[number]>();
 
   for (const attachment of attachments) {
     const existing = attachmentsByReimbursementId.get(attachment.reimbursementId);
@@ -157,10 +205,32 @@ export async function GET(request: Request) {
     } else {
       attachmentsByReimbursementId.set(attachment.reimbursementId, [attachment]);
     }
+    if (
+      attachment.purpose === "RECEIPT" &&
+      attachment.reimbursementItemId &&
+      !receiptAttachmentByItemId.has(attachment.reimbursementItemId)
+    ) {
+      receiptAttachmentByItemId.set(attachment.reimbursementItemId, attachment);
+    }
+  }
+
+  const itemsByReimbursementId = new Map<string, typeof itemRows>();
+  for (const item of itemRows) {
+    const withAttachment = {
+      ...item,
+      attachment: receiptAttachmentByItemId.get(item.id) ?? null,
+    };
+    const existing = itemsByReimbursementId.get(item.reimbursementId);
+    if (existing) {
+      existing.push(withAttachment);
+    } else {
+      itemsByReimbursementId.set(item.reimbursementId, [withAttachment]);
+    }
   }
 
   const items = rows.map(({ reimbursement, employee, user }) => ({
     ...reimbursement,
+    items: itemsByReimbursementId.get(reimbursement.id) ?? [],
     attachments: attachmentsByReimbursementId.get(reimbursement.id) ?? [],
     employee: employee
       ? {
@@ -224,15 +294,10 @@ export async function POST(request: Request) {
   }
 
   const now = new Date();
-  const incomingAttachments = body.attachments ?? [];
-  const receiptUrlFromAttachment = incomingAttachments[0]?.url ?? null;
-
-  if (!body.receiptUrl && incomingAttachments.length === 0) {
-    return NextResponse.json(
-      { error: "Minimal satu bukti reimbursement wajib diupload" },
-      { status: 400 }
-    );
-  }
+  const submissionDate = new Date(body.submissionDate);
+  const totalAmount = body.items.reduce((sum, item) => sum + item.amount, 0);
+  const summaryCategory = body.items.length === 1 ? body.items[0].category : "MULTI_ITEM";
+  const receiptUrlFromAttachment = body.items[0]?.attachment.url ?? null;
 
   const db = getDb();
   const reimbursementId = crypto.randomUUID();
@@ -241,10 +306,12 @@ export async function POST(request: Request) {
     .values({
       id: reimbursementId,
       employeeId: targetEmployeeId,
-      category: body.category,
-      amount: body.amount.toString(),
+      category: summaryCategory,
+      amount: totalAmount.toString(),
+      itemCount: body.items.length,
+      submissionDate,
       description: body.description ?? null,
-      receiptUrl: body.receiptUrl ?? receiptUrlFromAttachment,
+      receiptUrl: receiptUrlFromAttachment,
       status: "SUBMITTED",
       adminNote: null,
       approvedBy: null,
@@ -284,27 +351,53 @@ export async function POST(request: Request) {
     });
   }
 
-  if (incomingAttachments.length > 0) {
-    await db.insert(reimbursementAttachments).values(
-      incomingAttachments.map((item) => ({
-        id: crypto.randomUUID(),
-        reimbursementId,
-        purpose: "RECEIPT",
-        fileUrl: item.url,
-        fileKey: item.key ?? null,
-        fileName: item.fileName ?? "attachment",
-        contentType: item.contentType ?? null,
-        fileSize: item.size ?? null,
-        uploadedBy: auth.user.id,
-        createdAt: now,
-      }))
-    );
-  }
+  const itemRecords = body.items.map((item) => ({
+      id: crypto.randomUUID(),
+      reimbursementId,
+      expenseDate: new Date(item.expenseDate),
+      category: item.category,
+      clientName: item.clientName ?? null,
+      description: item.description ?? null,
+      amount: item.amount.toString(),
+      createdAt: now,
+      updatedAt: now,
+    }));
+  await db.insert(reimbursementItems).values(itemRecords);
 
+  await db.insert(reimbursementAttachments).values(
+    body.items.map((item, index) => ({
+      id: crypto.randomUUID(),
+      reimbursementId,
+      reimbursementItemId: itemRecords[index]?.id ?? null,
+      purpose: "RECEIPT",
+      fileUrl: item.attachment.url,
+      fileKey: item.attachment.key ?? null,
+      fileName: item.attachment.fileName ?? "attachment",
+      contentType: item.attachment.contentType ?? null,
+      fileSize: item.attachment.size ?? null,
+      uploadedBy: auth.user.id,
+      createdAt: now,
+    }))
+  );
+
+  const createdItemsRaw = await db
+    .select()
+    .from(reimbursementItems)
+    .where(eq(reimbursementItems.reimbursementId, reimbursementId));
   const attachments = await db
     .select()
     .from(reimbursementAttachments)
     .where(eq(reimbursementAttachments.reimbursementId, reimbursementId));
+  const receiptAttachmentByItemIdCreated = new Map<string, (typeof attachments)[number]>();
+  for (const attachment of attachments) {
+    if (attachment.purpose === "RECEIPT" && attachment.reimbursementItemId) {
+      receiptAttachmentByItemIdCreated.set(attachment.reimbursementItemId, attachment);
+    }
+  }
+  const createdItems = createdItemsRaw.map((item) => ({
+    ...item,
+    attachment: receiptAttachmentByItemIdCreated.get(item.id) ?? null,
+  }));
 
-  return NextResponse.json({ ...created, attachments }, { status: 201 });
+  return NextResponse.json({ ...created, items: createdItems, attachments }, { status: 201 });
 }

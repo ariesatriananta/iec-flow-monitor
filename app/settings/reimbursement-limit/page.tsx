@@ -25,8 +25,6 @@ const initialState: ReimbursementLimitPayload = {
     { id: crypto.randomUUID(), position: "Staff", monthlyLimit: 1000000 },
     { id: crypto.randomUUID(), position: "Senior Staff", monthlyLimit: 1500000 },
   ],
-  maxFilesPerRequest: 10,
-  maxFileSizeMb: 5,
 };
 
 export default function ReimbursementLimitPage() {
@@ -221,45 +219,6 @@ export default function ReimbursementLimitPage() {
                 </Button>
               </div>
             ))}
-          </CardContent>
-        </Card>
-
-        <Card className="border border-border/70">
-          <CardHeader>
-            <CardTitle>Aturan Upload</CardTitle>
-            <CardDescription>
-              Batasi jumlah dan ukuran file upload per pengajuan.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label>Maksimal File per Request</Label>
-              <Input
-                type="number"
-                min={1}
-                value={form.maxFilesPerRequest}
-                onChange={(event) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    maxFilesPerRequest: Number(event.target.value),
-                  }))
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Maksimal Ukuran per File (MB)</Label>
-              <Input
-                type="number"
-                min={1}
-                value={form.maxFileSizeMb}
-                onChange={(event) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    maxFileSizeMb: Number(event.target.value),
-                  }))
-                }
-              />
-            </div>
           </CardContent>
         </Card>
 

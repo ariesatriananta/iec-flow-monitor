@@ -8,12 +8,18 @@ export type SessionRole = "ADMIN" | "STAFF";
 type SessionPayload = {
   sub: string;
   role: SessionRole;
+  username?: string;
+  name?: string;
+  employeeId?: string | null;
   exp: number;
 };
 
 type SessionInput = {
   userId: string;
   role: SessionRole;
+  username: string;
+  name: string;
+  employeeId?: string | null;
 };
 
 const toBase64Url = (value: string) =>
@@ -38,10 +44,19 @@ const sign = (content: string) => {
   return createHmac("sha256", secret).update(content).digest("base64url");
 };
 
-export const createSessionToken = ({ userId, role }: SessionInput) => {
+export const createSessionToken = ({
+  userId,
+  role,
+  username,
+  name,
+  employeeId,
+}: SessionInput) => {
   const payload: SessionPayload = {
     sub: userId,
     role,
+    username,
+    name,
+    employeeId: employeeId ?? null,
     exp: Math.floor(Date.now() / 1000) + SESSION_MAX_AGE_SECONDS,
   };
   const encoded = toBase64Url(JSON.stringify(payload));

@@ -395,6 +395,8 @@ export const reimbursements = pgTable(
       .references(() => employees.id),
     category: text("category").notNull(),
     amount: numeric("amount", { precision: 15, scale: 0 }).notNull(),
+    itemCount: integer("item_count").notNull().default(1),
+    submissionDate: timestamp("submission_date", { mode: "date" }).notNull(),
     description: text("description"),
     receiptUrl: text("receipt_url"),
     status: text("status").notNull().default("SUBMITTED"),
@@ -409,6 +411,30 @@ export const reimbursements = pgTable(
   (table) => ({
     employeeIdIdx: index("reimbursements_employee_id_idx").on(table.employeeId),
     statusIdx: index("reimbursements_status_idx").on(table.status),
+    submissionDateIdx: index("reimbursements_submission_date_idx").on(table.submissionDate),
+  })
+);
+
+export const reimbursementItems = pgTable(
+  "reimbursement_items",
+  {
+    id: text("id").primaryKey(),
+    reimbursementId: text("reimbursement_id")
+      .notNull()
+      .references(() => reimbursements.id),
+    expenseDate: timestamp("expense_date", { mode: "date" }).notNull(),
+    category: text("category").notNull(),
+    clientName: text("client_name"),
+    description: text("description"),
+    amount: numeric("amount", { precision: 15, scale: 0 }).notNull(),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date" }).notNull(),
+  },
+  (table) => ({
+    reimbursementIdIdx: index("reimbursement_items_reimbursement_id_idx").on(
+      table.reimbursementId
+    ),
+    expenseDateIdx: index("reimbursement_items_expense_date_idx").on(table.expenseDate),
   })
 );
 
@@ -419,6 +445,9 @@ export const reimbursementAttachments = pgTable(
     reimbursementId: text("reimbursement_id")
       .notNull()
       .references(() => reimbursements.id),
+    reimbursementItemId: text("reimbursement_item_id").references(
+      () => reimbursementItems.id
+    ),
     purpose: text("purpose").notNull(),
     fileUrl: text("file_url").notNull(),
     fileKey: text("file_key"),
@@ -433,6 +462,9 @@ export const reimbursementAttachments = pgTable(
   (table) => ({
     reimbursementIdIdx: index("reimbursement_attachments_reimbursement_id_idx").on(
       table.reimbursementId
+    ),
+    reimbursementItemIdIdx: index("reimbursement_attachments_reimbursement_item_id_idx").on(
+      table.reimbursementItemId
     ),
     purposeIdx: index("reimbursement_attachments_purpose_idx").on(table.purpose),
   })

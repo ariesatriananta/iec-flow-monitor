@@ -1,11 +1,12 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/lib/db";
 import {
   reimbursementAttachments,
+  reimbursementItems,
   reimbursements,
   settingsApprovalFlow,
 } from "@/lib/db/schema";
@@ -15,6 +16,9 @@ import {
   createNotificationsForUsers,
   resolveUserIdsByEmployeeIds,
 } from "@/lib/notifications";
+
+const MAX_REIMBURSEMENT_FILES = 5;
+const MAX_REIMBURSEMENT_FILE_SIZE_BYTES = 2 * 1024 * 1024;
 
 const workflowStatusSchema = z.union([
   z.literal("SUBMITTED"),
@@ -30,7 +34,37 @@ const attachmentSchema = z.object({
   key: z.string().trim().min(1).max(2000).optional(),
   fileName: z.string().trim().min(1).max(255).optional(),
   contentType: z.string().trim().min(1).max(128).optional(),
-  size: z.number().int().min(0).max(20 * 1024 * 1024).optional(),
+  size: z.number().int().min(0).max(MAX_REIMBURSEMENT_FILE_SIZE_BYTES).optional(),
+});
+
+const editSchema = z.object({
+  submissionDate: z
+    .string()
+    .trim()
+    .refine(
+      (value) => !Number.isNaN(new Date(value).getTime()),
+      "Format tanggal pengajuan tidak valid"
+    ),
+  description: z.string().trim().max(2000).optional(),
+  items: z
+    .array(
+      z.object({
+        expenseDate: z
+          .string()
+          .trim()
+          .refine(
+            (value) => !Number.isNaN(new Date(value).getTime()),
+            "Format tanggal item tidak valid"
+          ),
+        category: z.string().trim().min(1).max(50),
+        clientName: z.string().trim().max(255).optional(),
+        description: z.string().trim().max(2000).optional(),
+        amount: z.number().positive().max(999999999999),
+        attachment: attachmentSchema,
+      })
+    )
+    .min(1)
+    .max(MAX_REIMBURSEMENT_FILES),
 });
 
 const staffUpdateSchema = z.object({
@@ -49,7 +83,7 @@ const adminUpdateSchema = z.object({
   status: workflowStatusSchema.optional(),
   adminNote: z.string().trim().max(2000).optional(),
   paidProofUrl: z.string().trim().min(1).max(2000).optional(),
-  paidProofAttachments: z.array(attachmentSchema).max(20).optional(),
+  paidProofAttachments: z.array(attachmentSchema).max(MAX_REIMBURSEMENT_FILES).optional(),
 });
 
 const formatZodError = (error: z.ZodError) =>
@@ -73,6 +107,119 @@ export async function PUT(
 
   if (!existing) {
     return NextResponse.json({ error: "Reimbursement tidak ditemukan" }, { status: 404 });
+  }
+
+  const parsedEditBody = editSchema.safeParse(rawBody);
+  if (parsedEditBody.success) {
+    const body = parsedEditBody.data;
+    const isOwner =
+      Boolean(auth.user.employeeId) && existing.employeeId === auth.user.employeeId;
+    if (auth.user.role !== "ADMIN" && !isOwner) {
+      return NextResponse.json({ error: "Akses ditolak" }, { status: 403 });
+    }
+
+    if (!["SUBMITTED", "REJECTED"].includes(existing.status)) {
+      return NextResponse.json(
+        {
+          error:
+            "Pengajuan hanya bisa diedit saat status SUBMITTED atau REJECTED",
+        },
+        { status: 400 }
+      );
+    }
+
+    const now = new Date();
+    const totalAmount = body.items.reduce((sum, item) => sum + item.amount, 0);
+    const summaryCategory =
+      body.items.length === 1 ? body.items[0].category : "MULTI_ITEM";
+    const receiptUrlFromAttachment = body.items[0]?.attachment.url ?? null;
+
+    const [updated] = await db
+      .update(reimbursements)
+      .set({
+        submissionDate: new Date(body.submissionDate),
+        description: body.description ?? null,
+        category: summaryCategory,
+        amount: totalAmount.toString(),
+        itemCount: body.items.length,
+        receiptUrl: receiptUrlFromAttachment,
+        updatedAt: now,
+      })
+      .where(eq(reimbursements.id, params.id))
+      .returning();
+
+    await db
+      .delete(reimbursementAttachments)
+      .where(
+        and(
+          eq(reimbursementAttachments.reimbursementId, params.id),
+          eq(reimbursementAttachments.purpose, "RECEIPT")
+        )
+      );
+    await db
+      .delete(reimbursementItems)
+      .where(eq(reimbursementItems.reimbursementId, params.id));
+
+    const itemRecords = body.items.map((item) => ({
+      id: crypto.randomUUID(),
+      reimbursementId: params.id,
+      expenseDate: new Date(item.expenseDate),
+      category: item.category,
+      clientName: item.clientName ?? null,
+      description: item.description ?? null,
+      amount: item.amount.toString(),
+      createdAt: now,
+      updatedAt: now,
+    }));
+    await db.insert(reimbursementItems).values(itemRecords);
+
+    await db.insert(reimbursementAttachments).values(
+      body.items.map((item, index) => ({
+        id: crypto.randomUUID(),
+        reimbursementId: params.id,
+        reimbursementItemId: itemRecords[index]?.id ?? null,
+        purpose: "RECEIPT",
+        fileUrl: item.attachment.url,
+        fileKey: item.attachment.key ?? null,
+        fileName: item.attachment.fileName ?? "attachment",
+        contentType: item.attachment.contentType ?? null,
+        fileSize: item.attachment.size ?? null,
+        uploadedBy: auth.user.id,
+        createdAt: now,
+      }))
+    );
+
+    await createWorkflowEvent(db, {
+      module: "REIMBURSEMENT",
+      entityId: params.id,
+      action: "EDITED",
+      fromStatus: existing.status,
+      toStatus: existing.status,
+      note: "Pengajuan reimbursement diperbarui",
+      actorUserId: auth.user.id,
+      actorEmployeeId: auth.user.employeeId,
+    });
+
+    const attachments = await db
+      .select()
+      .from(reimbursementAttachments)
+      .where(eq(reimbursementAttachments.reimbursementId, params.id));
+    const itemsRaw = await db
+      .select()
+      .from(reimbursementItems)
+      .where(eq(reimbursementItems.reimbursementId, params.id));
+    const receiptAttachmentByItemId = new Map<string, (typeof attachments)[number]>();
+    for (const attachment of attachments) {
+      if (attachment.purpose === "RECEIPT" && attachment.reimbursementItemId) {
+        receiptAttachmentByItemId.set(attachment.reimbursementItemId, attachment);
+      }
+    }
+    const items = itemsRaw.map((item) => ({
+      ...item,
+      attachment: receiptAttachmentByItemId.get(item.id) ?? null,
+    }));
+
+    return NextResponse.json({ ...updated, items, attachments });
   }
 
   const [approvalFlow] = await db.select().from(settingsApprovalFlow).limit(1);
@@ -156,8 +303,22 @@ export async function PUT(
       .select()
       .from(reimbursementAttachments)
       .where(eq(reimbursementAttachments.reimbursementId, params.id));
+    const itemsRaw = await db
+      .select()
+      .from(reimbursementItems)
+      .where(eq(reimbursementItems.reimbursementId, params.id));
+    const receiptAttachmentByItemId = new Map<string, (typeof attachments)[number]>();
+    for (const attachment of attachments) {
+      if (attachment.purpose === "RECEIPT" && attachment.reimbursementItemId) {
+        receiptAttachmentByItemId.set(attachment.reimbursementItemId, attachment);
+      }
+    }
+    const items = itemsRaw.map((item) => ({
+      ...item,
+      attachment: receiptAttachmentByItemId.get(item.id) ?? null,
+    }));
 
-    return NextResponse.json({ ...updated, attachments });
+    return NextResponse.json({ ...updated, items, attachments });
   }
 
   const parsedBody = adminUpdateSchema.safeParse(rawBody);
@@ -248,6 +409,25 @@ export async function PUT(
 
   const paidProofUrlFromPayload =
     body.paidProofUrl ?? paidProofAttachments[0]?.url ?? existing.paidProofUrl;
+  if (paidProofAttachments.length > 0) {
+    const existingPaidProofCount = await db
+      .select()
+      .from(reimbursementAttachments)
+      .where(
+        eq(reimbursementAttachments.reimbursementId, params.id)
+      );
+    const persistedPaidProofCount = existingPaidProofCount.filter(
+      (item) => item.purpose === "PAID_PROOF"
+    ).length;
+    if (persistedPaidProofCount + paidProofAttachments.length > MAX_REIMBURSEMENT_FILES) {
+      return NextResponse.json(
+        {
+          error: `Maksimal ${MAX_REIMBURSEMENT_FILES} file bukti transfer per pengajuan.`,
+        },
+        { status: 400 }
+      );
+    }
+  }
   if (nextStatus === "PAID" && !paidProofUrlFromPayload) {
     return NextResponse.json(
       { error: "Bukti transfer wajib diisi sebelum mark paid" },
@@ -365,8 +545,22 @@ export async function PUT(
     .select()
     .from(reimbursementAttachments)
     .where(eq(reimbursementAttachments.reimbursementId, params.id));
+  const itemsRaw = await db
+    .select()
+    .from(reimbursementItems)
+    .where(eq(reimbursementItems.reimbursementId, params.id));
+  const receiptAttachmentByItemId = new Map<string, (typeof attachments)[number]>();
+  for (const attachment of attachments) {
+    if (attachment.purpose === "RECEIPT" && attachment.reimbursementItemId) {
+      receiptAttachmentByItemId.set(attachment.reimbursementItemId, attachment);
+    }
+  }
+  const items = itemsRaw.map((item) => ({
+    ...item,
+    attachment: receiptAttachmentByItemId.get(item.id) ?? null,
+  }));
 
-  return NextResponse.json({ ...updated, attachments });
+  return NextResponse.json({ ...updated, items, attachments });
 }
 
 export async function DELETE(
@@ -406,6 +600,7 @@ export async function DELETE(
   });
 
   await db.delete(reimbursementAttachments).where(eq(reimbursementAttachments.reimbursementId, params.id));
+  await db.delete(reimbursementItems).where(eq(reimbursementItems.reimbursementId, params.id));
   await db.delete(reimbursements).where(eq(reimbursements.id, params.id));
 
   return NextResponse.json({ ok: true });

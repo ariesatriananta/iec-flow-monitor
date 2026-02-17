@@ -11,6 +11,15 @@ export interface ReimbursementAttachmentInput {
   size?: number;
 }
 
+export interface ReimbursementItemInput {
+  expenseDate: string;
+  category: string;
+  clientName?: string;
+  description?: string;
+  amount: number;
+  attachment: ReimbursementAttachmentInput;
+}
+
 export async function fetchReimbursements(params?: {
   status?: string;
   limit?: number;
@@ -34,11 +43,9 @@ export async function fetchReimbursements(params?: {
 }
 
 export async function createReimbursement(payload: {
-  category: string;
-  amount: number;
+  submissionDate: string;
+  items: ReimbursementItemInput[];
   description?: string;
-  receiptUrl?: string;
-  attachments?: ReimbursementAttachmentInput[];
 }): Promise<Reimbursement> {
   const data = await requestJson<Reimbursement>("/api/reimbursement", {
     method: "POST",
@@ -50,6 +57,21 @@ export async function createReimbursement(payload: {
 export async function updateReimbursement(
   id: string,
   payload: Record<string, unknown>
+): Promise<Reimbursement> {
+  const data = await requestJson<Reimbursement>(`/api/reimbursement/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+  return parseReimbursement(data);
+}
+
+export async function editReimbursement(
+  id: string,
+  payload: {
+    submissionDate: string;
+    description?: string;
+    items: ReimbursementItemInput[];
+  }
 ): Promise<Reimbursement> {
   const data = await requestJson<Reimbursement>(`/api/reimbursement/${id}`, {
     method: "PUT",

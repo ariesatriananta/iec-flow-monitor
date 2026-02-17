@@ -84,8 +84,6 @@ export interface ReimbursementLimitPayload {
     other: number;
   };
   positionLimit: PositionLimitPayload[];
-  maxFilesPerRequest: number;
-  maxFileSizeMb: number;
 }
 
 export interface BusinessTripOpeRulePayload {

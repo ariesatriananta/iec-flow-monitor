@@ -67,6 +67,9 @@ export async function POST(request: Request) {
   const token = createSessionToken({
     userId: row.user.id,
     role,
+    username: row.user.username,
+    name: row.user.name,
+    employeeId: row.user.employeeId ?? null,
   });
 
   cookies().set(SESSION_COOKIE_NAME, token, sessionCookieOptions);

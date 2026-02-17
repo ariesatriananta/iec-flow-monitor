@@ -15,7 +15,7 @@ import { Input } from '@/components/ui/input';
 import { fetchNotifications, markAllNotificationsRead, markNotificationRead } from '@/lib/api/notifications';
 import type { InAppNotification } from '@/types';
 import { Search, Sun, Moon, User, LogOut, UserCircle, Menu, Settings, Bell, CheckCheck } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { useCallback, useEffect, useState } from 'react';
 
@@ -27,6 +27,7 @@ interface AdminHeaderProps {
 export function AdminHeader({ title, onOpenSidebar }: AdminHeaderProps) {
   const { user, logout } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
   const { theme, setTheme } = useTheme();
   const isDark = theme === 'dark';
   const displayName = user?.employee?.fullName?.trim() || user?.name || '-';
@@ -53,12 +54,7 @@ export function AdminHeader({ title, onOpenSidebar }: AdminHeaderProps) {
     if (!user) return;
 
     void loadNotifications();
-    const intervalId = window.setInterval(() => {
-      void loadNotifications();
-    }, 30000);
-
-    return () => window.clearInterval(intervalId);
-  }, [loadNotifications, user]);
+  }, [loadNotifications, user, pathname]);
 
   const handleLogout = async () => {
     await logout();
@@ -66,9 +62,22 @@ export function AdminHeader({ title, onOpenSidebar }: AdminHeaderProps) {
   };
 
   const resolveNotificationPath = (item: InAppNotification) => {
-    if (item.entityType === 'LEAVE') return '/leave-management';
-    if (item.entityType === 'BUSINESS_TRIP') return '/business-trip';
-    if (item.entityType === 'REIMBURSEMENT') return '/reimbursement';
+    const query = new URLSearchParams();
+    if (item.entityId) query.set('entityId', item.entityId);
+    query.set('notif', item.id);
+
+    if (item.entityType === 'LEAVE') {
+      const suffix = query.toString();
+      return suffix ? `/leave-management?${suffix}` : '/leave-management';
+    }
+    if (item.entityType === 'BUSINESS_TRIP') {
+      const suffix = query.toString();
+      return suffix ? `/business-trip?${suffix}` : '/business-trip';
+    }
+    if (item.entityType === 'REIMBURSEMENT') {
+      const suffix = query.toString();
+      return suffix ? `/reimbursement?${suffix}` : '/reimbursement';
+    }
     return '/dashboard';
   };
 
@@ -92,7 +101,9 @@ export function AdminHeader({ title, onOpenSidebar }: AdminHeaderProps) {
         // no-op; fallback to navigation
       }
     }
-    router.push(resolveNotificationPath(item));
+    const target = resolveNotificationPath(item);
+    router.push(target);
+    router.refresh();
   };
 
   const handleMarkAllRead = async () => {

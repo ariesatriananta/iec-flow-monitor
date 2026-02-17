@@ -54,6 +54,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import type { LeaveRequest, WorkflowEvent } from "@/types";
 import { ActionConfirmDialog } from "@/components/shared/ActionConfirmDialog";
 import { format } from "date-fns";
+import { useSearchParams } from "next/navigation";
 import { CalendarDays, CalendarIcon, CheckCircle2, Eye, MoreHorizontal, Plus, Search, Trash2, XCircle } from "lucide-react";
 
 const leaveOptions = ["TAHUNAN", "SAKIT", "MELAHIRKAN", "MENYUSUI", "LAINNYA"];
@@ -157,6 +158,7 @@ export default function LeaveManagementPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === "ADMIN";
   const { toast } = useToast();
+  const searchParams = useSearchParams();
 
   const [rows, setRows] = useState<LeaveRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -167,6 +169,8 @@ export default function LeaveManagementPage() {
   const [total, setTotal] = useState(0);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [detailRow, setDetailRow] = useState<LeaveRequest | null>(null);
+  const [autoOpenedEntityId, setAutoOpenedEntityId] = useState<string | null>(null);
+  const [highlightedEntityId, setHighlightedEntityId] = useState<string | null>(null);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<LeaveRequest | null>(null);
   const [leaveApprovalLevels, setLeaveApprovalLevels] = useState<1 | 2>(2);
@@ -245,6 +249,25 @@ export default function LeaveManagementPage() {
   useEffect(() => {
     setPage(1);
   }, [statusFilter, debouncedSearch]);
+
+  const notifEntityId = searchParams.get("entityId");
+  useEffect(() => {
+    if (!notifEntityId) {
+      setAutoOpenedEntityId(null);
+      setHighlightedEntityId(null);
+      return;
+    }
+    if (isLoading || autoOpenedEntityId === notifEntityId) return;
+    const target = rows.find((row) => row.id === notifEntityId);
+    if (!target) return;
+    setDetailRow(target);
+    setAutoOpenedEntityId(notifEntityId);
+    setHighlightedEntityId(notifEntityId);
+    const timer = window.setTimeout(() => {
+      setHighlightedEntityId((prev) => (prev === notifEntityId ? null : prev));
+    }, 3000);
+    return () => window.clearTimeout(timer);
+  }, [notifEntityId, isLoading, autoOpenedEntityId, rows]);
 
   const handleCreate = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -453,7 +476,13 @@ export default function LeaveManagementPage() {
                         </TableRow>
                       ) : (
                         rows.map((row) => (
-                          <TableRow key={row.id}>
+                          <TableRow
+                            key={row.id}
+                            className={cn(
+                              highlightedEntityId === row.id &&
+                                "bg-amber-100/70 dark:bg-amber-900/25 transition-colors duration-300"
+                            )}
+                          >
                             {showRequesterColumn && <TableCell>{row.employee?.fullName ?? row.user?.name ?? "-"}</TableCell>}
                             <TableCell>{row.leaveType}</TableCell>
                             <TableCell>
@@ -525,7 +554,14 @@ export default function LeaveManagementPage() {
                     </div>
                   ) : (
                     rows.map((row) => (
-                      <div key={row.id} className="rounded-md border p-4">
+                      <div
+                        key={row.id}
+                        className={cn(
+                          "rounded-md border p-4 transition-colors duration-300",
+                          highlightedEntityId === row.id &&
+                            "border-amber-300 bg-amber-100/70 dark:border-amber-700 dark:bg-amber-900/25"
+                        )}
+                      >
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <p className="font-medium">{row.leaveType}</p>

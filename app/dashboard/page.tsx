@@ -27,13 +27,9 @@ import {
   Wallet,
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/numbering';
-import { fetchDashboardKPI, fetchDashboardMonthly } from '@/lib/api/dashboard';
+import { fetchDashboardKPI, fetchDashboardMonthly, fetchStaffDashboardSummary } from '@/lib/api/dashboard';
 import { fetchContracts } from '@/lib/api/contracts';
 import { fetchInvoices } from '@/lib/api/invoices';
-import { fetchAttendance } from '@/lib/api/attendance';
-import { fetchLeaveRequests } from '@/lib/api/leaveManagement';
-import { fetchBusinessTrips } from '@/lib/api/businessTrip';
-import { fetchReimbursements } from '@/lib/api/reimbursement';
 import type {
   AttendanceRecord,
   BusinessTrip,
@@ -94,34 +90,13 @@ export default function Dashboard() {
           setContracts(contractData);
           setInvoices(invoiceData);
         } else {
-          const today = new Date().toISOString().slice(0, 10);
-          const [
-            attendanceToday,
-            leaveSubmitted,
-            tripSubmitted,
-            reimbursementSubmitted,
-            leaveLatest,
-            tripLatest,
-            reimbursementLatest,
-          ] = await Promise.all([
-            fetchAttendance({ from: today, to: today, limit: 1, offset: 0 }),
-            fetchLeaveRequests({ status: 'SUBMITTED', limit: 1, offset: 0 }),
-            fetchBusinessTrips({ status: 'SUBMITTED', limit: 1, offset: 0 }),
-            fetchReimbursements({ status: 'SUBMITTED', limit: 1, offset: 0 }),
-            fetchLeaveRequests({ limit: 5, offset: 0 }),
-            fetchBusinessTrips({ limit: 5, offset: 0 }),
-            fetchReimbursements({ limit: 5, offset: 0 }),
-          ]);
+          const summary = await fetchStaffDashboardSummary();
           if (!active) return;
-          setTodayAttendance(attendanceToday.items[0] ?? null);
-          setStaffCounts({
-            leaveSubmitted: leaveSubmitted.total,
-            tripSubmitted: tripSubmitted.total,
-            reimbursementSubmitted: reimbursementSubmitted.total,
-          });
-          setRecentLeaves(leaveLatest.items);
-          setRecentTrips(tripLatest.items);
-          setRecentReimbursements(reimbursementLatest.items);
+          setTodayAttendance(summary.todayAttendance);
+          setStaffCounts(summary.counts);
+          setRecentLeaves(summary.recents.leaves);
+          setRecentTrips(summary.recents.trips);
+          setRecentReimbursements(summary.recents.reimbursements);
           setKpi(null);
           setMonthlyData([]);
           setContracts([]);

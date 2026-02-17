@@ -17,6 +17,22 @@ type GuardResult =
   | { user: SessionUser; response?: never }
   | { user?: never; response: NextResponse };
 
+const loadUserFromDb = async (userId: string) => {
+  const db = getDb();
+  const [user] = await db
+    .select({
+      id: users.id,
+      username: users.username,
+      name: users.name,
+      role: users.role,
+      employeeId: users.employeeId,
+    })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  return user;
+};
+
 export async function requireSessionUser(): Promise<GuardResult> {
   const token = cookies().get(SESSION_COOKIE_NAME)?.value;
   const session = parseSessionToken(token);
@@ -30,6 +46,20 @@ export async function requireSessionUser(): Promise<GuardResult> {
     };
   }
 
+  // Fast path: token already has user snapshot (new session format).
+  if (session.username && session.name) {
+    return {
+      user: {
+        id: session.sub,
+        username: session.username,
+        name: session.name,
+        role: session.role === "STAFF" ? "STAFF" : "ADMIN",
+        employeeId: session.employeeId ?? null,
+      },
+    };
+  }
+
+  // Backward compatibility for old tokens: fallback to DB lookup.
   let user:
     | {
         id: string;
@@ -40,18 +70,7 @@ export async function requireSessionUser(): Promise<GuardResult> {
       }
     | undefined;
   try {
-    const db = getDb();
-    [user] = await db
-      .select({
-        id: users.id,
-        username: users.username,
-        name: users.name,
-        role: users.role,
-        employeeId: users.employeeId,
-      })
-      .from(users)
-      .where(eq(users.id, session.sub))
-      .limit(1);
+    user = await loadUserFromDb(session.sub);
   } catch (error) {
     console.error("Auth DB error:", error);
     return {

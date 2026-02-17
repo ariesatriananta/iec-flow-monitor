@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import { requireSessionUser } from "@/lib/auth/server";
 import { uploadBufferToR2 } from "@/lib/storage/r2";
 
-const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
+const MAX_FILE_SIZE_BYTES = 2 * 1024 * 1024;
 const ALLOWED_MIME_TYPES = new Set([
   "image/jpeg",
   "image/png",
@@ -71,7 +71,7 @@ export async function POST(request: Request) {
 
   if (fileValue.size <= 0 || fileValue.size > MAX_FILE_SIZE_BYTES) {
     return NextResponse.json(
-      { error: "Ukuran file maksimal 5 MB." },
+      { error: "Ukuran file maksimal 2 MB." },
       { status: 400 }
     );
   }

@@ -167,6 +167,20 @@ export interface DashboardMonthlyDatum {
   payments: number;
 }
 
+export interface StaffDashboardSummary {
+  todayAttendance: AttendanceRecord | null;
+  counts: {
+    leaveSubmitted: number;
+    tripSubmitted: number;
+    reimbursementSubmitted: number;
+  };
+  recents: {
+    leaves: LeaveRequest[];
+    trips: BusinessTrip[];
+    reimbursements: Reimbursement[];
+  };
+}
+
 // Activity Types for Dashboard
 export interface RecentActivity {
   id: string;
@@ -323,6 +337,8 @@ export interface Reimbursement {
   employeeId: string;
   category: string;
   amount: number;
+  itemCount?: number;
+  submissionDate: Date;
   description?: string | null;
   receiptUrl?: string | null;
   status: WorkflowStatus | string;
@@ -335,13 +351,28 @@ export interface Reimbursement {
   updatedAt: Date;
   employee?: Pick<Employee, "id" | "employeeCode" | "fullName" | "title" | "department">;
   user?: Pick<User, "id" | "username" | "name" | "role">;
+  items?: ReimbursementItem[];
   attachments?: ReimbursementAttachment[];
   workflowEvents?: WorkflowEvent[];
+}
+
+export interface ReimbursementItem {
+  id: string;
+  reimbursementId: string;
+  expenseDate: Date;
+  category: string;
+  clientName?: string | null;
+  description?: string | null;
+  amount: number;
+  attachment?: ReimbursementAttachment | null;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface ReimbursementAttachment {
   id: string;
   reimbursementId: string;
+  reimbursementItemId?: string | null;
   purpose: "RECEIPT" | "PAID_PROOF" | string;
   fileUrl: string;
   fileKey?: string | null;

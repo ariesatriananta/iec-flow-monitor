@@ -22,8 +22,6 @@ const defaultPayload = {
     { id: "staff", position: "Staff", monthlyLimit: 1000000 },
     { id: "senior-staff", position: "Senior Staff", monthlyLimit: 1500000 },
   ] as PositionLimit[],
-  maxFilesPerRequest: 10,
-  maxFileSizeMb: 5,
 } as const;
 
 const currencyNumberSchema = z
@@ -56,16 +54,6 @@ const payloadSchema = z.object({
     .array(positionLimitSchema)
     .min(1, "Minimal satu limit jabatan wajib diisi")
     .max(100, "Maksimal 100 limit jabatan"),
-  maxFilesPerRequest: z
-    .number()
-    .int("Maksimal file harus bilangan bulat")
-    .min(1, "Maksimal file minimal 1")
-    .max(50, "Maksimal file tidak boleh lebih dari 50"),
-  maxFileSizeMb: z
-    .number()
-    .int("Ukuran file harus bilangan bulat")
-    .min(1, "Ukuran file minimal 1 MB")
-    .max(20, "Ukuran file tidak boleh lebih dari 20 MB"),
 });
 
 const formatZodError = (error: z.ZodError) =>
@@ -95,8 +83,6 @@ export async function GET() {
       other: Number(row.otherLimit),
     },
     positionLimit: parsePositionLimit(row.positionLimitJson),
-    maxFilesPerRequest: row.maxFilesPerRequest,
-    maxFileSizeMb: row.maxFileSizeMb,
   });
 }
 
@@ -124,8 +110,6 @@ export async function PUT(request: Request) {
       mealLimit: payload.categoryLimit.meal.toString(),
       otherLimit: payload.categoryLimit.other.toString(),
       positionLimitJson: JSON.stringify(payload.positionLimit),
-      maxFilesPerRequest: payload.maxFilesPerRequest,
-      maxFileSizeMb: payload.maxFileSizeMb,
       createdAt: now,
       updatedAt: now,
     })
@@ -136,8 +120,6 @@ export async function PUT(request: Request) {
         mealLimit: payload.categoryLimit.meal.toString(),
         otherLimit: payload.categoryLimit.other.toString(),
         positionLimitJson: JSON.stringify(payload.positionLimit),
-        maxFilesPerRequest: payload.maxFilesPerRequest,
-        maxFileSizeMb: payload.maxFileSizeMb,
         updatedAt: now,
       },
     })
@@ -150,8 +132,5 @@ export async function PUT(request: Request) {
       other: Number(updated.otherLimit),
     },
     positionLimit: payload.positionLimit,
-    maxFilesPerRequest: updated.maxFilesPerRequest,
-    maxFileSizeMb: updated.maxFileSizeMb,
   });
 }
-

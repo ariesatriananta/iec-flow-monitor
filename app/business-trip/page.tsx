@@ -51,6 +51,7 @@ import {
 import {
   fetchApprovalFlowSettings,
   fetchBusinessTripAllowanceSettings,
+  type ApprovalFlowPayload,
   type BusinessTripAllowancePayload,
 } from "@/lib/api/settings";
 import { formatCurrency, formatDate } from "@/lib/numbering";
@@ -63,6 +64,7 @@ import {
   DEFAULT_BUSINESS_TRIP_COMPENSATION_SETTINGS,
 } from "@/lib/business-trip-allowance";
 import { format } from "date-fns";
+import { useSearchParams } from "next/navigation";
 import {
   CalendarIcon,
   CheckCircle2,
@@ -89,6 +91,10 @@ type PendingAction = {
   row: BusinessTrip;
   nextStatus: string;
 };
+
+type ApproverProfile = NonNullable<
+  ApprovalFlowPayload["businessTripApproverLevel1Employee"]
+>;
 
 const parseDateKeyToDate = (value: string) => {
   if (!value) return undefined;
@@ -187,6 +193,7 @@ export default function BusinessTripPage() {
   const { user } = useAuth();
   const isAdmin = user?.role === "ADMIN";
   const { toast } = useToast();
+  const searchParams = useSearchParams();
 
   const [rows, setRows] = useState<BusinessTrip[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -199,11 +206,15 @@ export default function BusinessTripPage() {
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<BusinessTrip | null>(null);
   const [detailRow, setDetailRow] = useState<BusinessTrip | null>(null);
+  const [autoOpenedEntityId, setAutoOpenedEntityId] = useState<string | null>(null);
+  const [highlightedEntityId, setHighlightedEntityId] = useState<string | null>(null);
   const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
   const [printRow, setPrintRow] = useState<BusinessTrip | null>(null);
   const [approvalLevels, setApprovalLevels] = useState<1 | 2>(2);
   const [approverLevel1EmployeeId, setApproverLevel1EmployeeId] = useState<string | null>(null);
   const [approverLevel2EmployeeId, setApproverLevel2EmployeeId] = useState<string | null>(null);
+  const [approverLevel1Profile, setApproverLevel1Profile] = useState<ApproverProfile | null>(null);
+  const [approverLevel2Profile, setApproverLevel2Profile] = useState<ApproverProfile | null>(null);
   const PAGE_SIZE = 20;
   const debouncedSearch = useDebouncedValue(searchQuery.trim(), 400);
 
@@ -253,10 +264,14 @@ export default function BusinessTripPage() {
         setApprovalLevels(settings.businessTripApprovalLevels);
         setApproverLevel1EmployeeId(settings.businessTripApproverLevel1EmployeeId);
         setApproverLevel2EmployeeId(settings.businessTripApproverLevel2EmployeeId);
+        setApproverLevel1Profile(settings.businessTripApproverLevel1Employee ?? null);
+        setApproverLevel2Profile(settings.businessTripApproverLevel2Employee ?? null);
       } catch {
         setApprovalLevels(2);
         setApproverLevel1EmployeeId(null);
         setApproverLevel2EmployeeId(null);
+        setApproverLevel1Profile(null);
+        setApproverLevel2Profile(null);
       }
     })();
   }, []);
@@ -297,6 +312,25 @@ export default function BusinessTripPage() {
   useEffect(() => {
     setPage(1);
   }, [statusFilter, debouncedSearch]);
+
+  const notifEntityId = searchParams.get("entityId");
+  useEffect(() => {
+    if (!notifEntityId) {
+      setAutoOpenedEntityId(null);
+      setHighlightedEntityId(null);
+      return;
+    }
+    if (isLoading || autoOpenedEntityId === notifEntityId) return;
+    const target = rows.find((row) => row.id === notifEntityId);
+    if (!target) return;
+    setDetailRow(target);
+    setAutoOpenedEntityId(notifEntityId);
+    setHighlightedEntityId(notifEntityId);
+    const timer = window.setTimeout(() => {
+      setHighlightedEntityId((prev) => (prev === notifEntityId ? null : prev));
+    }, 3000);
+    return () => window.clearTimeout(timer);
+  }, [notifEntityId, isLoading, autoOpenedEntityId, rows]);
 
   const isApproverLevel1 = Boolean(user?.employeeId) && user?.employeeId === approverLevel1EmployeeId;
   const isApproverLevel2 =
@@ -597,6 +631,13 @@ export default function BusinessTripPage() {
     return "Status pengajuan sedang diproses";
   };
 
+  const formatApproverTarget = (approver?: ApproverProfile | null) => {
+    if (!approver) return "Belum diset";
+    const name = approver.fullName?.trim() || "-";
+    const title = approver.title?.trim();
+    return title ? `${name} (${title})` : name;
+  };
+
   const compensationPreview =
     startDate && endDate
       ? calculateBusinessTripCompensation({
@@ -701,7 +742,13 @@ export default function BusinessTripPage() {
                         </TableRow>
                       ) : (
                         rows.map((row) => (
-                          <TableRow key={row.id}>
+                          <TableRow
+                            key={row.id}
+                            className={cn(
+                              highlightedEntityId === row.id &&
+                                "bg-amber-100/70 dark:bg-amber-900/25 transition-colors duration-300"
+                            )}
+                          >
                             {showRequesterColumn && <TableCell>{row.employee?.fullName ?? row.user?.name ?? "-"}</TableCell>}
                             <TableCell>{row.destinationCity}</TableCell>
                             <TableCell>{row.companyName}</TableCell>
@@ -797,7 +844,14 @@ export default function BusinessTripPage() {
                     </div>
                   ) : (
                     rows.map((row) => (
-                      <div key={row.id} className="rounded-md border p-4">
+                      <div
+                        key={row.id}
+                        className={cn(
+                          "rounded-md border p-4 transition-colors duration-300",
+                          highlightedEntityId === row.id &&
+                            "border-amber-300 bg-amber-100/70 dark:border-amber-700 dark:bg-amber-900/25"
+                        )}
+                      >
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <p className="font-medium">{row.destinationCity}</p>
@@ -1212,6 +1266,26 @@ export default function BusinessTripPage() {
 
               <div className="rounded-lg border p-4">
                 <p className="mb-2 text-sm font-semibold">Tracking Progress Approval</p>
+                <div className="mb-3 grid gap-2 rounded-md border border-border/60 bg-card p-3 text-sm">
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="text-muted-foreground">Approval Level 1</span>
+                    <span className="text-right font-medium">
+                      {formatApproverTarget(approverLevel1Profile)}
+                    </span>
+                  </div>
+                  {approvalLevels === 2 ? (
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="text-muted-foreground">Approval Level 2</span>
+                      <span className="text-right font-medium">
+                        {formatApproverTarget(approverLevel2Profile)}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="text-xs text-muted-foreground">
+                      Flow business trip diset 1 level approval.
+                    </div>
+                  )}
+                </div>
                 <div className="rounded-md bg-muted/50 p-3 text-sm text-muted-foreground">
                   {getTrackingMessage(detailRow)}
                 </div>

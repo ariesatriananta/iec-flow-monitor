@@ -13,6 +13,7 @@ import type {
   LeaveRequest,
   BusinessTrip,
   Reimbursement,
+  ReimbursementItem,
   ReimbursementAttachment,
   WorkflowEvent,
   InAppNotification,
@@ -140,14 +141,25 @@ export const parseBusinessTrip = (data: BusinessTrip): BusinessTrip => ({
 export const parseReimbursement = (data: Reimbursement): Reimbursement => ({
   ...data,
   amount: toNumber(data.amount),
+  itemCount: data.itemCount ?? (data.items?.length ?? 0),
+  submissionDate: toDate(data.submissionDate),
   approvedAt: data.approvedAt ? toDate(data.approvedAt) : null,
   paidAt: data.paidAt ? toDate(data.paidAt) : null,
   createdAt: toDate(data.createdAt),
   updatedAt: toDate(data.updatedAt),
+  items: data.items ? data.items.map(parseReimbursementItem) : undefined,
   attachments: data.attachments
     ? data.attachments.map(parseReimbursementAttachment)
     : undefined,
   workflowEvents: data.workflowEvents?.map(parseWorkflowEvent),
+});
+
+const parseReimbursementItem = (data: ReimbursementItem): ReimbursementItem => ({
+  ...data,
+  expenseDate: toDate(data.expenseDate),
+  amount: toNumber(data.amount),
+  createdAt: toDate(data.createdAt),
+  updatedAt: toDate(data.updatedAt),
 });
 
 const parseReimbursementAttachment = (
