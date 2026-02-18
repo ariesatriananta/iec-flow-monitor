@@ -44,6 +44,7 @@ const attachmentSchema = z.object({
 
 const querySchema = z.object({
   status: workflowStatusSchema.optional(),
+  queue: z.enum(["mine"]).optional(),
   limit: z.coerce.number().int().min(1).max(100).optional().default(20),
   offset: z.coerce.number().int().min(0).optional().default(0),
   q: z.string().trim().max(100).optional(),
@@ -83,6 +84,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const parsedQuery = querySchema.safeParse({
     status: url.searchParams.get("status") ?? undefined,
+    queue: url.searchParams.get("queue") ?? undefined,
     limit: url.searchParams.get("limit") ?? undefined,
     offset: url.searchParams.get("offset") ?? undefined,
     q: url.searchParams.get("q") ?? undefined,
@@ -94,41 +96,57 @@ export async function GET(request: Request) {
     );
   }
 
-  const { status, limit, offset, q } = parsedQuery.data;
+  const { status, queue, limit, offset, q } = parsedQuery.data;
   const conditions: SQL[] = [];
   const db = getDb();
+  let isApproverLevel1 = false;
+  let isApproverLevel2 = false;
+  let isApprover = false;
+  let reimbursementApprovalLevels: 1 | 2 = 2;
 
-  if (auth.user.role !== "ADMIN") {
+  if (!auth.user.employeeId) {
+    if (queue === "mine") {
+      return NextResponse.json(
+        { error: "Akun belum terhubung ke employee" },
+        { status: 403 }
+      );
+    }
+  }
+
+  if (auth.user.employeeId) {
+    const [approvalFlow] = await db.select().from(settingsApprovalFlow).limit(1);
+    reimbursementApprovalLevels = approvalFlow?.reimbursementApprovalLevels === 1 ? 1 : 2;
+    isApproverLevel1 =
+      auth.user.employeeId === (approvalFlow?.reimbursementApproverLevel1EmployeeId ?? null);
+    isApproverLevel2 =
+      reimbursementApprovalLevels === 2 &&
+      auth.user.employeeId === (approvalFlow?.reimbursementApproverLevel2EmployeeId ?? null);
+    isApprover = isApproverLevel1 || isApproverLevel2;
+  }
+
+  if (queue === "mine") {
+    const queueConditions: SQL[] = [];
+    if (isApproverLevel1) queueConditions.push(eq(reimbursements.status, "SUBMITTED"));
+    if (isApproverLevel2 && reimbursementApprovalLevels === 2) {
+      queueConditions.push(eq(reimbursements.status, "WAITING_LEVEL_2"));
+    }
+    if (queueConditions.length === 0) {
+      conditions.push(sql`1 = 0`);
+    } else if (queueConditions.length === 1) {
+      conditions.push(queueConditions[0]);
+    } else {
+      conditions.push(or(...queueConditions) as SQL);
+    }
+  } else if (auth.user.role !== "ADMIN") {
     if (!auth.user.employeeId) {
       return NextResponse.json(
         { error: "Akun belum terhubung ke employee" },
         { status: 403 }
       );
     }
-
-    const [approvalFlow] = await db.select().from(settingsApprovalFlow).limit(1);
-    const reimbursementApprovalLevels = approvalFlow?.reimbursementApprovalLevels ?? 2;
-    const isApproverLevel1 =
-      auth.user.employeeId === (approvalFlow?.reimbursementApproverLevel1EmployeeId ?? null);
-    const isApproverLevel2 =
-      reimbursementApprovalLevels === 2 &&
-      auth.user.employeeId === (approvalFlow?.reimbursementApproverLevel2EmployeeId ?? null);
-
-    const visibilityConditions: SQL[] = [
-      eq(reimbursements.employeeId, auth.user.employeeId),
-    ];
-    if (isApproverLevel1) {
-      visibilityConditions.push(eq(reimbursements.status, "SUBMITTED"));
-      visibilityConditions.push(eq(reimbursements.status, "APPROVED"));
-      visibilityConditions.push(eq(reimbursements.status, "PAID"));
+    if (!isApprover) {
+      conditions.push(eq(reimbursements.employeeId, auth.user.employeeId));
     }
-    if (isApproverLevel2) {
-      visibilityConditions.push(eq(reimbursements.status, "WAITING_LEVEL_2"));
-      visibilityConditions.push(eq(reimbursements.status, "APPROVED"));
-      visibilityConditions.push(eq(reimbursements.status, "PAID"));
-    }
-
-    conditions.push(or(...visibilityConditions) as SQL);
   }
   if (status) {
     conditions.push(eq(reimbursements.status, status));
@@ -149,6 +167,17 @@ export async function GET(request: Request) {
   }
 
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+  const approverStatusPriority = sql<number>`
+    case
+      when ${reimbursements.status} = 'SUBMITTED' then 0
+      when ${reimbursements.status} = 'WAITING_LEVEL_2' then 1
+      when ${reimbursements.status} = 'REJECTED' then 2
+      when ${reimbursements.status} = 'APPROVED' then 3
+      when ${reimbursements.status} = 'PAID' then 4
+      when ${reimbursements.status} = 'CANCELLED' then 5
+      else 6
+    end
+  `;
 
   const totalResult = whereClause
     ? await db
@@ -171,7 +200,10 @@ export async function GET(request: Request) {
         .leftJoin(employees, eq(reimbursements.employeeId, employees.id))
         .leftJoin(users, eq(users.employeeId, employees.id))
         .where(whereClause)
-        .orderBy(desc(reimbursements.createdAt))
+        .orderBy(
+          ...(isApprover ? [approverStatusPriority] : []),
+          desc(reimbursements.createdAt)
+        )
         .limit(limit)
         .offset(offset)
     : await db
@@ -179,7 +211,10 @@ export async function GET(request: Request) {
         .from(reimbursements)
         .leftJoin(employees, eq(reimbursements.employeeId, employees.id))
         .leftJoin(users, eq(users.employeeId, employees.id))
-        .orderBy(desc(reimbursements.createdAt))
+        .orderBy(
+          ...(isApprover ? [approverStatusPriority] : []),
+          desc(reimbursements.createdAt)
+        )
         .limit(limit)
         .offset(offset);
 

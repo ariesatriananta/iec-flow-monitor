@@ -30,6 +30,7 @@ const dateStringSchema = z
 
 const querySchema = z.object({
   status: workflowStatusSchema.optional(),
+  queue: z.enum(["mine"]).optional(),
   limit: z.coerce.number().int().min(1).max(100).optional().default(20),
   offset: z.coerce.number().int().min(0).optional().default(0),
   q: z.string().trim().max(100).optional(),
@@ -52,6 +53,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const parsedQuery = querySchema.safeParse({
     status: url.searchParams.get("status") ?? undefined,
+    queue: url.searchParams.get("queue") ?? undefined,
     limit: url.searchParams.get("limit") ?? undefined,
     offset: url.searchParams.get("offset") ?? undefined,
     q: url.searchParams.get("q") ?? undefined,
@@ -63,38 +65,57 @@ export async function GET(request: Request) {
     );
   }
 
-  const { status, limit, offset, q } = parsedQuery.data;
+  const { status, queue, limit, offset, q } = parsedQuery.data;
   const conditions: SQL[] = [];
   const db = getDb();
+  let isApproverLevel1 = false;
+  let isApproverLevel2 = false;
+  let isApprover = false;
+  let leaveApprovalLevels: 1 | 2 = 2;
 
-  if (auth.user.role !== "ADMIN") {
+  if (!auth.user.employeeId) {
+    if (queue === "mine") {
+      return NextResponse.json(
+        { error: "Akun belum terhubung ke employee" },
+        { status: 403 }
+      );
+    }
+  }
+
+  if (auth.user.employeeId) {
+    const [approvalFlow] = await db.select().from(settingsApprovalFlow).limit(1);
+    leaveApprovalLevels = approvalFlow?.leaveApprovalLevels === 1 ? 1 : 2;
+    isApproverLevel1 =
+      auth.user.employeeId === (approvalFlow?.leaveApproverLevel1EmployeeId ?? null);
+    isApproverLevel2 =
+      leaveApprovalLevels === 2 &&
+      auth.user.employeeId === (approvalFlow?.leaveApproverLevel2EmployeeId ?? null);
+    isApprover = isApproverLevel1 || isApproverLevel2;
+  }
+
+  if (queue === "mine") {
+    const queueConditions: SQL[] = [];
+    if (isApproverLevel1) queueConditions.push(eq(leaveRequests.status, "SUBMITTED"));
+    if (isApproverLevel2 && leaveApprovalLevels === 2) {
+      queueConditions.push(eq(leaveRequests.status, "WAITING_LEVEL_2"));
+    }
+    if (queueConditions.length === 0) {
+      conditions.push(sql`1 = 0`);
+    } else if (queueConditions.length === 1) {
+      conditions.push(queueConditions[0]);
+    } else {
+      conditions.push(or(...queueConditions) as SQL);
+    }
+  } else if (auth.user.role !== "ADMIN") {
     if (!auth.user.employeeId) {
       return NextResponse.json(
         { error: "Akun belum terhubung ke employee" },
         { status: 403 }
       );
     }
-
-    const [approvalFlow] = await db.select().from(settingsApprovalFlow).limit(1);
-    const leaveApprovalLevels = approvalFlow?.leaveApprovalLevels ?? 2;
-    const isApproverLevel1 =
-      auth.user.employeeId === (approvalFlow?.leaveApproverLevel1EmployeeId ?? null);
-    const isApproverLevel2 =
-      leaveApprovalLevels === 2 &&
-      auth.user.employeeId === (approvalFlow?.leaveApproverLevel2EmployeeId ?? null);
-
-    const visibilityConditions: SQL[] = [
-      eq(leaveRequests.employeeId, auth.user.employeeId),
-    ];
-
-    if (isApproverLevel1) {
-      visibilityConditions.push(eq(leaveRequests.status, "SUBMITTED"));
+    if (!isApprover) {
+      conditions.push(eq(leaveRequests.employeeId, auth.user.employeeId));
     }
-    if (isApproverLevel2) {
-      visibilityConditions.push(eq(leaveRequests.status, "WAITING_LEVEL_2"));
-    }
-
-    conditions.push(or(...visibilityConditions) as SQL);
   }
   if (status) {
     conditions.push(eq(leaveRequests.status, status));
@@ -114,6 +135,16 @@ export async function GET(request: Request) {
   }
 
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+  const approverStatusPriority = sql<number>`
+    case
+      when ${leaveRequests.status} = 'SUBMITTED' then 0
+      when ${leaveRequests.status} = 'WAITING_LEVEL_2' then 1
+      when ${leaveRequests.status} = 'REJECTED' then 2
+      when ${leaveRequests.status} = 'APPROVED' then 3
+      when ${leaveRequests.status} = 'CANCELLED' then 4
+      else 5
+    end
+  `;
 
   const totalResult = whereClause
     ? await db
@@ -136,7 +167,10 @@ export async function GET(request: Request) {
         .leftJoin(employees, eq(leaveRequests.employeeId, employees.id))
         .leftJoin(users, eq(users.employeeId, employees.id))
         .where(whereClause)
-        .orderBy(desc(leaveRequests.createdAt))
+        .orderBy(
+          ...(isApprover ? [approverStatusPriority] : []),
+          desc(leaveRequests.createdAt)
+        )
         .limit(limit)
         .offset(offset)
     : await db
@@ -144,7 +178,10 @@ export async function GET(request: Request) {
         .from(leaveRequests)
         .leftJoin(employees, eq(leaveRequests.employeeId, employees.id))
         .leftJoin(users, eq(users.employeeId, employees.id))
-        .orderBy(desc(leaveRequests.createdAt))
+        .orderBy(
+          ...(isApprover ? [approverStatusPriority] : []),
+          desc(leaveRequests.createdAt)
+        )
         .limit(limit)
         .offset(offset);
 

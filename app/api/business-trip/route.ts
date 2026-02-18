@@ -46,6 +46,7 @@ const dateStringSchema = z
 
 const querySchema = z.object({
   status: workflowStatusSchema.optional(),
+  queue: z.enum(["mine"]).optional(),
   limit: z.coerce.number().int().min(1).max(100).optional().default(20),
   offset: z.coerce.number().int().min(0).optional().default(0),
   q: z.string().trim().max(100).optional(),
@@ -112,6 +113,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const parsedQuery = querySchema.safeParse({
     status: url.searchParams.get("status") ?? undefined,
+    queue: url.searchParams.get("queue") ?? undefined,
     limit: url.searchParams.get("limit") ?? undefined,
     offset: url.searchParams.get("offset") ?? undefined,
     q: url.searchParams.get("q") ?? undefined,
@@ -123,40 +125,57 @@ export async function GET(request: Request) {
     );
   }
 
-  const { status, limit, offset, q } = parsedQuery.data;
+  const { status, queue, limit, offset, q } = parsedQuery.data;
   const conditions: SQL[] = [];
+  const db = getDb();
+  let isApproverLevel1 = false;
+  let isApproverLevel2 = false;
+  let isApprover = false;
+  let approvalLevels: 1 | 2 = 2;
 
-  if (auth.user.role !== "ADMIN") {
+  if (!auth.user.employeeId) {
+    if (queue === "mine") {
+      return NextResponse.json(
+        { error: "Akun belum terhubung ke employee" },
+        { status: 403 }
+      );
+    }
+  }
+
+  if (auth.user.employeeId) {
+    const [approvalFlow] = await db.select().from(settingsApprovalFlow).limit(1);
+    approvalLevels = approvalFlow?.businessTripApprovalLevels === 1 ? 1 : 2;
+    isApproverLevel1 =
+      auth.user.employeeId === (approvalFlow?.businessTripApproverLevel1EmployeeId ?? null);
+    isApproverLevel2 =
+      approvalLevels === 2 &&
+      auth.user.employeeId === (approvalFlow?.businessTripApproverLevel2EmployeeId ?? null);
+    isApprover = isApproverLevel1 || isApproverLevel2;
+  }
+
+  if (queue === "mine") {
+    const queueConditions: SQL[] = [];
+    if (isApproverLevel1) queueConditions.push(eq(businessTrips.status, "SUBMITTED"));
+    if (isApproverLevel2 && approvalLevels === 2) {
+      queueConditions.push(eq(businessTrips.status, "WAITING_LEVEL_2"));
+    }
+    if (queueConditions.length === 0) {
+      conditions.push(sql`1 = 0`);
+    } else if (queueConditions.length === 1) {
+      conditions.push(queueConditions[0]);
+    } else {
+      conditions.push(or(...queueConditions) as SQL);
+    }
+  } else if (auth.user.role !== "ADMIN") {
     if (!auth.user.employeeId) {
       return NextResponse.json(
         { error: "Akun belum terhubung ke employee" },
         { status: 403 }
       );
     }
-
-    const [approvalFlow] = await getDb().select().from(settingsApprovalFlow).limit(1);
-    const approvalLevels = approvalFlow?.businessTripApprovalLevels ?? 2;
-    const isApproverLevel1 =
-      auth.user.employeeId === (approvalFlow?.businessTripApproverLevel1EmployeeId ?? null);
-    const isApproverLevel2 =
-      approvalLevels === 2 &&
-      auth.user.employeeId === (approvalFlow?.businessTripApproverLevel2EmployeeId ?? null);
-
-    const visibilityConditions: SQL[] = [
-      eq(businessTrips.employeeId, auth.user.employeeId),
-    ];
-    if (isApproverLevel1) {
-      visibilityConditions.push(eq(businessTrips.status, "SUBMITTED"));
-      visibilityConditions.push(eq(businessTrips.status, "APPROVED"));
-      visibilityConditions.push(eq(businessTrips.status, "PAID"));
+    if (!isApprover) {
+      conditions.push(eq(businessTrips.employeeId, auth.user.employeeId));
     }
-    if (isApproverLevel2) {
-      visibilityConditions.push(eq(businessTrips.status, "WAITING_LEVEL_2"));
-      visibilityConditions.push(eq(businessTrips.status, "APPROVED"));
-      visibilityConditions.push(eq(businessTrips.status, "PAID"));
-    }
-
-    conditions.push(or(...visibilityConditions) as SQL);
   }
   if (status) {
     conditions.push(eq(businessTrips.status, status));
@@ -176,8 +195,18 @@ export async function GET(request: Request) {
     );
   }
 
-  const db = getDb();
   const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+  const approverStatusPriority = sql<number>`
+    case
+      when ${businessTrips.status} = 'SUBMITTED' then 0
+      when ${businessTrips.status} = 'WAITING_LEVEL_2' then 1
+      when ${businessTrips.status} = 'REJECTED' then 2
+      when ${businessTrips.status} = 'APPROVED' then 3
+      when ${businessTrips.status} = 'PAID' then 4
+      when ${businessTrips.status} = 'CANCELLED' then 5
+      else 6
+    end
+  `;
 
   const totalResult = whereClause
     ? await db
@@ -200,7 +229,10 @@ export async function GET(request: Request) {
         .leftJoin(employees, eq(businessTrips.employeeId, employees.id))
         .leftJoin(users, eq(users.employeeId, employees.id))
         .where(whereClause)
-        .orderBy(desc(businessTrips.createdAt))
+        .orderBy(
+          ...(isApprover ? [approverStatusPriority] : []),
+          desc(businessTrips.createdAt)
+        )
         .limit(limit)
         .offset(offset)
     : await db
@@ -208,7 +240,10 @@ export async function GET(request: Request) {
         .from(businessTrips)
         .leftJoin(employees, eq(businessTrips.employeeId, employees.id))
         .leftJoin(users, eq(users.employeeId, employees.id))
-        .orderBy(desc(businessTrips.createdAt))
+        .orderBy(
+          ...(isApprover ? [approverStatusPriority] : []),
+          desc(businessTrips.createdAt)
+        )
         .limit(limit)
         .offset(offset);
 

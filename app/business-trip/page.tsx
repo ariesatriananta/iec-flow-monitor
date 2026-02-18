@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -216,6 +217,7 @@ export default function BusinessTripPage() {
   const [approverLevel2EmployeeId, setApproverLevel2EmployeeId] = useState<string | null>(null);
   const [approverLevel1Profile, setApproverLevel1Profile] = useState<ApproverProfile | null>(null);
   const [approverLevel2Profile, setApproverLevel2Profile] = useState<ApproverProfile | null>(null);
+  const [onlyMyQueue, setOnlyMyQueue] = useState(false);
   const PAGE_SIZE = 20;
   const debouncedSearch = useDebouncedValue(searchQuery.trim(), 400);
 
@@ -230,6 +232,11 @@ export default function BusinessTripPage() {
     DEFAULT_BUSINESS_TRIP_COMPENSATION_SETTINGS
   );
   const [headerDataUrl, setHeaderDataUrl] = useState<string>("");
+  const isQueueFilterActive =
+    onlyMyQueue &&
+    Boolean(user?.employeeId) &&
+    (user?.employeeId === approverLevel1EmployeeId ||
+      (approvalLevels === 2 && user?.employeeId === approverLevel2EmployeeId));
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -237,6 +244,7 @@ export default function BusinessTripPage() {
       const data = await fetchBusinessTrips({
         status: statusFilter === "ALL" ? undefined : statusFilter,
         q: debouncedSearch.length >= 2 ? debouncedSearch : undefined,
+        queue: isQueueFilterActive ? "mine" : undefined,
         limit: PAGE_SIZE,
         offset: (page - 1) * PAGE_SIZE,
       });
@@ -252,7 +260,7 @@ export default function BusinessTripPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [statusFilter, debouncedSearch, page, toast]);
+  }, [statusFilter, debouncedSearch, isQueueFilterActive, page, toast]);
 
   useEffect(() => {
     void loadData();
@@ -312,7 +320,7 @@ export default function BusinessTripPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [statusFilter, debouncedSearch]);
+  }, [statusFilter, debouncedSearch, isQueueFilterActive]);
 
   const notifEntityId = searchParams.get("entityId");
   useEffect(() => {
@@ -348,7 +356,19 @@ export default function BusinessTripPage() {
     if (status === "WAITING_LEVEL_2") return "Setujui L2";
     return "Setujui";
   };
-  const getStatusLabel = (status: string) => (status === "WAITING_LEVEL_2" ? "WAITING L2" : status);
+  const getStatusLabel = (status: string) => {
+    if (status === "SUBMITTED") return "Diajukan";
+    if (status === "WAITING_LEVEL_2") return "Menunggu Level 2";
+    if (status === "APPROVED") return "Disetujui";
+    if (status === "PAID") return "Dibayar";
+    if (status === "REJECTED") return "Ditolak";
+    if (status === "CANCELLED") return "Dibatalkan";
+    return status;
+  };
+  const hasActiveFilter = statusFilter !== "ALL" || debouncedSearch.length >= 2 || (isApprover && onlyMyQueue);
+  const emptyStateMessage = hasActiveFilter
+    ? "Data tidak ditemukan untuk filter saat ini"
+    : "Belum ada pengajuan perjalanan dinas";
 
   const handleCreate = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -439,7 +459,7 @@ export default function BusinessTripPage() {
   const openPrintForm = (row: BusinessTrip) => {
     setPrintRow(row);
     setIsPrintPreviewOpen(true);
-    if (row.status !== "APPROVED") {
+    if (row.status !== "APPROVED" && row.status !== "PAID") {
       toast({
         title: "Belum Approved",
         description:
@@ -705,11 +725,26 @@ export default function BusinessTripPage() {
                 <SelectContent>
                   {statusOptions.map((option) => (
                     <SelectItem key={option} value={option}>
-                      {option === "ALL" ? "Semua Status" : option}
+                      {option === "ALL" ? "Semua Status" : getStatusLabel(option)}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {isApprover && (
+                <div className="flex items-center gap-2 rounded-md border px-3 py-2">
+                  <Checkbox
+                    id="trip-only-my-queue"
+                    checked={onlyMyQueue}
+                    onCheckedChange={(checked) => {
+                      setOnlyMyQueue(Boolean(checked));
+                      setPage(1);
+                    }}
+                  />
+                  <Label htmlFor="trip-only-my-queue" className="cursor-pointer text-sm">
+                    Assigned to me
+                  </Label>
+                </div>
+              )}
             </div>
           </CardHeader>
           <CardContent>
@@ -741,7 +776,7 @@ export default function BusinessTripPage() {
                           <TableCell colSpan={showRequesterColumn ? 8 : 7} className="py-8 text-center text-muted-foreground">
                             <div className="flex flex-col items-center gap-2">
                               <PlaneTakeoff className="h-8 w-8" />
-                              <p>Belum ada pengajuan perjalanan dinas</p>
+                              <p>{emptyStateMessage}</p>
                             </div>
                           </TableCell>
                         </TableRow>
@@ -851,7 +886,7 @@ export default function BusinessTripPage() {
                   {rows.length === 0 ? (
                     <div className="flex flex-col items-center gap-2 rounded-md border py-8 text-muted-foreground">
                       <PlaneTakeoff className="h-8 w-8" />
-                      <p>Belum ada pengajuan perjalanan dinas</p>
+                      <p>{emptyStateMessage}</p>
                     </div>
                   ) : (
                     rows.map((row) => (
@@ -948,7 +983,11 @@ export default function BusinessTripPage() {
                 </div>
                 <div className="mt-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                   <p className="text-sm text-muted-foreground">
-                    {total === 0
+                    {onlyMyQueue && isApprover
+                      ? total === 0
+                        ? "Menampilkan 0 dari 0 data (mode Assigned to me)"
+                        : `Menampilkan ${(page - 1) * PAGE_SIZE + (rows.length > 0 ? 1 : 0)}-${(page - 1) * PAGE_SIZE + rows.length} dari ${total} data (mode Assigned to me)`
+                      : total === 0
                       ? "Menampilkan 0 dari 0 data"
                       : `Menampilkan ${(page - 1) * PAGE_SIZE + 1}-${Math.min(
                           page * PAGE_SIZE,
@@ -1522,7 +1561,7 @@ function BusinessTripPrintPreview({
         />
       </div>
       <h3 className="text-center text-xl font-bold tracking-wide text-primary">FORM BUSINESS TRIP</h3>
-      {row.status !== "APPROVED" ? (
+      {row.status !== "APPROVED" && row.status !== "PAID" ? (
         <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
           Status pengajuan belum APPROVED. Dokumen ini tercetak sebagai draft arsip.
         </div>

@@ -25,12 +25,14 @@ export async function fetchReimbursements(params?: {
   limit?: number;
   offset?: number;
   q?: string;
+  queue?: "mine";
 }): Promise<PaginatedResult<Reimbursement>> {
   const search = new URLSearchParams();
   if (params?.status) search.set("status", params.status);
   if (params?.limit) search.set("limit", String(params.limit));
   if (params?.offset) search.set("offset", String(params.offset));
   if (params?.q) search.set("q", params.q);
+  if (params?.queue) search.set("queue", params.queue);
   const query = search.toString();
   const url = query ? `/api/reimbursement?${query}` : "/api/reimbursement";
   const data = await requestJson<PaginatedResult<Reimbursement>>(url, {

@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -178,6 +179,7 @@ export default function LeaveManagementPage() {
   const [approverLevel2EmployeeId, setApproverLevel2EmployeeId] = useState<string | null>(null);
   const [approverLevel1Label, setApproverLevel1Label] = useState("-");
   const [approverLevel2Label, setApproverLevel2Label] = useState("-");
+  const [onlyMyQueue, setOnlyMyQueue] = useState(false);
   const PAGE_SIZE = 20;
   const debouncedSearch = useDebouncedValue(searchQuery.trim(), 400);
 
@@ -185,6 +187,11 @@ export default function LeaveManagementPage() {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [reason, setReason] = useState("");
+  const isQueueFilterActive =
+    onlyMyQueue &&
+    Boolean(user?.employeeId) &&
+    (user?.employeeId === approverLevel1EmployeeId ||
+      (leaveApprovalLevels === 2 && user?.employeeId === approverLevel2EmployeeId));
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -192,6 +199,7 @@ export default function LeaveManagementPage() {
       const data = await fetchLeaveRequests({
         status: statusFilter === "ALL" ? undefined : statusFilter,
         q: debouncedSearch.length >= 2 ? debouncedSearch : undefined,
+        queue: isQueueFilterActive ? "mine" : undefined,
         limit: PAGE_SIZE,
         offset: (page - 1) * PAGE_SIZE,
       });
@@ -207,7 +215,7 @@ export default function LeaveManagementPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [statusFilter, debouncedSearch, page, toast]);
+  }, [statusFilter, debouncedSearch, isQueueFilterActive, page, toast]);
 
   useEffect(() => {
     void loadData();
@@ -248,7 +256,7 @@ export default function LeaveManagementPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [statusFilter, debouncedSearch]);
+  }, [statusFilter, debouncedSearch, isQueueFilterActive]);
 
   const notifEntityId = searchParams.get("entityId");
   useEffect(() => {
@@ -342,7 +350,11 @@ export default function LeaveManagementPage() {
   };
 
   const getStatusLabel = (status: string) => {
-    if (status === "WAITING_LEVEL_2") return "WAITING L2";
+    if (status === "SUBMITTED") return "Diajukan";
+    if (status === "WAITING_LEVEL_2") return "Menunggu Level 2";
+    if (status === "APPROVED") return "Disetujui";
+    if (status === "REJECTED") return "Ditolak";
+    if (status === "CANCELLED") return "Dibatalkan";
     return status;
   };
 
@@ -354,6 +366,10 @@ export default function LeaveManagementPage() {
   const isApprover = isApproverLevel1 || isApproverLevel2;
   const showRequesterColumn = isAdmin || isApprover;
   const canAdminProcess = (status: string) => status === "SUBMITTED" || status === "WAITING_LEVEL_2";
+  const hasActiveFilter = statusFilter !== "ALL" || debouncedSearch.length >= 2 || (isApprover && onlyMyQueue);
+  const emptyStateMessage = hasActiveFilter
+    ? "Data tidak ditemukan untuk filter saat ini"
+    : "Belum ada pengajuan cuti";
 
   const getApproveButtonLabel = (status: string) => {
     if (status === "SUBMITTED" && leaveApprovalLevels === 2) return "Setujui L1";
@@ -435,11 +451,26 @@ export default function LeaveManagementPage() {
                 <SelectContent>
                   {statusOptions.map((option) => (
                     <SelectItem key={option} value={option}>
-                      {option === "ALL" ? "Semua Status" : option}
+                      {option === "ALL" ? "Semua Status" : getStatusLabel(option)}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {isApprover && (
+                <div className="flex items-center gap-2 rounded-md border px-3 py-2">
+                  <Checkbox
+                    id="leave-only-my-queue"
+                    checked={onlyMyQueue}
+                    onCheckedChange={(checked) => {
+                      setOnlyMyQueue(Boolean(checked));
+                      setPage(1);
+                    }}
+                  />
+                  <Label htmlFor="leave-only-my-queue" className="cursor-pointer text-sm">
+                    Assigned to me
+                  </Label>
+                </div>
+              )}
             </div>
           </CardHeader>
           <CardContent>
@@ -470,7 +501,7 @@ export default function LeaveManagementPage() {
                           <TableCell colSpan={showRequesterColumn ? 7 : 6} className="py-8 text-center text-muted-foreground">
                             <div className="flex flex-col items-center gap-2">
                               <CalendarDays className="h-8 w-8" />
-                              <p>Belum ada pengajuan cuti</p>
+                              <p>{emptyStateMessage}</p>
                             </div>
                           </TableCell>
                         </TableRow>
@@ -550,7 +581,7 @@ export default function LeaveManagementPage() {
                   {rows.length === 0 ? (
                     <div className="flex flex-col items-center gap-2 rounded-md border py-8 text-muted-foreground">
                       <CalendarDays className="h-8 w-8" />
-                      <p>Belum ada pengajuan cuti</p>
+                      <p>{emptyStateMessage}</p>
                     </div>
                   ) : (
                     rows.map((row) => (
@@ -627,7 +658,11 @@ export default function LeaveManagementPage() {
                 </div>
                 <div className="mt-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                   <p className="text-sm text-muted-foreground">
-                    {total === 0
+                    {onlyMyQueue && isApprover
+                      ? total === 0
+                        ? "Menampilkan 0 dari 0 data (mode Assigned to me)"
+                        : `Menampilkan ${(page - 1) * PAGE_SIZE + (rows.length > 0 ? 1 : 0)}-${(page - 1) * PAGE_SIZE + rows.length} dari ${total} data (mode Assigned to me)`
+                      : total === 0
                       ? "Menampilkan 0 dari 0 data"
                       : `Menampilkan ${(page - 1) * PAGE_SIZE + 1}-${Math.min(
                           page * PAGE_SIZE,
