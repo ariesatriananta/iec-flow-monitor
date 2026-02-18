@@ -119,9 +119,13 @@ export async function GET(request: Request) {
     ];
     if (isApproverLevel1) {
       visibilityConditions.push(eq(reimbursements.status, "SUBMITTED"));
+      visibilityConditions.push(eq(reimbursements.status, "APPROVED"));
+      visibilityConditions.push(eq(reimbursements.status, "PAID"));
     }
     if (isApproverLevel2) {
       visibilityConditions.push(eq(reimbursements.status, "WAITING_LEVEL_2"));
+      visibilityConditions.push(eq(reimbursements.status, "APPROVED"));
+      visibilityConditions.push(eq(reimbursements.status, "PAID"));
     }
 
     conditions.push(or(...visibilityConditions) as SQL);
@@ -239,6 +243,8 @@ export async function GET(request: Request) {
           fullName: employee.fullName,
           title: employee.title,
           department: employee.department,
+          bankAccountName: employee.bankAccountName,
+          bankAccountNumber: employee.bankAccountNumber,
         }
       : undefined,
     user: user

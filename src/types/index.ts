@@ -349,7 +349,10 @@ export interface Reimbursement {
   paidProofUrl?: string | null;
   createdAt: Date;
   updatedAt: Date;
-  employee?: Pick<Employee, "id" | "employeeCode" | "fullName" | "title" | "department">;
+  employee?: Pick<
+    Employee,
+    "id" | "employeeCode" | "fullName" | "title" | "department" | "bankAccountName" | "bankAccountNumber"
+  >;
   user?: Pick<User, "id" | "username" | "name" | "role">;
   items?: ReimbursementItem[];
   attachments?: ReimbursementAttachment[];

@@ -55,6 +55,7 @@ const adminUpdateSchema = z.object({
       z.literal("SUBMITTED"),
       z.literal("WAITING_LEVEL_2"),
       z.literal("APPROVED"),
+      z.literal("PAID"),
       z.literal("REJECTED"),
       z.literal("CANCELLED"),
     ])
@@ -367,6 +368,22 @@ export async function PUT(
         { status: 400 }
       );
     }
+  } else if (requestedStatus === "PAID") {
+    const canMarkPaid =
+      approvalLevels === 2 ? isApproverLevel2 : isApproverLevel1;
+    if (!canMarkPaid) {
+      return NextResponse.json(
+        { error: "Anda bukan approver final untuk mark paid perjalanan dinas ini" },
+        { status: 403 }
+      );
+    }
+    if (existing.status !== "APPROVED") {
+      return NextResponse.json(
+        { error: "Hanya pengajuan berstatus APPROVED yang bisa di-mark paid" },
+        { status: 400 }
+      );
+    }
+    nextStatus = "PAID";
   } else if (
     requestedStatus === "WAITING_LEVEL_2" &&
     existing.status !== "WAITING_LEVEL_2"
@@ -458,6 +475,8 @@ export async function PUT(
       level = existing.status === "WAITING_LEVEL_2" ? 2 : 1;
     } else if (updated.status === "CANCELLED") {
       action = "CANCELLED";
+    } else if (updated.status === "PAID") {
+      action = "MARKED_PAID";
     }
 
     await createWorkflowEvent(db, {

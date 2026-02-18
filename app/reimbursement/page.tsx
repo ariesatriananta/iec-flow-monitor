@@ -22,6 +22,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -74,6 +75,7 @@ import {
   MoreHorizontal,
   Pencil,
   Plus,
+  Printer,
   Search,
   Trash2,
   Upload,
@@ -117,6 +119,14 @@ const isImageAttachmentPayload = (attachment?: ReimbursementAttachmentInput | nu
   if (hasImageFileExtension(attachment.fileName)) return true;
   return hasImageFileExtension(attachment.url);
 };
+
+const escapeHtml = (value: string) =>
+  value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 
 type ReimbursementDraftItem = {
   id: string;
@@ -286,10 +296,14 @@ export default function ReimbursementPage() {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  const [markPaidTarget, setMarkPaidTarget] = useState<Reimbursement | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Reimbursement | null>(null);
   const [detailRow, setDetailRow] = useState<Reimbursement | null>(null);
   const [autoOpenedEntityId, setAutoOpenedEntityId] = useState<string | null>(null);
   const [highlightedEntityId, setHighlightedEntityId] = useState<string | null>(null);
+  const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState(false);
+  const [printRow, setPrintRow] = useState<Reimbursement | null>(null);
+  const [headerDataUrl, setHeaderDataUrl] = useState<string>("");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
@@ -385,6 +399,28 @@ export default function ReimbursementPage() {
   }, []);
 
   useEffect(() => {
+    let active = true;
+    const loadHeader = async () => {
+      try {
+        const response = await fetch("/invoice-header.png");
+        const blob = await response.blob();
+        const reader = new FileReader();
+        reader.onload = () => {
+          if (!active) return;
+          setHeaderDataUrl(typeof reader.result === "string" ? reader.result : "");
+        };
+        reader.readAsDataURL(blob);
+      } catch (error) {
+        console.error(error);
+      }
+    };
+    void loadHeader();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
     setPage(1);
   }, [statusFilter, debouncedSearch]);
 
@@ -445,9 +481,9 @@ export default function ReimbursementPage() {
   const canMarkPaid = (status: string) =>
     status === "APPROVED" && (approvalLevels === 2 ? isApproverLevel2 : isApproverLevel1);
   const getApproveLabel = (status: string) => {
-    if (status === "SUBMITTED" && approvalLevels === 2) return "Approve L1";
-    if (status === "WAITING_LEVEL_2") return "Approve L2";
-    return "Approve";
+    if (status === "SUBMITTED" && approvalLevels === 2) return "Setujui L1";
+    if (status === "WAITING_LEVEL_2") return "Setujui L2";
+    return "Setujui";
   };
   const getStatusLabel = (status: string) => (status === "WAITING_LEVEL_2" ? "WAITING L2" : status);
   const canEditReimbursement = (row: Reimbursement) => {
@@ -628,8 +664,40 @@ export default function ReimbursementPage() {
         payload.adminNote = "Nominal / bukti belum sesuai";
       }
       if (isApprover && status === "PAID") {
-        const draftPaidProofs = paidProofDrafts[row.id] ?? [];
+        let draftPaidProofs = paidProofDrafts[row.id] ?? [];
         const existingPaidProofs = getPaidProofAttachments(row);
+        const localFiles = paidProofFiles[row.id] ?? [];
+        if (
+          existingPaidProofs.length + draftPaidProofs.length + localFiles.length >
+          MAX_REIMBURSEMENT_FILES
+        ) {
+          toast({
+            title: "Error",
+            description: `Maksimal ${MAX_REIMBURSEMENT_FILES} file bukti transfer per pengajuan`,
+            variant: "destructive",
+          });
+          return;
+        }
+
+        if (localFiles.length > 0) {
+          setIsPaidProofUploadingById((prev) => ({ ...prev, [row.id]: true }));
+          try {
+            const uploadedLocalFiles: UploadReimbursementResponse[] = [];
+            for (const file of localFiles) {
+              const result = await uploadReimbursementFile(file, "paid-proof");
+              uploadedLocalFiles.push(result);
+            }
+            draftPaidProofs = [...draftPaidProofs, ...uploadedLocalFiles];
+            setPaidProofDrafts((prev) => ({
+              ...prev,
+              [row.id]: [...(prev[row.id] ?? []), ...uploadedLocalFiles],
+            }));
+            setPaidProofFiles((prev) => ({ ...prev, [row.id]: [] }));
+          } finally {
+            setIsPaidProofUploadingById((prev) => ({ ...prev, [row.id]: false }));
+          }
+        }
+
         if (draftPaidProofs.length === 0 && existingPaidProofs.length === 0) {
           toast({
             title: "Error",
@@ -676,6 +744,138 @@ export default function ReimbursementPage() {
     }
   };
 
+  const openPrintForm = (row: Reimbursement) => {
+    setPrintRow(row);
+    setIsPrintPreviewOpen(true);
+    if (row.status !== "APPROVED" && row.status !== "PAID") {
+      toast({
+        title: "Belum Approved",
+        description:
+          "Form tetap bisa dicetak untuk arsip draft, namun status pengajuan belum APPROVED.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handlePrintReimbursement = () => {
+    if (!printRow) return;
+    const printWindow = window.open("", "_blank", "width=1000,height=850");
+    if (!printWindow) return;
+    const headerUrl = headerDataUrl || `${window.location.origin}/invoice-header.png`;
+    const approvedEvent = findLatestEvent(
+      printRow.workflowEvents ?? [],
+      (event) => event.toStatus === "APPROVED"
+    );
+    const approvedByLabel = formatActorLabel(approvedEvent);
+
+    const rowsHtml = (printRow.items ?? [])
+      .map((item, index) => {
+        const dateLabel = formatDate(new Date(item.expenseDate));
+        const clientLabel = item.clientName || "-";
+        const descriptionLabel = item.description || "-";
+        const typeLabel = getCategoryLabel(item.category || "");
+        const amountLabel = formatCurrency(Number(item.amount ?? 0));
+
+        return `
+          <tr>
+            <td>${index + 1}</td>
+            <td>${escapeHtml(dateLabel)}</td>
+            <td>${escapeHtml(clientLabel)}</td>
+            <td>${escapeHtml(descriptionLabel)}</td>
+            <td>${escapeHtml(typeLabel)}</td>
+            <td style="text-align:right">${escapeHtml(amountLabel)}</td>
+          </tr>
+        `;
+      })
+      .join("");
+
+    const html = `
+      <!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>FORM REIMBURSEMENT</title>
+          <style>
+            body { font-family: Arial, sans-serif; color: #111; margin: 0; padding: 24px; }
+            .sheet { max-width: 860px; margin: 0 auto; border: 1px solid #111; padding: 20px; }
+            .header { position: relative; height: 170px; margin-bottom: 8px; }
+            .header-bg { position: absolute; inset: 0; background-image: url('${headerUrl}'); background-size: cover; background-position: top center; }
+            .title { text-align: center; font-size: 28px; font-weight: 700; margin: 8px 0 14px; letter-spacing: .04em; }
+            .intro { border: 1px solid #111; padding: 12px 14px; font-size: 13px; line-height: 1.5; margin-bottom: 14px; min-height: 100px; }
+            table { width: 100%; border-collapse: collapse; font-size: 12px; }
+            th, td { border: 1px solid #111; padding: 6px 8px; vertical-align: top; }
+            th { text-align: left; background: #f3f4f6; }
+            .total-row td { font-weight: 700; background: #f8f9fa; }
+            .bank { margin-top: 18px; font-size: 13px; }
+            .bank-grid { display: grid; grid-template-columns: 120px 16px 1fr; gap: 4px 0; margin-top: 8px; }
+            .sig { margin-top: 34px; display: grid; grid-template-columns: 1fr 1fr; gap: 28px; text-align: center; font-size: 13px; }
+            .sig-space { height: 84px; }
+            @media print {
+              @page { size: A4; margin: 14mm; }
+              body { padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            }
+          </style>
+        </head>
+        <body>
+          <section class="sheet">
+            <div class="header"><div class="header-bg"></div></div>
+            <div class="title">FORM REIMBURSEMENT</div>
+            <div class="intro">
+              <p>Dengan ini saya mengajukan reimbursement atas biaya berikut untuk keperluan pekerjaan.</p>
+              <p>Seluruh biaya pada daftar di bawah ini telah dibayarkan terlebih dahulu oleh saya dan didukung bukti transaksi yang sah.</p>
+              <p>Mohon proses verifikasi dan pembayaran reimbursement sesuai ketentuan perusahaan.</p>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:40px">No</th>
+                  <th style="width:110px">Date</th>
+                  <th style="width:140px">Client</th>
+                  <th>Job Description</th>
+                  <th style="width:110px">Type</th>
+                  <th style="width:120px; text-align:right">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rowsHtml || `<tr><td colspan="6" style="text-align:center;color:#666">Tidak ada item</td></tr>`}
+                <tr class="total-row">
+                  <td colspan="5" style="text-align:right">Total</td>
+                  <td style="text-align:right">${escapeHtml(formatCurrency(Number(printRow.amount ?? 0)))}</td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="bank">
+              <p>Please transfer your payment to account:</p>
+              <div class="bank-grid">
+                <div>Name</div><div>:</div><div>${escapeHtml(printRow.employee?.fullName ?? "-")}</div>
+                <div>Bank</div><div>:</div><div>${escapeHtml(printRow.employee?.bankAccountName ?? "-")}</div>
+                <div>A/C</div><div>:</div><div>${escapeHtml(printRow.employee?.bankAccountNumber ?? "-")}</div>
+              </div>
+            </div>
+            <div class="sig">
+              <div>
+                <p><strong>Submitted by,</strong></p>
+                <div class="sig-space"></div>
+                <p>(${escapeHtml(printRow.employee?.fullName ?? printRow.user?.name ?? "-")})</p>
+              </div>
+              <div>
+                <p><strong>Approved by,</strong></p>
+                <div class="sig-space"></div>
+                <p>(${escapeHtml(approvedByLabel)})</p>
+              </div>
+            </div>
+          </section>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+  };
+
   const renderAttachmentLinks = (
     items: ReimbursementAttachment[],
     emptyLabel = "-"
@@ -700,11 +900,11 @@ export default function ReimbursementPage() {
   };
 
   const actionText = (status: string) => {
-    if (status === "APPROVED") return "approve";
-    if (status === "REJECTED") return "reject";
-    if (status === "PAID") return "mark paid";
-    if (status === "CANCELLED") return "cancel";
-    return "update";
+    if (status === "APPROVED") return "menyetujui";
+    if (status === "REJECTED") return "menolak";
+    if (status === "PAID") return "menandai sudah dibayar";
+    if (status === "CANCELLED") return "membatalkan";
+    return "memperbarui";
   };
 
   const resetCreateForm = () => {
@@ -1216,7 +1416,6 @@ export default function ReimbursementPage() {
                         rows.map((row) => {
                           const receiptAttachments = getReceiptAttachments(row);
                           const paidProofAttachments = getPaidProofAttachments(row);
-                          const paidProofDraftCount = paidProofDrafts[row.id]?.length ?? 0;
 
                           return (
                             <TableRow
@@ -1246,79 +1445,8 @@ export default function ReimbursementPage() {
                                 </Badge>
                               </TableCell>
                               <TableCell>{formatDate(new Date(row.submissionDate))}</TableCell>
-                              <TableCell className="text-right">
+                            <TableCell className="text-right">
                                 <div className="flex flex-col items-end gap-2">
-                                  {canMarkPaid(row.status) && (
-                                    <div className="flex flex-col items-end gap-2">
-                                      <div className="flex w-[280px] items-center gap-2">
-                                        <input
-                                          id={`paid-proof-file-${row.id}`}
-                                          type="file"
-                                          multiple
-                                          className="hidden"
-                                          accept=".jpg,.jpeg,.png,.webp,.pdf,image/*,application/pdf"
-                                          onChange={(event) =>
-                                            handlePaidProofFilePick(row, event.target.files)
-                                          }
-                                        />
-                                        <input
-                                          id={`paid-proof-camera-${row.id}`}
-                                          type="file"
-                                          className="hidden"
-                                          accept="image/*"
-                                          capture="environment"
-                                          onChange={(event) =>
-                                            handlePaidProofFilePick(row, event.target.files)
-                                          }
-                                        />
-                                        <Button variant="outline" size="sm" type="button" asChild>
-                                          <label
-                                            htmlFor={`paid-proof-file-${row.id}`}
-                                            className="cursor-pointer"
-                                          >
-                                            <Upload className="mr-2 h-4 w-4" />
-                                            Pilih
-                                          </label>
-                                        </Button>
-                                        <Button variant="outline" size="sm" type="button" asChild>
-                                          <label
-                                            htmlFor={`paid-proof-camera-${row.id}`}
-                                            className="cursor-pointer"
-                                          >
-                                            <Camera className="mr-2 h-4 w-4" />
-                                            Kamera
-                                          </label>
-                                        </Button>
-                                        <Button
-                                          size="sm"
-                                          variant="outline"
-                                          disabled={
-                                            (paidProofFiles[row.id]?.length ?? 0) === 0 ||
-                                            Boolean(isPaidProofUploadingById[row.id])
-                                          }
-                                          onClick={() => void handleUploadPaidProof(row.id)}
-                                        >
-                                          {isPaidProofUploadingById[row.id] ? (
-                                            <Loader2 className="h-4 w-4 animate-spin" />
-                                          ) : (
-                                            <Upload className="h-4 w-4" />
-                                          )}
-                                        </Button>
-                                      </div>
-                                      <div className="flex w-[280px] items-center gap-2">
-                                        <p className="text-[11px] text-muted-foreground">
-                                          Upload bukti transfer
-                                        </p>
-                                        <Camera className="h-3.5 w-3.5 text-muted-foreground" />
-                                      </div>
-                                      {renderLocalFilePreview(row.id, paidProofFiles[row.id] ?? [])}
-                                      {paidProofDraftCount > 0 && (
-                                        <p className="text-xs text-muted-foreground">
-                                          Draft bukti bayar terupload: {paidProofDraftCount}
-                                        </p>
-                                      )}
-                                    </div>
-                                  )}
                                   <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
                                       <Button variant="ghost" size="icon">
@@ -1336,6 +1464,10 @@ export default function ReimbursementPage() {
                                         <Eye className="mr-2 h-4 w-4" />
                                         Lihat Detail
                                       </DropdownMenuItem>
+                                      <DropdownMenuItem onClick={() => openPrintForm(row)}>
+                                        <Printer className="mr-2 h-4 w-4" />
+                                        Cetak Form
+                                      </DropdownMenuItem>
                                       {isApprover && canApprovalAction(row.status) && (
                                         <DropdownMenuItem onClick={() => setPendingAction({ row, nextStatus: "APPROVED" })}>
                                           <CheckCircle2 className="mr-2 h-4 w-4 text-green-600" />
@@ -1348,20 +1480,20 @@ export default function ReimbursementPage() {
                                           onClick={() => setPendingAction({ row, nextStatus: "REJECTED" })}
                                         >
                                           <XCircle className="mr-2 h-4 w-4 text-destructive" />
-                                          Reject
+                                          Tolak
                                         </DropdownMenuItem>
                                       )}
                                       {canMarkPaid(row.status) && (
                                         <DropdownMenuItem
-                                          onClick={() => setPendingAction({ row, nextStatus: "PAID" })}
-                                          disabled={paidProofAttachments.length === 0 && paidProofDraftCount === 0}
+                                          onClick={() => setMarkPaidTarget(row)}
                                         >
-                                          Mark Paid
+                                          <CheckCircle2 className="mr-2 h-4 w-4 text-green-600" />
+                                          Tandai Sudah Dibayar
                                         </DropdownMenuItem>
                                       )}
                                       {!isAdmin && row.status === "SUBMITTED" && (
                                         <DropdownMenuItem onClick={() => setPendingAction({ row, nextStatus: "CANCELLED" })}>
-                                          Cancel
+                                          Batalkan
                                         </DropdownMenuItem>
                                       )}
                                       {isAdmin && row.status === "CANCELLED" && (
@@ -1395,7 +1527,6 @@ export default function ReimbursementPage() {
                     rows.map((row) => {
                       const receiptAttachments = getReceiptAttachments(row);
                       const paidProofAttachments = getPaidProofAttachments(row);
-                      const paidProofDraftCount = paidProofDrafts[row.id]?.length ?? 0;
 
                       return (
                         <div
@@ -1438,77 +1569,6 @@ export default function ReimbursementPage() {
                             </div>
                           </div>
                           <div className="mt-3 flex flex-col items-end gap-2">
-                            {canMarkPaid(row.status) && (
-                              <div className="flex w-full flex-col items-end gap-2">
-                                <div className="flex w-full items-center gap-2">
-                                  <input
-                                    id={`paid-proof-file-mobile-${row.id}`}
-                                    type="file"
-                                    multiple
-                                    className="hidden"
-                                    accept=".jpg,.jpeg,.png,.webp,.pdf,image/*,application/pdf"
-                                    onChange={(event) =>
-                                      handlePaidProofFilePick(row, event.target.files)
-                                    }
-                                  />
-                                  <input
-                                    id={`paid-proof-camera-mobile-${row.id}`}
-                                    type="file"
-                                    className="hidden"
-                                    accept="image/*"
-                                    capture="environment"
-                                    onChange={(event) =>
-                                      handlePaidProofFilePick(row, event.target.files)
-                                    }
-                                  />
-                                  <Button variant="outline" size="sm" type="button" asChild>
-                                    <label
-                                      htmlFor={`paid-proof-file-mobile-${row.id}`}
-                                      className="cursor-pointer"
-                                    >
-                                      <Upload className="mr-2 h-4 w-4" />
-                                      Pilih
-                                    </label>
-                                  </Button>
-                                  <Button variant="outline" size="sm" type="button" asChild>
-                                    <label
-                                      htmlFor={`paid-proof-camera-mobile-${row.id}`}
-                                      className="cursor-pointer"
-                                    >
-                                      <Camera className="mr-2 h-4 w-4" />
-                                      Kamera
-                                    </label>
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    disabled={
-                                      (paidProofFiles[row.id]?.length ?? 0) === 0 ||
-                                      Boolean(isPaidProofUploadingById[row.id])
-                                    }
-                                    onClick={() => void handleUploadPaidProof(row.id)}
-                                  >
-                                    {isPaidProofUploadingById[row.id] ? (
-                                      <Loader2 className="h-4 w-4 animate-spin" />
-                                    ) : (
-                                      <Upload className="h-4 w-4" />
-                                    )}
-                                  </Button>
-                                </div>
-                                <div className="flex w-full items-center gap-2">
-                                  <p className="text-[11px] text-muted-foreground">
-                                    Upload bukti transfer
-                                  </p>
-                                  <Camera className="h-3.5 w-3.5 text-muted-foreground" />
-                                </div>
-                                {renderLocalFilePreview(row.id, paidProofFiles[row.id] ?? [])}
-                                {paidProofDraftCount > 0 && (
-                                  <p className="text-xs text-muted-foreground">
-                                    Draft bukti bayar terupload: {paidProofDraftCount}
-                                  </p>
-                                )}
-                              </div>
-                            )}
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" size="icon">
@@ -1526,6 +1586,10 @@ export default function ReimbursementPage() {
                                   <Eye className="mr-2 h-4 w-4" />
                                   Lihat Detail
                                 </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => openPrintForm(row)}>
+                                  <Printer className="mr-2 h-4 w-4" />
+                                  Cetak Form
+                                </DropdownMenuItem>
                                 {isApprover && canApprovalAction(row.status) && (
                                   <DropdownMenuItem onClick={() => setPendingAction({ row, nextStatus: "APPROVED" })}>
                                     <CheckCircle2 className="mr-2 h-4 w-4 text-green-600" />
@@ -1538,20 +1602,20 @@ export default function ReimbursementPage() {
                                     onClick={() => setPendingAction({ row, nextStatus: "REJECTED" })}
                                   >
                                     <XCircle className="mr-2 h-4 w-4 text-destructive" />
-                                    Reject
+                                    Tolak
                                   </DropdownMenuItem>
                                 )}
                                 {canMarkPaid(row.status) && (
                                   <DropdownMenuItem
-                                    onClick={() => setPendingAction({ row, nextStatus: "PAID" })}
-                                    disabled={paidProofAttachments.length === 0 && paidProofDraftCount === 0}
+                                    onClick={() => setMarkPaidTarget(row)}
                                   >
-                                    Mark Paid
+                                    <CheckCircle2 className="mr-2 h-4 w-4 text-green-600" />
+                                    Tandai Sudah Dibayar
                                   </DropdownMenuItem>
                                 )}
                                 {!isAdmin && row.status === "SUBMITTED" && (
                                   <DropdownMenuItem onClick={() => setPendingAction({ row, nextStatus: "CANCELLED" })}>
-                                    Cancel
+                                    Batalkan
                                   </DropdownMenuItem>
                                 )}
                                 {isAdmin && row.status === "CANCELLED" && (
@@ -2425,52 +2489,60 @@ export default function ReimbursementPage() {
       </Dialog>
 
       <Dialog open={Boolean(detailRow)} onOpenChange={(open) => !open && setDetailRow(null)}>
-        <DialogContent className="sm:max-w-[820px] p-6">
-          <DialogHeader>
+        <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-[820px] max-h-[85vh] p-0 flex flex-col">
+          <DialogHeader className="border-b border-border/60 px-4 py-4 sm:px-6 sm:py-5">
             <DialogTitle>Detail Reimbursement</DialogTitle>
             <DialogDescription>Informasi pengajuan, bukti, dan riwayat aksi workflow.</DialogDescription>
           </DialogHeader>
           {detailRow && (
+            <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6">
             <div className="grid gap-4">
-              <div className="grid gap-3 rounded-lg border p-4 text-sm md:grid-cols-2">
+              <div className="flex items-center justify-end gap-3">
+                <Button type="button" variant="outline" onClick={() => openPrintForm(detailRow)}>
+                  <Printer className="mr-2 h-4 w-4" />
+                  Cetak Form
+                </Button>
+              </div>
+              <div className="grid gap-3 rounded-lg border p-3 text-sm md:grid-cols-2 md:p-4">
                 <div>
-                  <p className="text-muted-foreground">Pemohon</p>
-                  <p className="font-medium">{detailRow.employee?.fullName ?? detailRow.user?.name ?? "-"}</p>
+                  <p className="text-xs text-muted-foreground">Pemohon</p>
+                  <p className="text-sm font-medium">{detailRow.employee?.fullName ?? detailRow.user?.name ?? "-"}</p>
                 </div>
                 <div>
-                  <p className="text-muted-foreground">Status</p>
+                  <p className="text-xs text-muted-foreground">Status</p>
                   <Badge variant="outline" className={statusClass(detailRow.status)}>
                     {getStatusLabel(detailRow.status)}
                   </Badge>
                 </div>
                 <div>
-                  <p className="text-muted-foreground">Ringkasan</p>
-                  <p className="font-medium">
+                  <p className="text-xs text-muted-foreground">Ringkasan</p>
+                  <p className="text-sm font-medium">
                     {detailRow.itemCount ?? detailRow.items?.length ?? 0} item
                   </p>
                 </div>
                 <div>
-                  <p className="text-muted-foreground">Nominal</p>
-                  <p className="font-medium">{formatCurrency(Number(detailRow.amount))}</p>
+                  <p className="text-xs text-muted-foreground">Nominal</p>
+                  <p className="text-sm font-medium">{formatCurrency(Number(detailRow.amount))}</p>
                 </div>
                 <div>
-                  <p className="text-muted-foreground">Tanggal Pengajuan</p>
-                  <p className="font-medium">{formatDate(new Date(detailRow.submissionDate))}</p>
+                  <p className="text-xs text-muted-foreground">Tanggal Pengajuan</p>
+                  <p className="text-sm font-medium">{formatDate(new Date(detailRow.submissionDate))}</p>
                 </div>
                 <div>
-                  <p className="text-muted-foreground">Dibayar</p>
-                  <p className="font-medium">{detailRow.paidAt ? formatDateTime(detailRow.paidAt) : "-"}</p>
+                  <p className="text-xs text-muted-foreground">Dibayar</p>
+                  <p className="text-sm font-medium">{detailRow.paidAt ? formatDateTime(detailRow.paidAt) : "-"}</p>
                 </div>
                 <div className="md:col-span-2">
-                  <p className="text-muted-foreground">Deskripsi</p>
-                  <p className="font-medium">{detailRow.description ?? "-"}</p>
+                  <p className="text-xs text-muted-foreground">Deskripsi</p>
+                  <p className="text-sm font-medium break-words">{detailRow.description ?? "-"}</p>
                 </div>
                 <div className="md:col-span-2">
                   <p className="mb-2 text-muted-foreground">Daftar Item</p>
                   {(detailRow.items?.length ?? 0) === 0 ? (
                     <p className="text-sm text-muted-foreground">Tidak ada item.</p>
                   ) : (
-                    <div className="rounded-md border">
+                    <>
+                    <div className="hidden rounded-md border md:block">
                       <Table>
                         <TableHeader>
                           <TableRow>
@@ -2511,6 +2583,45 @@ export default function ReimbursementPage() {
                         </TableBody>
                       </Table>
                     </div>
+                    <div className="space-y-3 md:hidden">
+                      {(detailRow.items ?? []).map((item) => (
+                        <div key={item.id} className="rounded-md border p-3 text-sm">
+                          <div className="mb-1 flex items-start justify-between gap-2">
+                            <p className="font-medium">{getCategoryLabel(item.category)}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {formatDate(new Date(item.expenseDate))}
+                            </p>
+                          </div>
+                          <p className="break-words text-sm">
+                            <span className="text-muted-foreground">Client: </span>
+                            {item.clientName ?? "-"}
+                          </p>
+                          <p className="break-words text-sm">
+                            <span className="text-muted-foreground">Deskripsi: </span>
+                            {item.description ?? "-"}
+                          </p>
+                          <p className="mt-1 font-semibold">
+                            {formatCurrency(Number(item.amount))}
+                          </p>
+                          <div className="mt-1 text-xs">
+                            <span className="text-muted-foreground">Attachment: </span>
+                            {item.attachment?.fileUrl ? (
+                              <a
+                                href={item.attachment.fileUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-primary underline-offset-2 hover:underline"
+                              >
+                                {item.attachment.fileName || "Attachment"}
+                              </a>
+                            ) : (
+                              <span className="text-muted-foreground">-</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    </>
                   )}
                 </div>
                 <div className="md:col-span-2">
@@ -2527,8 +2638,8 @@ export default function ReimbursementPage() {
                 </div>
               </div>
 
-              <div className="rounded-lg border p-4">
-                <p className="mb-2 text-sm font-semibold">Tracking Progress Approval</p>
+              <div className="rounded-lg border p-3 md:p-4">
+                <p className="mb-2 text-sm font-semibold md:text-base">Tracking Progress Approval</p>
                 <div className="mb-3 grid gap-2 rounded-md border border-border/60 bg-card p-3 text-sm">
                   <div className="flex items-start justify-between gap-2">
                     <span className="text-muted-foreground">Approval Level 1</span>
@@ -2554,8 +2665,8 @@ export default function ReimbursementPage() {
                 </div>
               </div>
 
-              <div className="rounded-lg border p-4">
-                <p className="mb-3 text-sm font-semibold">Riwayat Aksi</p>
+              <div className="rounded-lg border p-3 md:p-4">
+                <p className="mb-3 text-sm font-semibold md:text-base">Riwayat Aksi</p>
                 {(detailRow.workflowEvents?.length ?? 0) === 0 ? (
                   <p className="text-sm text-muted-foreground">Belum ada riwayat aksi.</p>
                 ) : (
@@ -2586,6 +2697,159 @@ export default function ReimbursementPage() {
                     ))}
                   </div>
                 )}
+              </div>
+            </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={isPrintPreviewOpen}
+        onOpenChange={(open) => {
+          setIsPrintPreviewOpen(open);
+          if (!open) setPrintRow(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-[900px] h-[85vh] bg-muted p-0 grid grid-rows-[auto,1fr,auto]">
+          <DialogHeader className="bg-muted/95 px-6 py-4 backdrop-blur">
+            <DialogTitle>Preview Reimbursement</DialogTitle>
+            <DialogDescription>
+              Pastikan data sudah sesuai sebelum print.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="overflow-auto px-6 pb-6">
+            {!printRow && (
+              <div className="flex h-full min-h-[420px] items-center justify-center">
+                <span className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+              </div>
+            )}
+            {printRow && (
+              <ReimbursementPrintPreview row={printRow} headerSrc={headerDataUrl || "/invoice-header.png"} />
+            )}
+          </div>
+          <DialogFooter className="gap-2 bg-muted/95 px-6 py-4 backdrop-blur border-t">
+            <Button variant="outline" onClick={() => setIsPrintPreviewOpen(false)}>
+              Tutup
+            </Button>
+            <Button onClick={handlePrintReimbursement} disabled={!printRow}>
+              Print
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(markPaidTarget)}
+        onOpenChange={(open) => {
+          if (!open) setMarkPaidTarget(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-[620px]">
+          <DialogHeader>
+            <DialogTitle>Tandai Sudah Dibayar</DialogTitle>
+            <DialogDescription>
+              Upload bukti transfer lalu tandai pengajuan sebagai sudah dibayar.
+            </DialogDescription>
+          </DialogHeader>
+          {markPaidTarget && (
+            <div className="space-y-4">
+              <div className="rounded-md border p-3 text-sm">
+                <p className="font-medium">
+                  {markPaidTarget.employee?.fullName ?? markPaidTarget.user?.name ?? "-"}
+                </p>
+                <p className="text-muted-foreground">
+                  {getReimbursementSummaryLabel(
+                    markPaidTarget.category,
+                    markPaidTarget.itemCount,
+                    markPaidTarget.items?.length
+                  )}{" "}
+                  - {formatCurrency(Number(markPaidTarget.amount))}
+                </p>
+              </div>
+              <div className="space-y-2 rounded-md border border-border/70 bg-muted/20 p-3">
+                <p className="text-xs text-muted-foreground">
+                  Bukti transfer saat ini:{" "}
+                  {getPaidProofAttachments(markPaidTarget).length + (paidProofDrafts[markPaidTarget.id]?.length ?? 0)}
+                  {" "}file
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    id={`paid-proof-file-mark-paid-${markPaidTarget.id}`}
+                    type="file"
+                    multiple
+                    className="hidden"
+                    accept=".jpg,.jpeg,.png,.webp,.pdf,image/*,application/pdf"
+                    onChange={(event) =>
+                      handlePaidProofFilePick(markPaidTarget, event.target.files)
+                    }
+                  />
+                  <input
+                    id={`paid-proof-camera-mark-paid-${markPaidTarget.id}`}
+                    type="file"
+                    className="hidden"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={(event) =>
+                      handlePaidProofFilePick(markPaidTarget, event.target.files)
+                    }
+                  />
+                  <Button variant="outline" size="sm" type="button" asChild>
+                    <label
+                      htmlFor={`paid-proof-file-mark-paid-${markPaidTarget.id}`}
+                      className="cursor-pointer"
+                    >
+                      <Upload className="mr-2 h-4 w-4" />
+                      Pilih File
+                    </label>
+                  </Button>
+                  <Button variant="outline" size="sm" type="button" asChild>
+                    <label
+                      htmlFor={`paid-proof-camera-mark-paid-${markPaidTarget.id}`}
+                      className="cursor-pointer"
+                    >
+                      <Camera className="mr-2 h-4 w-4" />
+                      Kamera
+                    </label>
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={
+                      (paidProofFiles[markPaidTarget.id]?.length ?? 0) === 0 ||
+                      Boolean(isPaidProofUploadingById[markPaidTarget.id])
+                    }
+                    onClick={() => void handleUploadPaidProof(markPaidTarget.id)}
+                  >
+                    {isPaidProofUploadingById[markPaidTarget.id] ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Upload className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+                {renderLocalFilePreview(markPaidTarget.id, paidProofFiles[markPaidTarget.id] ?? [])}
+                {(paidProofDrafts[markPaidTarget.id]?.length ?? 0) > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Draft bukti bayar terupload: {paidProofDrafts[markPaidTarget.id]?.length ?? 0}
+                  </p>
+                )}
+                <div className="text-xs text-muted-foreground">
+                  {renderAttachmentLinks(getPaidProofAttachments(markPaidTarget), "Belum ada bukti transfer tersimpan")}
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setMarkPaidTarget(null)}>
+                  Batal
+                </Button>
+                <Button
+                  onClick={() => {
+                    void handleUpdateStatus(markPaidTarget, "PAID");
+                    setMarkPaidTarget(null);
+                  }}
+                >
+                  Tandai Sudah Dibayar
+                </Button>
               </div>
             </div>
           )}
@@ -2639,6 +2903,111 @@ export default function ReimbursementPage() {
         }}
       />
     </AdminLayout>
+  );
+}
+
+function ReimbursementPrintPreview({
+  row,
+  headerSrc,
+}: {
+  row: Reimbursement;
+  headerSrc: string;
+}) {
+  const approvedEvent = findLatestEvent(
+    row.workflowEvents ?? [],
+    (event) => event.toStatus === "APPROVED"
+  );
+  const approvedByLabel = formatActorLabel(approvedEvent);
+
+  return (
+    <div className="mx-auto mt-4 max-w-[840px] space-y-4 rounded-md bg-white p-6 text-black font-[Arial] shadow-sm">
+      <div className="relative h-44 overflow-hidden rounded-md border border-border/50">
+        <div
+          className="absolute inset-0 bg-cover bg-top"
+          style={{ backgroundImage: `url(${headerSrc})` }}
+        />
+      </div>
+      <h3 className="text-center text-xl font-bold tracking-wide text-primary">
+        FORM REIMBURSEMENT
+      </h3>
+      {row.status !== "APPROVED" && row.status !== "PAID" ? (
+        <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          Status pengajuan belum APPROVED. Dokumen ini tercetak sebagai draft arsip.
+        </div>
+      ) : null}
+      <div className="rounded border border-black p-3 text-sm leading-relaxed">
+        <p>Dengan ini saya mengajukan reimbursement atas biaya berikut untuk keperluan pekerjaan.</p>
+        <p>Seluruh biaya pada daftar di bawah ini telah dibayarkan terlebih dahulu oleh saya dan didukung bukti transaksi yang sah.</p>
+        <p>Mohon proses verifikasi dan pembayaran reimbursement sesuai ketentuan perusahaan.</p>
+      </div>
+
+      <div className="overflow-auto rounded border border-black">
+        <table className="w-full border-collapse text-xs">
+          <thead className="bg-muted/60">
+            <tr>
+              <th className="border border-black p-2 text-left">No</th>
+              <th className="border border-black p-2 text-left">Date</th>
+              <th className="border border-black p-2 text-left">Client</th>
+              <th className="border border-black p-2 text-left">Job Description</th>
+              <th className="border border-black p-2 text-left">Type</th>
+              <th className="border border-black p-2 text-right">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(row.items?.length ?? 0) === 0 ? (
+              <tr>
+                <td className="border border-black p-2 text-center text-muted-foreground" colSpan={6}>
+                  Tidak ada item
+                </td>
+              </tr>
+            ) : (
+              (row.items ?? []).map((item, index) => (
+                <tr key={item.id}>
+                  <td className="border border-black p-2">{index + 1}</td>
+                  <td className="border border-black p-2">{formatDate(new Date(item.expenseDate))}</td>
+                  <td className="border border-black p-2">{item.clientName ?? "-"}</td>
+                  <td className="border border-black p-2">{item.description ?? "-"}</td>
+                  <td className="border border-black p-2">{getCategoryLabel(item.category)}</td>
+                  <td className="border border-black p-2 text-right">
+                    {formatCurrency(Number(item.amount ?? 0))}
+                  </td>
+                </tr>
+              ))
+            )}
+            <tr className="bg-muted/40 font-semibold">
+              <td className="border border-black p-2 text-right" colSpan={5}>
+                Total
+              </td>
+              <td className="border border-black p-2 text-right">
+                {formatCurrency(Number(row.amount ?? 0))}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div className="rounded border border-black p-3 text-sm">
+        <p className="mb-2 font-semibold">Please transfer your payment to account:</p>
+        <div className="grid grid-cols-[120px_16px_1fr] gap-y-1">
+          <p>Name</p><p>:</p><p>{row.employee?.fullName ?? "-"}</p>
+          <p>Bank</p><p>:</p><p>{row.employee?.bankAccountName ?? "-"}</p>
+          <p>A/C</p><p>:</p><p>{row.employee?.bankAccountNumber ?? "-"}</p>
+        </div>
+      </div>
+
+      <div className="mt-6 grid grid-cols-2 gap-8 text-center text-sm">
+        <div>
+          <p className="font-semibold">Submitted by,</p>
+          <div className="h-20" />
+          <p>({row.employee?.fullName ?? row.user?.name ?? "-"})</p>
+        </div>
+        <div>
+          <p className="font-semibold">Approved by,</p>
+          <div className="h-20" />
+          <p>({approvedByLabel})</p>
+        </div>
+      </div>
+    </div>
   );
 }
 

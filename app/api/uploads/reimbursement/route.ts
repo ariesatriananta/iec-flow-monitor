@@ -2,6 +2,8 @@ export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
 import { requireSessionUser } from "@/lib/auth/server";
+import { getDb } from "@/lib/db";
+import { settingsApprovalFlow } from "@/lib/db/schema";
 import { uploadBufferToR2 } from "@/lib/storage/r2";
 
 const MAX_FILE_SIZE_BYTES = 2 * 1024 * 1024;
@@ -44,11 +46,25 @@ export async function POST(request: Request) {
   const purposeValue = form.get("purpose");
   const purpose = purposeValue === "paid-proof" ? "paid-proof" : "receipt";
 
-  if (purpose === "paid-proof" && auth.user.role !== "ADMIN") {
-    return NextResponse.json(
-      { error: "Hanya admin yang boleh upload bukti transfer" },
-      { status: 403 }
-    );
+  if (purpose === "paid-proof") {
+    const isAdmin = auth.user.role === "ADMIN";
+    let isAllowedApprover = false;
+    if (auth.user.employeeId) {
+      const db = getDb();
+      const [approvalFlow] = await db.select().from(settingsApprovalFlow).limit(1);
+      const levels = approvalFlow?.reimbursementApprovalLevels ?? 2;
+      isAllowedApprover =
+        auth.user.employeeId === (approvalFlow?.reimbursementApproverLevel1EmployeeId ?? null) ||
+        (levels === 2 &&
+          auth.user.employeeId ===
+            (approvalFlow?.reimbursementApproverLevel2EmployeeId ?? null));
+    }
+    if (!isAdmin && !isAllowedApprover) {
+      return NextResponse.json(
+        { error: "Hanya approver reimbursement yang boleh upload bukti transfer" },
+        { status: 403 }
+      );
+    }
   }
 
   if (purpose === "receipt" && !auth.user.employeeId) {

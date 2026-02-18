@@ -34,6 +34,7 @@ const workflowStatusSchema = z.union([
   z.literal("SUBMITTED"),
   z.literal("WAITING_LEVEL_2"),
   z.literal("APPROVED"),
+  z.literal("PAID"),
   z.literal("REJECTED"),
   z.literal("CANCELLED"),
 ]);
@@ -146,9 +147,13 @@ export async function GET(request: Request) {
     ];
     if (isApproverLevel1) {
       visibilityConditions.push(eq(businessTrips.status, "SUBMITTED"));
+      visibilityConditions.push(eq(businessTrips.status, "APPROVED"));
+      visibilityConditions.push(eq(businessTrips.status, "PAID"));
     }
     if (isApproverLevel2) {
       visibilityConditions.push(eq(businessTrips.status, "WAITING_LEVEL_2"));
+      visibilityConditions.push(eq(businessTrips.status, "APPROVED"));
+      visibilityConditions.push(eq(businessTrips.status, "PAID"));
     }
 
     conditions.push(or(...visibilityConditions) as SQL);

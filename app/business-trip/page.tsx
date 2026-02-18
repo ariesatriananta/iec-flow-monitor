@@ -78,10 +78,11 @@ import {
   XCircle,
 } from "lucide-react";
 
-const statusOptions = ["ALL", "SUBMITTED", "WAITING_LEVEL_2", "APPROVED", "REJECTED", "CANCELLED"];
+const statusOptions = ["ALL", "SUBMITTED", "WAITING_LEVEL_2", "APPROVED", "PAID", "REJECTED", "CANCELLED"];
 
 const statusClass = (status: string) => {
   if (status === "APPROVED") return "bg-success text-success-foreground";
+  if (status === "PAID") return "bg-chart-1 text-white";
   if (status === "REJECTED") return "bg-destructive text-destructive-foreground";
   if (status === "CANCELLED") return "bg-muted text-muted-foreground";
   return "bg-warning text-warning-foreground";
@@ -340,10 +341,12 @@ export default function BusinessTripPage() {
   const isApprover = isApproverLevel1 || isApproverLevel2;
   const showRequesterColumn = isAdmin || isApprover;
   const canAdminProcess = (status: string) => status === "SUBMITTED" || status === "WAITING_LEVEL_2";
+  const canMarkPaid = (status: string) =>
+    status === "APPROVED" && (approvalLevels === 2 ? isApproverLevel2 : isApproverLevel1);
   const getApproveButtonLabel = (status: string) => {
-    if (status === "SUBMITTED" && approvalLevels === 2) return "Approve L1";
-    if (status === "WAITING_LEVEL_2") return "Approve L2";
-    return "Approve";
+    if (status === "SUBMITTED" && approvalLevels === 2) return "Setujui L1";
+    if (status === "WAITING_LEVEL_2") return "Setujui L2";
+    return "Setujui";
   };
   const getStatusLabel = (status: string) => (status === "WAITING_LEVEL_2" ? "WAITING L2" : status);
 
@@ -608,10 +611,11 @@ export default function BusinessTripPage() {
   };
 
   const actionText = (status: string) => {
-    if (status === "APPROVED") return "approve";
-    if (status === "REJECTED") return "reject";
-    if (status === "CANCELLED") return "cancel";
-    return "update";
+    if (status === "APPROVED") return "menyetujui";
+    if (status === "PAID") return "menandai sudah dibayar";
+    if (status === "REJECTED") return "menolak";
+    if (status === "CANCELLED") return "membatalkan";
+    return "memperbarui";
   };
 
   const getTrackingMessage = (row: BusinessTrip) => {
@@ -627,6 +631,7 @@ export default function BusinessTripPage() {
     }
     if (row.status === "WAITING_LEVEL_2") return "Approval level 1 selesai, menunggu level 2";
     if (row.status === "APPROVED") return "Pengajuan sudah disetujui final";
+    if (row.status === "PAID") return "Pengajuan sudah dibayarkan";
     if (row.status === "SUBMITTED") return "Menunggu approval level 1";
     return "Status pengajuan sedang diproses";
   };
@@ -809,12 +814,18 @@ export default function BusinessTripPage() {
                                       onClick={() => setPendingAction({ row, nextStatus: "REJECTED" })}
                                     >
                                       <XCircle className="mr-2 h-4 w-4 text-destructive" />
-                                      Reject
+                                      Tolak
+                                    </DropdownMenuItem>
+                                  )}
+                                  {canMarkPaid(row.status) && (
+                                    <DropdownMenuItem onClick={() => setPendingAction({ row, nextStatus: "PAID" })}>
+                                      <CheckCircle2 className="mr-2 h-4 w-4 text-green-600" />
+                                      Tandai Sudah Dibayar
                                     </DropdownMenuItem>
                                   )}
                                   {!isAdmin && row.status === "SUBMITTED" && (
                                     <DropdownMenuItem onClick={() => setPendingAction({ row, nextStatus: "CANCELLED" })}>
-                                      Cancel
+                                      Batalkan
                                     </DropdownMenuItem>
                                   )}
                                   {isAdmin && row.status === "CANCELLED" && (
@@ -905,12 +916,18 @@ export default function BusinessTripPage() {
                                   onClick={() => setPendingAction({ row, nextStatus: "REJECTED" })}
                                 >
                                   <XCircle className="mr-2 h-4 w-4 text-destructive" />
-                                  Reject
+                                  Tolak
+                                </DropdownMenuItem>
+                              )}
+                              {canMarkPaid(row.status) && (
+                                <DropdownMenuItem onClick={() => setPendingAction({ row, nextStatus: "PAID" })}>
+                                  <CheckCircle2 className="mr-2 h-4 w-4 text-green-600" />
+                                  Tandai Sudah Dibayar
                                 </DropdownMenuItem>
                               )}
                               {!isAdmin && row.status === "SUBMITTED" && (
                                 <DropdownMenuItem onClick={() => setPendingAction({ row, nextStatus: "CANCELLED" })}>
-                                  Cancel
+                                  Batalkan
                                 </DropdownMenuItem>
                               )}
                               {isAdmin && row.status === "CANCELLED" && (
@@ -1151,12 +1168,13 @@ export default function BusinessTripPage() {
       </Dialog>
 
       <Dialog open={Boolean(detailRow)} onOpenChange={(open) => !open && setDetailRow(null)}>
-        <DialogContent className="sm:max-w-[760px] p-6">
-          <DialogHeader>
+        <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-[760px] max-h-[85vh] p-0 flex flex-col">
+          <DialogHeader className="border-b border-border/60 px-4 py-4 sm:px-6 sm:py-5">
             <DialogTitle>Detail Business Trip</DialogTitle>
             <DialogDescription>Informasi pengajuan dan riwayat aksi approval.</DialogDescription>
           </DialogHeader>
           {detailRow && (
+            <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6">
             <div className="grid gap-4">
               <div className="flex items-center justify-end gap-3">
                 <Button type="button" variant="outline" onClick={() => openPrintForm(detailRow)}>
@@ -1164,43 +1182,44 @@ export default function BusinessTripPage() {
                   Cetak Form
                 </Button>
               </div>
-              <div className="grid gap-3 rounded-lg border p-4 text-sm md:grid-cols-2">
+              <div className="grid gap-3 rounded-lg border p-3 text-sm md:grid-cols-2 md:p-4">
                 <div>
-                  <p className="text-muted-foreground">Pemohon</p>
-                  <p className="font-medium">{detailRow.employee?.fullName ?? detailRow.user?.name ?? "-"}</p>
+                  <p className="text-xs text-muted-foreground">Pemohon</p>
+                  <p className="text-sm font-medium">{detailRow.employee?.fullName ?? detailRow.user?.name ?? "-"}</p>
                 </div>
                 <div>
-                  <p className="text-muted-foreground">Status</p>
+                  <p className="text-xs text-muted-foreground">Status</p>
                   <Badge variant="outline" className={statusClass(detailRow.status)}>
                     {getStatusLabel(detailRow.status)}
                   </Badge>
                 </div>
                 <div>
-                  <p className="text-muted-foreground">Tujuan</p>
-                  <p className="font-medium">{detailRow.destinationCity}</p>
+                  <p className="text-xs text-muted-foreground">Tujuan</p>
+                  <p className="text-sm font-medium">{detailRow.destinationCity}</p>
                 </div>
                 <div>
-                  <p className="text-muted-foreground">Perusahaan</p>
-                  <p className="font-medium">{detailRow.companyName}</p>
+                  <p className="text-xs text-muted-foreground">Perusahaan</p>
+                  <p className="text-sm font-medium break-words">{detailRow.companyName}</p>
                 </div>
                 <div>
-                  <p className="text-muted-foreground">Periode</p>
-                  <p className="font-medium">
+                  <p className="text-xs text-muted-foreground">Periode</p>
+                  <p className="text-sm font-medium">
                     {formatDate(new Date(detailRow.startDate))} - {formatDate(new Date(detailRow.endDate))}
                   </p>
                 </div>
                 <div>
-                  <p className="text-muted-foreground">Diajukan</p>
-                  <p className="font-medium">{formatDateTime(detailRow.createdAt)}</p>
+                  <p className="text-xs text-muted-foreground">Diajukan</p>
+                  <p className="text-sm font-medium">{formatDateTime(detailRow.createdAt)}</p>
                 </div>
                 <div className="md:col-span-2">
-                  <p className="text-muted-foreground">Rincian</p>
-                  <p className="font-medium">{detailRow.purpose ?? "-"}</p>
+                  <p className="text-xs text-muted-foreground">Rincian</p>
+                  <p className="text-sm font-medium break-words">{detailRow.purpose ?? "-"}</p>
                 </div>
                 <div className="md:col-span-2">
                   <p className="text-muted-foreground">Detail Kompensasi</p>
                   {detailRow.compensationBreakdown ? (
-                    <div className="mt-2 overflow-auto rounded-md border">
+                    <>
+                    <div className="mt-2 hidden overflow-auto rounded-md border md:block">
                       <table className="w-full text-sm">
                         <thead className="bg-muted/60">
                           <tr>
@@ -1258,14 +1277,62 @@ export default function BusinessTripPage() {
                         </tbody>
                       </table>
                     </div>
+                    <div className="mt-2 space-y-2 md:hidden">
+                      <div className="rounded-md border p-3 text-sm">
+                        <p className="font-medium">OPE</p>
+                        <p className="text-muted-foreground">
+                          {formatCurrency(detailRow.compensationBreakdown.ope.daily)} x{" "}
+                          {detailRow.compensationBreakdown.ope.days} hari
+                        </p>
+                        <p className="font-semibold">
+                          {formatCurrency(detailRow.compensationBreakdown.ope.total)}
+                        </p>
+                      </div>
+                      <div className="rounded-md border p-3 text-sm">
+                        <p className="font-medium">Makan</p>
+                        <p className="text-muted-foreground">
+                          {formatCurrency(detailRow.compensationBreakdown.meal.daily)} x{" "}
+                          {detailRow.compensationBreakdown.meal.days} hari
+                        </p>
+                        <p className="font-semibold">
+                          {formatCurrency(detailRow.compensationBreakdown.meal.total)}
+                        </p>
+                      </div>
+                      <div className="rounded-md border p-3 text-sm">
+                        <p className="font-medium">Laundry</p>
+                        <p className="text-muted-foreground">
+                          {formatCurrency(detailRow.compensationBreakdown.laundry.weekly)} x{" "}
+                          {detailRow.compensationBreakdown.laundry.weeks} minggu
+                        </p>
+                        <p className="font-semibold">
+                          {formatCurrency(detailRow.compensationBreakdown.laundry.total)}
+                        </p>
+                      </div>
+                      <div className="rounded-md border p-3 text-sm">
+                        <p className="font-medium">Transport PP</p>
+                        <p className="text-muted-foreground">
+                          {detailRow.compensationBreakdown.transport.label ?? "-"}
+                        </p>
+                        <p className="font-semibold">
+                          {formatCurrency(detailRow.compensationBreakdown.transport.amount)}
+                        </p>
+                      </div>
+                      <div className="rounded-md border bg-muted/40 p-3 text-sm">
+                        <p className="font-medium">Total</p>
+                        <p className="font-semibold">
+                          {formatCurrency(detailRow.compensationBreakdown.total)}
+                        </p>
+                      </div>
+                    </div>
+                    </>
                   ) : (
                     <p className="font-medium">-</p>
                   )}
                 </div>
               </div>
 
-              <div className="rounded-lg border p-4">
-                <p className="mb-2 text-sm font-semibold">Tracking Progress Approval</p>
+              <div className="rounded-lg border p-3 md:p-4">
+                <p className="mb-2 text-sm font-semibold md:text-base">Tracking Progress Approval</p>
                 <div className="mb-3 grid gap-2 rounded-md border border-border/60 bg-card p-3 text-sm">
                   <div className="flex items-start justify-between gap-2">
                     <span className="text-muted-foreground">Approval Level 1</span>
@@ -1291,8 +1358,8 @@ export default function BusinessTripPage() {
                 </div>
               </div>
 
-              <div className="rounded-lg border p-4">
-                <p className="mb-3 text-sm font-semibold">Riwayat Aksi</p>
+              <div className="rounded-lg border p-3 md:p-4">
+                <p className="mb-3 text-sm font-semibold md:text-base">Riwayat Aksi</p>
                 {(detailRow.workflowEvents?.length ?? 0) === 0 ? (
                   <p className="text-sm text-muted-foreground">Belum ada riwayat aksi.</p>
                 ) : (
@@ -1326,8 +1393,8 @@ export default function BusinessTripPage() {
               </div>
 
               {isAdmin && (
-                <div className="rounded-lg border p-4">
-                  <p className="mb-3 text-sm font-semibold">Informasi Bank Pemohon</p>
+                <div className="rounded-lg border p-3 md:p-4">
+                  <p className="mb-3 text-sm font-semibold md:text-base">Informasi Bank Pemohon</p>
                   <div className="grid gap-3 text-sm md:grid-cols-2">
                     <div>
                       <p className="text-muted-foreground">Bank Name</p>
@@ -1340,6 +1407,7 @@ export default function BusinessTripPage() {
                   </div>
                 </div>
               )}
+            </div>
             </div>
           )}
         </DialogContent>

@@ -356,16 +356,16 @@ export default function LeaveManagementPage() {
   const canAdminProcess = (status: string) => status === "SUBMITTED" || status === "WAITING_LEVEL_2";
 
   const getApproveButtonLabel = (status: string) => {
-    if (status === "SUBMITTED" && leaveApprovalLevels === 2) return "Approve L1";
-    if (status === "WAITING_LEVEL_2") return "Approve L2";
-    return "Approve";
+    if (status === "SUBMITTED" && leaveApprovalLevels === 2) return "Setujui L1";
+    if (status === "WAITING_LEVEL_2") return "Setujui L2";
+    return "Setujui";
   };
 
   const actionText = (status: string) => {
-    if (status === "APPROVED") return "approve";
-    if (status === "REJECTED") return "reject";
-    if (status === "CANCELLED") return "cancel";
-    return "update";
+    if (status === "APPROVED") return "menyetujui";
+    if (status === "REJECTED") return "menolak";
+    if (status === "CANCELLED") return "membatalkan";
+    return "memperbarui";
   };
 
   const getTrackingLabel = (row: LeaveRequest) => {
@@ -519,12 +519,12 @@ export default function LeaveManagementPage() {
                                       onClick={() => setPendingAction({ row, nextStatus: "REJECTED" })}
                                     >
                                       <XCircle className="mr-2 h-4 w-4 text-destructive" />
-                                      Reject
+                                      Tolak
                                     </DropdownMenuItem>
                                   )}
                                   {!isAdmin && row.status === "SUBMITTED" && row.employeeId === user?.employeeId && (
                                     <DropdownMenuItem onClick={() => setPendingAction({ row, nextStatus: "CANCELLED" })}>
-                                      Cancel
+                                      Batalkan
                                     </DropdownMenuItem>
                                   )}
                                   {isAdmin && row.status === "CANCELLED" && (
@@ -601,12 +601,12 @@ export default function LeaveManagementPage() {
                                   onClick={() => setPendingAction({ row, nextStatus: "REJECTED" })}
                                 >
                                   <XCircle className="mr-2 h-4 w-4 text-destructive" />
-                                  Reject
+                                  Tolak
                                 </DropdownMenuItem>
                               )}
                               {!isAdmin && row.status === "SUBMITTED" && row.employeeId === user?.employeeId && (
                                 <DropdownMenuItem onClick={() => setPendingAction({ row, nextStatus: "CANCELLED" })}>
-                                  Cancel
+                                  Batalkan
                                 </DropdownMenuItem>
                               )}
                               {isAdmin && row.status === "CANCELLED" && (
@@ -782,14 +782,15 @@ export default function LeaveManagementPage() {
       </Dialog>
 
       <Dialog open={Boolean(detailRow)} onOpenChange={(open) => !open && setDetailRow(null)}>
-        <DialogContent className="sm:max-w-[680px] p-6">
-          <DialogHeader>
+        <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-[680px] max-h-[85vh] p-0 flex flex-col">
+          <DialogHeader className="border-b border-border/60 px-4 py-4 sm:px-6 sm:py-5">
             <DialogTitle>Detail Pengajuan Cuti</DialogTitle>
             <DialogDescription>
               Informasi pengajuan dan progres approval cuti.
             </DialogDescription>
           </DialogHeader>
           {detailRow && (
+            <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6">
             <div className="grid gap-4">
               {(() => {
                 const events = detailRow.workflowEvents ?? [];
@@ -809,35 +810,35 @@ export default function LeaveManagementPage() {
 
                 return (
                   <>
-              <div className="grid gap-3 rounded-lg border p-4 text-sm md:grid-cols-2">
+              <div className="grid gap-3 rounded-lg border p-3 text-sm md:grid-cols-2 md:p-4">
                 <div>
-                  <p className="text-muted-foreground">Karyawan</p>
-                  <p className="font-medium">{detailRow.employee?.fullName ?? detailRow.user?.name ?? "-"}</p>
+                  <p className="text-xs text-muted-foreground">Karyawan</p>
+                  <p className="text-sm font-medium">{detailRow.employee?.fullName ?? detailRow.user?.name ?? "-"}</p>
                 </div>
                 <div>
-                  <p className="text-muted-foreground">Jenis Cuti</p>
-                  <p className="font-medium">{detailRow.leaveType}</p>
+                  <p className="text-xs text-muted-foreground">Jenis Cuti</p>
+                  <p className="text-sm font-medium">{detailRow.leaveType}</p>
                 </div>
                 <div>
-                  <p className="text-muted-foreground">Periode</p>
-                  <p className="font-medium">
+                  <p className="text-xs text-muted-foreground">Periode</p>
+                  <p className="text-sm font-medium">
                     {formatDate(new Date(detailRow.startDate))} - {formatDate(new Date(detailRow.endDate))}
                   </p>
                 </div>
                 <div>
-                  <p className="text-muted-foreground">Status</p>
+                  <p className="text-xs text-muted-foreground">Status</p>
                   <Badge variant="outline" className={statusClass(detailRow.status)}>
                     {getStatusLabel(detailRow.status)}
                   </Badge>
                 </div>
                 <div className="md:col-span-2">
-                  <p className="text-muted-foreground">Alasan</p>
-                  <p className="font-medium">{detailRow.reason}</p>
+                  <p className="text-xs text-muted-foreground">Alasan</p>
+                  <p className="text-sm font-medium break-words">{detailRow.reason}</p>
                 </div>
               </div>
 
-              <div className="rounded-lg border p-4">
-                <p className="mb-3 text-sm font-semibold">Tracking Progress Approval</p>
+              <div className="rounded-lg border p-3 md:p-4">
+                <p className="mb-3 text-sm font-semibold md:text-base">Tracking Progress Approval</p>
                 <div className="space-y-3 text-sm">
                   <div className="flex items-start justify-between gap-3">
                     <div>
@@ -911,8 +912,8 @@ export default function LeaveManagementPage() {
                 </div>
               </div>
 
-              <div className="rounded-lg border p-4">
-                <p className="mb-3 text-sm font-semibold">Riwayat Aksi</p>
+              <div className="rounded-lg border p-3 md:p-4">
+                <p className="mb-3 text-sm font-semibold md:text-base">Riwayat Aksi</p>
                 {events.length === 0 ? (
                   <p className="text-sm text-muted-foreground">Belum ada riwayat aksi.</p>
                 ) : (
@@ -950,6 +951,7 @@ export default function LeaveManagementPage() {
                   </>
                 );
               })()}
+            </div>
             </div>
           )}
         </DialogContent>
