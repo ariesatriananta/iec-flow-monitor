@@ -102,19 +102,25 @@ const hrgaCategoryLabels: Record<HrgaCategory, string> = {
 
 const createEmptyAssignment = () => ({
   title: 'Penugasan Jasa Audit Laporan Keuangan.',
-  auditPeriodText: 'Untuk Tahun yang Berakhir .....',
+  auditPeriodText: '',
   members: [{ name: '', role: '' }],
 });
 
-const buildSuratTugasIntro = (
-  title: string,
-  clientName: string,
-  auditPeriodText: string
-) =>
-  `Sehubungan dengan pelaksanaan ${title} ${clientName} ${auditPeriodText}, dengan ini kami menugaskan Tim yang terdiri atas :`;
+const buildSuratTugasSubject = (clientName: string, auditPeriodText: string) =>
+  `Surat Tugas Pelaksanaan Audit Laporan Keuangan ${clientName} untuk tahun yang berakhir pada ${auditPeriodText}`;
+
+const buildSuratTugasIntro = (clientName: string, auditPeriodText: string) =>
+  `Sehubungan dengan pelaksanaan perikatan audit atas laporan keuangan konsolidasian ${clientName} untuk tahun yang berakhir pada ${auditPeriodText}, maka dengan ini kami menugaskan tim audit dengan susunan sebagai berikut:`;
 
 const suratTugasClosingText =
   'Demi kelancaran pelaksanaan pekerjaan, kami yakin manajemen akan mendukung dan bekerjasama dengan Tim tersebut di atas.';
+
+const withKapPrefix = (companyName: string) => {
+  const trimmed = companyName.trim();
+  if (!trimmed) return "KAP Krisnawan, Nugroho & Fahmy";
+  if (/^kap\s+/i.test(trimmed)) return trimmed;
+  return `KAP ${trimmed}`;
+};
 
 export default function Letters() {
   const { toast } = useToast();
@@ -138,7 +144,6 @@ export default function Letters() {
   const [isPrintOpen, setIsPrintOpen] = useState(false);
   const [printLetter, setPrintLetter] = useState<Letter | null>(null);
   const [printAssignment, setPrintAssignment] = useState<LetterAssignment | null>(null);
-  const [headerDataUrl, setHeaderDataUrl] = useState<string>('');
 
   // Form state
   const [formData, setFormData] = useState({
@@ -191,28 +196,6 @@ export default function Letters() {
   useEffect(() => {
     setVisibleCount(20);
   }, [searchQuery, filterType]);
-
-  useEffect(() => {
-    let active = true;
-    const loadHeader = async () => {
-      try {
-        const response = await fetch('/invoice-header.png');
-        const blob = await response.blob();
-        const reader = new FileReader();
-        reader.onload = () => {
-          if (!active) return;
-          setHeaderDataUrl(typeof reader.result === 'string' ? reader.result : '');
-        };
-        reader.readAsDataURL(blob);
-      } catch (error) {
-        console.error(error);
-      }
-    };
-    loadHeader();
-    return () => {
-      active = false;
-    };
-  }, []);
 
   const visibleLetters = filteredLetters.slice(0, visibleCount);
 
@@ -495,13 +478,33 @@ export default function Letters() {
     });
   };
 
-  const formatDateLong = (value: Date | string) =>
-    new Date(value).toLocaleDateString('id-ID', {
+  const formatDateLong = (value: Date | string) => {
+    const date = new Date(value);
+    const months = [
+      'Januari',
+      'Februari',
+      'Maret',
+      'April',
+      'Mei',
+      'Juni',
+      'Juli',
+      'Agustus',
+      'September',
+      'Oktober',
+      'November',
+      'Desember',
+    ];
+    const day = date.toLocaleString('id-ID', {
       timeZone: 'Asia/Jakarta',
-      day: '2-digit',
-      month: 'long',
+      day: 'numeric',
+    });
+    const month = months[date.getMonth()] ?? '-';
+    const year = date.toLocaleString('id-ID', {
+      timeZone: 'Asia/Jakarta',
       year: 'numeric',
     });
+    return `${month} ${day}, ${year}`;
+  };
 
 
   const updateAssignmentField = (
@@ -569,23 +572,26 @@ export default function Letters() {
     if (!printLetter || !printAssignment) return;
     const printWindow = window.open('', '_blank', 'width=1000,height=800');
     if (!printWindow) return;
-    const headerUrl = headerDataUrl || `${window.location.origin}/invoice-header.png`;
+    const logoKnfUrl = `${window.location.origin}/logo_knf.png`;
+    const logoIecnetUrl = `${window.location.origin}/logo_iecnet.png`;
     const letterDate = formatDateLong(printLetter.letterDate);
-    const clientName = printLetter.client?.name ?? 'PT xxx';
-    const clientAddress = printLetter.client?.address ?? 'Alamatxx';
-    const introText = buildSuratTugasIntro(
-      printAssignment.title,
-      clientName,
-      printAssignment.auditPeriodText
+    const clientName = printLetter.client?.name ?? '-';
+    const clientAddress = printLetter.client?.address ?? '-';
+    const clientPic = printLetter.client?.picName?.trim() || '-';
+    const signerCompany = withKapPrefix(
+      settings?.companyName || 'Krisnawan, Nugroho & Fahmy'
     );
+    const auditPeriodText = printAssignment.auditPeriodText?.trim() || '-';
+    const subjectText = buildSuratTugasSubject(clientName, auditPeriodText);
+    const introText = buildSuratTugasIntro(clientName, auditPeriodText);
     const members = printAssignment.members ?? [];
     const membersHtml = members
       .map(
         (member) => `
           <tr>
-            <td style="width: 24px;">*</td>
-            <td style="padding-right: 24px;">${member.name}</td>
-            <td>${member.role}</td>
+            <td style="width: 220px;">${member.role || '-'}</td>
+            <td style="width: 20px;">:</td>
+            <td>${member.name || '-'}</td>
           </tr>
         `
       )
@@ -598,46 +604,46 @@ export default function Letters() {
           <title>Surat Tugas ${printLetter.letterNumber}</title>
           <style>
             @page { size: A4; margin: 20mm; }
-            :root { --primary: #1e4e8c; --muted: #6b7280; }
             body { font-family: Arial, sans-serif; color: #111; background: #fff; }
-            .header { position: relative; height: 180px; margin-bottom: 24px; }
-            .header-bg { position: absolute; inset: 0; background-image: url('${headerUrl}'); background-size: cover; background-position: top center; }
-            .content { font-size: 14px; line-height: 1.6; }
-            .meta { display: flex; justify-content: space-between; margin-bottom: 16px; }
-            .title { text-align: center; font-weight: 700; margin: 24px 0; }
-            .title-line { font-size: 15px; }
-            .title-client { font-size: 15px; }
-            .title-period { font-size: 15px; }
-            .title .line { text-decoration: underline; }
-            .signature { margin-top: 36px; }
-            .signature .name { margin-top: 90px; font-weight: 700; }
-            .members { margin: 16px 0 20px; }
-            table { width: 100%; border-collapse: collapse; }
+            .page { max-width: 800px; margin: 0 auto; }
+            .logos { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28px; }
+            .logo-left { width: 130px; height: auto; }
+            .logo-right { width: 150px; height: auto; }
+            .content { font-size: 14px; line-height: 1.45; }
+            .meta { display: flex; justify-content: space-between; margin-bottom: 28px; }
+            .subject { margin: 18px 0 16px; display: grid; grid-template-columns: 80px 12px 1fr; gap: 0; }
+            .subject strong { text-decoration: underline; }
+            .members { margin: 10px 0 14px; }
+            .members table { width: 100%; border-collapse: collapse; }
+            .signature { margin-top: 28px; }
+            .signature .name { margin-top: 96px; text-decoration: underline; }
             @media print {
               body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
             }
           </style>
         </head>
         <body>
-          <div class="header">
-            <div class="header-bg"></div>
-          </div>
-          <div class="content">
+          <div class="page content">
+            <div class="logos">
+              <img class="logo-left" src="${logoKnfUrl}" alt="KNF" />
+              <img class="logo-right" src="${logoIecnetUrl}" alt="IECNET" />
+            </div>
             <div class="meta">
               <div>No. ${printLetter.letterNumber}</div>
               <div>Jakarta, ${letterDate}</div>
             </div>
             <div style="margin-bottom: 16px;">
-              <div>Yang Terhormat,</div>
-              <div><strong>${clientName}</strong></div>
+              <div>Kepada Yth</div>
+              <div><strong>Bapak/Ibu ${clientPic}</strong></div>
+              <div style="margin-top:10px;"><strong>${clientName}</strong></div>
               <div>${clientAddress}</div>
             </div>
-            <div class="title">
-              <div class="title-line">${printAssignment.title}</div>
-              <div class="title-client">${clientName}</div>
-              <div class="title-period">${printAssignment.auditPeriodText}</div>
-            </div>
             <div>Dengan hormat,</div>
+            <div class="subject">
+              <div>Perihal</div>
+              <div>:</div>
+              <div><strong>${subjectText}</strong></div>
+            </div>
             <p>${introText}</p>
             <div class="members">
               <table>
@@ -647,9 +653,9 @@ export default function Letters() {
             <p>${suratTugasClosingText}</p>
             <div class="signature">
               <div>Hormat kami,</div>
-              <div>${settings?.companyName || 'KAP Krisnawan, Nugroho & Fahmy'}</div>
+              <div>${signerCompany}</div>
               <div class="name">${settings?.defaultSignerName || 'Anita Rahman, CPA'}</div>
-              <div>Rekan Penanggung Jawab</div>
+              <div>Rekan</div>
             </div>
           </div>
         </body>
@@ -658,8 +664,47 @@ export default function Letters() {
     printWindow.document.open();
     printWindow.document.write(html);
     printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
+
+    const triggerPrint = () => {
+      try {
+        printWindow.focus();
+        printWindow.print();
+      } catch {
+        // no-op
+      }
+    };
+
+    const waitForImagesThenPrint = () => {
+      const images = Array.from(printWindow.document.images);
+      let printed = false;
+      const safeTriggerPrint = () => {
+        if (printed) return;
+        printed = true;
+        triggerPrint();
+      };
+      if (images.length === 0) {
+        safeTriggerPrint();
+        return;
+      }
+      let loaded = 0;
+      const done = () => {
+        loaded += 1;
+        if (loaded >= images.length) {
+          safeTriggerPrint();
+        }
+      };
+      images.forEach((image) => {
+        if (image.complete) {
+          done();
+        } else {
+          image.addEventListener('load', done, { once: true });
+          image.addEventListener('error', done, { once: true });
+        }
+      });
+      window.setTimeout(safeTriggerPrint, 2500);
+    };
+
+    printWindow.addEventListener('load', waitForImagesThenPrint, { once: true });
   };
 
   const getLetterStatusColor = (status: LetterStatus) => {
@@ -1416,9 +1461,8 @@ export default function Letters() {
               <SuratTugasPreview
                 letter={printLetter}
                 assignment={printAssignment}
-                headerSrc={headerDataUrl || "/invoice-header.png"}
                 signerName={settings?.defaultSignerName || "Anita Rahman, CPA"}
-                companyName={settings?.companyName || "KAP Krisnawan, Nugroho & Fahmy"}
+                companyName={withKapPrefix(settings?.companyName || "Krisnawan, Nugroho & Fahmy")}
                 formatDateLong={formatDateLong}
               />
             )}
@@ -1440,34 +1484,29 @@ export default function Letters() {
 function SuratTugasPreview({
   letter,
   assignment,
-  headerSrc,
   signerName,
   companyName,
   formatDateLong,
 }: {
   letter: Letter;
   assignment: LetterAssignment;
-  headerSrc: string;
   signerName: string;
   companyName: string;
   formatDateLong: (value: Date | string) => string;
 }) {
   const members = assignment.members ?? [];
-  const clientName = letter.client?.name ?? 'PT xxx';
-  const clientAddress = letter.client?.address ?? 'Alamatxx';
-  const introText = buildSuratTugasIntro(
-    assignment.title,
-    clientName,
-    assignment.auditPeriodText
-  );
+  const clientName = letter.client?.name ?? '-';
+  const clientAddress = letter.client?.address ?? '-';
+  const clientPic = letter.client?.picName?.trim() || '-';
+  const auditPeriodText = assignment.auditPeriodText?.trim() || '-';
+  const subjectText = buildSuratTugasSubject(clientName, auditPeriodText);
+  const introText = buildSuratTugasIntro(clientName, auditPeriodText);
   const closingText = suratTugasClosingText;
   return (
     <div className="space-y-6 rounded-md bg-white p-6 text-black font-[Arial]">
-      <div className="relative h-44">
-        <div
-          className="absolute inset-0 bg-cover bg-top"
-          style={{ backgroundImage: `url(${headerSrc})` }}
-        />
+      <div className="flex items-start justify-between">
+        <Image src="/logo_knf.png" alt="KNF" width={132} height={74} className="h-auto w-[132px]" />
+        <Image src="/logo_iecnet.png" alt="IECNET" width={156} height={74} className="h-auto w-[156px]" />
       </div>
       <div className="flex flex-col gap-3 text-sm md:flex-row md:items-start md:justify-between">
         <div>No. {letter.letterNumber}</div>
@@ -1476,17 +1515,20 @@ function SuratTugasPreview({
         </div>
       </div>
       <div className="text-sm">
-        <p>Yang Terhormat,</p>
-        <p className="font-semibold">{clientName}</p>
+        <p>Kepada Yth</p>
+        <p className="font-semibold">Bapak/Ibu {clientPic}</p>
+        <p className="mt-2 font-semibold">{clientName}</p>
         <p>{clientAddress}</p>
       </div>
-      <div className="text-center font-semibold">
-        <p className="text-base ">{assignment.title}</p>
-        <p className="text-base ">{clientName}</p>
-        <p className="text-base ">{assignment.auditPeriodText}</p>
+      <div className="text-sm">
+        <p>Dengan hormat,</p>
+        <div className="mt-2 grid grid-cols-[80px_12px_1fr]">
+          <p>Perihal</p>
+          <p>:</p>
+          <p className="font-semibold underline underline-offset-2">{subjectText}</p>
+        </div>
       </div>
       <div className="text-sm space-y-3">
-        <p>Dengan hormat,</p>
         <p className="whitespace-pre-line">{introText}</p>
       </div>
       <div className="text-sm">
@@ -1494,9 +1536,9 @@ function SuratTugasPreview({
           <tbody>
             {members.map((member, index) => (
               <tr key={`${member.id}-${index}`}>
-                <td className="w-6 align-top">*</td>
-                <td className="pr-8 align-top">{member.name}</td>
-                <td className="align-top">{member.role}</td>
+                <td className="w-[220px] align-top">{member.role || '-'}</td>
+                <td className="w-5 align-top">:</td>
+                <td className="align-top">{member.name || '-'}</td>
               </tr>
             ))}
           </tbody>
@@ -1509,8 +1551,8 @@ function SuratTugasPreview({
         <p>Hormat kami,</p>
         <p>{companyName}</p>
         <div className="h-32" />
-        <p className="font-semibold">{signerName}</p>
-        <p>Rekan Penanggung Jawab</p>
+        <p className="font-semibold underline underline-offset-2">{signerName}</p>
+        <p>Rekan</p>
       </div>
     </div>
   );
