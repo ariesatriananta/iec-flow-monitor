@@ -9,6 +9,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider } from "next-themes";
 import { RouteLoadingProvider } from "@/contexts/RouteLoadingContext";
 import { GlobalAudioProvider } from "@/contexts/GlobalAudioContext";
+import { PwaManager } from "@/components/pwa/PwaManager";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient());
@@ -20,6 +21,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           <RouteLoadingProvider>
             <AuthProvider>
               <GlobalAudioProvider>
+                <PwaManager />
                 <Toaster />
                 <Sonner />
                 {children}

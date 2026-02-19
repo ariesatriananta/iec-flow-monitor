@@ -155,4 +155,48 @@ All colors MUST be HSL.
   .no-scrollbar::-webkit-scrollbar {
     display: none;
   }
+
+  .pwa-splash-overlay {
+    @apply fixed inset-0 z-[90] flex flex-col items-center justify-center bg-primary/95 text-primary-foreground;
+  }
+
+  .pwa-splash-logo-wrap {
+    @apply relative overflow-hidden rounded-2xl bg-white/10 p-4;
+  }
+
+  .pwa-splash-logo {
+    @apply relative z-[1];
+  }
+
+  .pwa-splash-shine {
+    position: absolute;
+    top: -40%;
+    left: -120%;
+    width: 80%;
+    height: 180%;
+    transform: rotate(18deg);
+    background: linear-gradient(
+      to right,
+      transparent 0%,
+      rgba(255, 255, 255, 0.2) 35%,
+      rgba(255, 255, 255, 0.7) 50%,
+      rgba(255, 255, 255, 0.2) 65%,
+      transparent 100%
+    );
+    animation: pwa-shine 1.1s ease-out forwards;
+    pointer-events: none;
+  }
+
+  .pwa-splash-text {
+    @apply mt-4 text-lg font-semibold tracking-[0.2em];
+  }
+}
+
+@keyframes pwa-shine {
+  from {
+    left: -120%;
+  }
+  to {
+    left: 140%;
+  }
 }
