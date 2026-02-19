@@ -30,7 +30,8 @@ const transportOptionSchema = z.object({
 const payloadSchema = z.object({
   opeRules: z.array(opeRuleSchema).min(1).max(50),
   mealPerDay: z.number().finite().min(0).max(999999999999),
-  laundryPerWeek: z.number().finite().min(0).max(999999999999),
+  laundryAmount: z.number().finite().min(0).max(999999999999).optional(),
+  laundryPerWeek: z.number().finite().min(0).max(999999999999).optional(),
   laundryMinDays: z.number().int().min(0).max(31),
   transportOptions: z.array(transportOptionSchema).min(1).max(100),
 });
@@ -125,7 +126,7 @@ export async function GET() {
   return NextResponse.json({
     opeRules: parseOpeRules(row.allowanceRuleJson),
     mealPerDay: Number(row.mealPerDay),
-    laundryPerWeek: Number(row.laundryPerWeek),
+    laundryAmount: Number(row.laundryAmount),
     laundryMinDays: row.laundryMinDays,
     transportOptions: parseTransportOptions(row.transportOptionJson),
   });
@@ -145,6 +146,13 @@ export async function PUT(request: Request) {
   }
 
   const payload = parsed.data;
+  const laundryAmount = payload.laundryAmount ?? payload.laundryPerWeek;
+  if (laundryAmount === undefined) {
+    return NextResponse.json(
+      { error: "Payload tidak valid: laundryAmount wajib diisi" },
+      { status: 400 }
+    );
+  }
   const opeRules = sanitizeOpeRules(payload.opeRules);
   const transportOptions = sanitizeTransportOptions(payload.transportOptions);
   if (opeRules.length === 0 || transportOptions.length === 0) {
@@ -172,7 +180,7 @@ export async function PUT(request: Request) {
       id: "default",
       allowanceRuleJson: JSON.stringify(opeRules),
       mealPerDay: payload.mealPerDay.toString(),
-      laundryPerWeek: payload.laundryPerWeek.toString(),
+      laundryAmount: laundryAmount.toString(),
       laundryMinDays: payload.laundryMinDays,
       transportOptionJson: JSON.stringify(transportOptions),
       createdAt: now,
@@ -183,7 +191,7 @@ export async function PUT(request: Request) {
       set: {
         allowanceRuleJson: JSON.stringify(opeRules),
         mealPerDay: payload.mealPerDay.toString(),
-        laundryPerWeek: payload.laundryPerWeek.toString(),
+        laundryAmount: laundryAmount.toString(),
         laundryMinDays: payload.laundryMinDays,
         transportOptionJson: JSON.stringify(transportOptions),
         updatedAt: now,
@@ -194,7 +202,7 @@ export async function PUT(request: Request) {
   return NextResponse.json({
     opeRules: parseOpeRules(updated.allowanceRuleJson),
     mealPerDay: Number(updated.mealPerDay),
-    laundryPerWeek: Number(updated.laundryPerWeek),
+    laundryAmount: Number(updated.laundryAmount),
     laundryMinDays: updated.laundryMinDays,
     transportOptions: parseTransportOptions(updated.transportOptionJson),
   });

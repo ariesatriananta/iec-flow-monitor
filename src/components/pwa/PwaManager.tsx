@@ -85,7 +85,15 @@ export function PwaManager() {
       localStorage.removeItem(DISMISS_KEY);
       localStorage.removeItem(IOS_HINT_KEY);
       if (deferredPrompt) {
-        void onInstallClick();
+        void (async () => {
+          await deferredPrompt.prompt();
+          const result = await deferredPrompt.userChoice;
+          if (result.outcome !== "accepted") {
+            localStorage.setItem(DISMISS_KEY, "1");
+          }
+          setDeferredPrompt(null);
+          setShowInstallBar(false);
+        })();
         return;
       }
       if (isIos && !isStandalone) {

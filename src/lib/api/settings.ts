@@ -102,7 +102,7 @@ export interface BusinessTripTransportOptionPayload {
 export interface BusinessTripAllowancePayload {
   opeRules: BusinessTripOpeRulePayload[];
   mealPerDay: number;
-  laundryPerWeek: number;
+  laundryAmount: number;
   laundryMinDays: number;
   transportOptions: BusinessTripTransportOptionPayload[];
 }

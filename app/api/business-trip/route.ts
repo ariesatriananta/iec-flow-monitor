@@ -100,7 +100,7 @@ const parseCompensationSettings = (
   return {
     opeRules: parseOpeRules(row.allowanceRuleJson),
     mealPerDay: Number(row.mealPerDay),
-    laundryPerWeek: Number(row.laundryPerWeek),
+    laundryAmount: Number(row.laundryAmount),
     laundryMinDays: row.laundryMinDays,
     transportOptions: parseTransportOptions(row.transportOptionJson),
   }
@@ -252,7 +252,25 @@ export async function GET(request: Request) {
     compensationBreakdown: (() => {
       if (!trip.compensationBreakdownJson) return null;
       try {
-        return JSON.parse(trip.compensationBreakdownJson);
+        const parsed = JSON.parse(trip.compensationBreakdownJson) as {
+          laundry?: { amount?: number; weekly?: number; weeks?: number; minDays?: number; total?: number };
+          [key: string]: unknown;
+        };
+        if (!parsed || typeof parsed !== "object") return null;
+        if (parsed.laundry && typeof parsed.laundry === "object") {
+          const laundry = parsed.laundry;
+          return {
+            ...parsed,
+            laundry: {
+              ...laundry,
+              amount:
+                typeof laundry.amount === "number"
+                  ? laundry.amount
+                  : Number(laundry.weekly ?? 0),
+            },
+          };
+        }
+        return parsed;
       } catch {
         return null;
       }

@@ -26,7 +26,7 @@ export type TransportOption = {
 export type BusinessTripCompensationSettings = {
   opeRules: OpeRule[];
   mealPerDay: number;
-  laundryPerWeek: number;
+  laundryAmount: number;
   laundryMinDays: number;
   transportOptions: TransportOption[];
 };
@@ -47,7 +47,7 @@ export type BusinessTripCompensationBreakdown = {
     total: number;
   };
   laundry: {
-    weekly: number;
+    amount: number;
     weeks: number;
     minDays: number;
     total: number;
@@ -114,7 +114,7 @@ export const DEFAULT_TRANSPORT_OPTIONS: TransportOption[] = [
 export const DEFAULT_BUSINESS_TRIP_COMPENSATION_SETTINGS: BusinessTripCompensationSettings = {
   opeRules: DEFAULT_OPE_RULES,
   mealPerDay: 50000,
-  laundryPerWeek: 30000,
+  laundryAmount: 30000,
   laundryMinDays: 7,
   transportOptions: DEFAULT_TRANSPORT_OPTIONS,
 };
@@ -199,10 +199,10 @@ export function calculateBusinessTripCompensation(params: {
   const opeTotal = opeDaily * days;
   const mealDaily = params.settings.mealPerDay;
   const mealTotal = mealDaily * days;
-  const laundryWeeks =
-    days > params.settings.laundryMinDays ? Math.ceil(days / 7) : 0;
-  const laundryWeekly = params.settings.laundryPerWeek;
-  const laundryTotal = laundryWeeks * laundryWeekly;
+  const laundryEligible = days > params.settings.laundryMinDays;
+  const laundryWeeks = laundryEligible ? 1 : 0;
+  const laundryAmount = params.settings.laundryAmount;
+  const laundryTotal = laundryWeeks * laundryAmount;
   const transportAmount = transportOption?.amount ?? 0;
   const total = opeTotal + mealTotal + laundryTotal + transportAmount;
 
@@ -222,7 +222,7 @@ export function calculateBusinessTripCompensation(params: {
       total: mealTotal,
     },
     laundry: {
-      weekly: laundryWeekly,
+      amount: laundryAmount,
       weeks: laundryWeeks,
       minDays: params.settings.laundryMinDays,
       total: laundryTotal,

@@ -134,19 +134,21 @@ export default function BusinessTripAllowancePage() {
               <p className="text-xs text-muted-foreground">{formatCurrency(form.mealPerDay)}</p>
             </div>
             <div className="space-y-2">
-              <Label>Laundry / Minggu</Label>
+              <Label>Laundry Flat / Trip (Jika Eligible)</Label>
               <Input
                 type="number"
                 min={0}
-                value={form.laundryPerWeek}
+                value={form.laundryAmount}
                 onChange={(event) =>
                   setForm((prev) => ({
                     ...prev,
-                    laundryPerWeek: Number(event.target.value),
+                    laundryAmount: Number(event.target.value),
                   }))
                 }
               />
-              <p className="text-xs text-muted-foreground">{formatCurrency(form.laundryPerWeek)}</p>
+              <p className="text-xs text-muted-foreground">
+                Dibayar 1x per trip jika durasi melebihi batas hari minimum.
+              </p>
             </div>
             <div className="space-y-2">
               <Label>Laundry Mulai Dihitung Jika Hari &gt;</Label>

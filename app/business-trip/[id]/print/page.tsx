@@ -123,12 +123,22 @@ export default async function BusinessTripPrintPage({ params }: PageProps) {
   const compensation = (() => {
     if (!row.trip.compensationBreakdownJson) return null;
     try {
-      return JSON.parse(row.trip.compensationBreakdownJson) as {
+      const parsed = JSON.parse(row.trip.compensationBreakdownJson) as {
         ope: { daily: number; days: number; total: number };
         meal: { daily: number; days: number; total: number };
-        laundry: { weekly: number; weeks: number; total: number };
+        laundry: { amount?: number; weekly?: number; weeks: number; minDays: number; total: number };
         transport: { label: string | null; amount: number };
         total: number;
+      };
+      return {
+        ...parsed,
+        laundry: {
+          ...parsed.laundry,
+          amount:
+            typeof parsed.laundry.amount === "number"
+              ? parsed.laundry.amount
+              : Number(parsed.laundry.weekly ?? 0),
+        },
       };
     } catch {
       return null;
@@ -214,8 +224,8 @@ export default async function BusinessTripPrintPage({ params }: PageProps) {
                 {formatCurrency(Number(compensation.meal.total))}
               </p>
               <p>
-                Laundry: {formatCurrency(Number(compensation.laundry.weekly))} x{" "}
-                {Number(compensation.laundry.weeks)} minggu ={" "}
+                Laundry: {formatCurrency(Number(compensation.laundry.amount))} (flat 1x/trip, aktif jika durasi {" > "}{" "}
+                {Number(compensation.laundry.minDays)} hari) ={" "}
                 {formatCurrency(Number(compensation.laundry.total))}
               </p>
               <p>

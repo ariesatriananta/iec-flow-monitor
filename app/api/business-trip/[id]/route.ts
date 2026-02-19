@@ -101,7 +101,7 @@ const parseCompensationSettings = (
   return {
     opeRules: parseOpeRules(row.allowanceRuleJson),
     mealPerDay: Number(row.mealPerDay),
-    laundryPerWeek: Number(row.laundryPerWeek),
+    laundryAmount: Number(row.laundryAmount),
     laundryMinDays: row.laundryMinDays,
     transportOptions: parseTransportOptions(row.transportOptionJson),
   }

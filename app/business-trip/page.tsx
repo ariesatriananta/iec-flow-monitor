@@ -577,9 +577,9 @@ export default function BusinessTripPage() {
                   </tr>
                   <tr>
                     <td>Laundry</td>
-                    <td>${formatCurrency(Number(printRow.compensationBreakdown?.laundry.weekly ?? 0))} x ${
-      printRow.compensationBreakdown?.laundry.weeks ?? 0
-    } minggu</td>
+                    <td>${formatCurrency(Number(printRow.compensationBreakdown?.laundry.amount ?? 0))} (flat 1x/trip, aktif jika durasi &gt; ${
+      printRow.compensationBreakdown?.laundry.minDays ?? 0
+    } hari)</td>
                     <td>${formatCurrency(Number(printRow.compensationBreakdown?.laundry.total ?? 0))}</td>
                   </tr>
                   <tr>
@@ -1169,7 +1169,7 @@ export default function BusinessTripPage() {
                     {formatCurrency(compensationPreview.meal.total)}
                   </p>
                   <p>
-                    Laundry: {formatCurrency(compensationPreview.laundry.weekly)} x {compensationPreview.laundry.weeks} minggu ={" "}
+                    Laundry: {formatCurrency(compensationPreview.laundry.amount)} (flat 1x/trip, aktif jika durasi &gt; {compensationPreview.laundry.minDays} hari) ={" "}
                     {formatCurrency(compensationPreview.laundry.total)}
                   </p>
                   <p>
@@ -1291,8 +1291,8 @@ export default function BusinessTripPage() {
                           <tr className="border-t">
                             <td className="p-2">Laundry</td>
                             <td className="p-2">
-                              {formatCurrency(detailRow.compensationBreakdown.laundry.weekly)} x{" "}
-                              {detailRow.compensationBreakdown.laundry.weeks} minggu
+                              {formatCurrency(detailRow.compensationBreakdown.laundry.amount)} (flat 1x/trip, aktif jika durasi &gt;{" "}
+                              {detailRow.compensationBreakdown.laundry.minDays} hari)
                             </td>
                             <td className="p-2 text-right">
                               {formatCurrency(detailRow.compensationBreakdown.laundry.total)}
@@ -1340,8 +1340,8 @@ export default function BusinessTripPage() {
                       <div className="rounded-md border p-3 text-sm">
                         <p className="font-medium">Laundry</p>
                         <p className="text-muted-foreground">
-                          {formatCurrency(detailRow.compensationBreakdown.laundry.weekly)} x{" "}
-                          {detailRow.compensationBreakdown.laundry.weeks} minggu
+                          {formatCurrency(detailRow.compensationBreakdown.laundry.amount)} (flat 1x/trip, aktif jika durasi &gt;{" "}
+                          {detailRow.compensationBreakdown.laundry.minDays} hari)
                         </p>
                         <p className="font-semibold">
                           {formatCurrency(detailRow.compensationBreakdown.laundry.total)}
@@ -1620,8 +1620,8 @@ function BusinessTripPrintPreview({
               <tr>
                 <td className="border border-black/80 p-2">Laundry</td>
                 <td className="border border-black/80 p-2">
-                  {formatCurrency(Number(row.compensationBreakdown?.laundry.weekly ?? 0))} x{" "}
-                  {row.compensationBreakdown?.laundry.weeks ?? 0} minggu
+                  {formatCurrency(Number(row.compensationBreakdown?.laundry.amount ?? 0))} (flat 1x/trip, aktif jika durasi {" > "}{" "}
+                  {row.compensationBreakdown?.laundry.minDays ?? 0} hari)
                 </td>
                 <td className="border border-black/80 p-2 text-right">
                   {formatCurrency(Number(row.compensationBreakdown?.laundry.total ?? 0))}

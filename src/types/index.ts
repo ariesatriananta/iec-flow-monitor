@@ -305,7 +305,7 @@ export interface BusinessTrip {
       total: number;
     };
     laundry: {
-      weekly: number;
+      amount: number;
       weeks: number;
       minDays: number;
       total: number;

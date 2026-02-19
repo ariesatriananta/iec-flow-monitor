@@ -267,7 +267,7 @@ export const settingsBusinessTripAllowance = pgTable(
     id: text("id").primaryKey(),
     allowanceRuleJson: text("allowance_rule_json").notNull(),
     mealPerDay: numeric("meal_per_day", { precision: 15, scale: 0 }).notNull().default("50000"),
-    laundryPerWeek: numeric("laundry_per_week", { precision: 15, scale: 0 }).notNull().default("30000"),
+    laundryAmount: numeric("laundry_per_week", { precision: 15, scale: 0 }).notNull().default("30000"),
     laundryMinDays: integer("laundry_min_days").notNull().default(7),
     transportOptionJson: text("transport_option_json").notNull().default("[]"),
     createdAt: timestamp("created_at", { mode: "date" }).notNull(),
