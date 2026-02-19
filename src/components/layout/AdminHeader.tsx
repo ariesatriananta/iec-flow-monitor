@@ -3,6 +3,7 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useToast } from '@/hooks/use-toast';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,7 +15,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { fetchNotifications, markAllNotificationsRead, markNotificationRead } from '@/lib/api/notifications';
 import type { InAppNotification } from '@/types';
-import { Search, Sun, Moon, User, LogOut, UserCircle, Menu, Settings, Bell, CheckCheck } from 'lucide-react';
+import { Search, Sun, Moon, User, LogOut, UserCircle, Menu, Settings, Bell, CheckCheck, Download } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { useCallback, useEffect, useState } from 'react';
@@ -26,6 +27,7 @@ interface AdminHeaderProps {
 
 export function AdminHeader({ title, onOpenSidebar }: AdminHeaderProps) {
   const { user, logout } = useAuth();
+  const { toast } = useToast();
   const router = useRouter();
   const pathname = usePathname();
   const { theme, setTheme } = useTheme();
@@ -120,6 +122,14 @@ export function AdminHeader({ title, onOpenSidebar }: AdminHeaderProps) {
     } catch {
       // no-op
     }
+  };
+
+  const handleInstallApp = () => {
+    window.dispatchEvent(new Event('iecnet:pwa-install-now'));
+    toast({
+      title: 'Install App',
+      description: 'Mencoba menampilkan prompt install aplikasi.',
+    });
   };
 
   return (
@@ -253,6 +263,11 @@ export function AdminHeader({ title, onOpenSidebar }: AdminHeaderProps) {
                 <DropdownMenuSeparator />
               </>
             )}
+            <DropdownMenuItem onClick={handleInstallApp}>
+              <Download className="w-4 h-4 mr-2" />
+              Install App
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout} className="text-destructive">
               <LogOut className="w-4 h-4 mr-2" />
               Logout

@@ -11,6 +11,8 @@ interface BeforeInstallPromptEvent extends Event {
 
 const DISMISS_KEY = "iecnet-pwa-install-dismissed";
 const IOS_HINT_KEY = "iecnet-pwa-ios-hint-dismissed";
+const RESET_PROMPT_EVENT = "iecnet:pwa-reset-install-prompt";
+const INSTALL_NOW_EVENT = "iecnet:pwa-install-now";
 
 export function PwaManager() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
@@ -58,6 +60,44 @@ export function PwaManager() {
       window.removeEventListener("beforeinstallprompt", onBeforeInstallPrompt);
     };
   }, [isIos, isStandalone]);
+
+  useEffect(() => {
+    const handleResetPrompt = () => {
+      localStorage.removeItem(DISMISS_KEY);
+      localStorage.removeItem(IOS_HINT_KEY);
+      if (deferredPrompt) {
+        setShowInstallBar(true);
+        return;
+      }
+      if (isIos && !isStandalone) {
+        setShowIosHint(true);
+      }
+    };
+
+    window.addEventListener(RESET_PROMPT_EVENT, handleResetPrompt);
+    return () => {
+      window.removeEventListener(RESET_PROMPT_EVENT, handleResetPrompt);
+    };
+  }, [deferredPrompt, isIos, isStandalone]);
+
+  useEffect(() => {
+    const handleInstallNow = () => {
+      localStorage.removeItem(DISMISS_KEY);
+      localStorage.removeItem(IOS_HINT_KEY);
+      if (deferredPrompt) {
+        void onInstallClick();
+        return;
+      }
+      if (isIos && !isStandalone) {
+        setShowIosHint(true);
+      }
+    };
+
+    window.addEventListener(INSTALL_NOW_EVENT, handleInstallNow);
+    return () => {
+      window.removeEventListener(INSTALL_NOW_EVENT, handleInstallNow);
+    };
+  }, [deferredPrompt, isIos, isStandalone]);
 
   useEffect(() => {
     if (!isStandalone) return;
@@ -134,4 +174,3 @@ export function PwaManager() {
     </>
   );
 }
-
