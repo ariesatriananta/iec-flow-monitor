@@ -276,7 +276,7 @@ export default function Invoices() {
     const descriptionParts = [contract?.contractTitle, terminName].filter(Boolean);
     const description = descriptionParts.join('\n');
     const dpp = Number(invoice.amount);
-    const ppnRate = Number(settings?.defaultPpnRate ?? 11);
+    const ppnRate = 11;
     const ppn = Math.round(dpp * (ppnRate / 100));
     const total = dpp + ppn;
     return {
@@ -332,6 +332,21 @@ export default function Invoices() {
             .title { font-size: 18px; font-weight: 700; letter-spacing: 1px; color: var(--primary); }
             .meta { display: flex; justify-content: space-between; margin-top: 46px; font-size: 12px; }
             .meta .left { max-width: 60%; }
+            .faktur-top { display: flex; justify-content: space-between; gap: 20px; margin-top: 32px; align-items: flex-start; }
+            .faktur-title-box {
+              border: 1px solid var(--border);
+              background: var(--primary-soft);
+              color: var(--primary);
+              font-weight: 700;
+              letter-spacing: .5px;
+              text-align: center;
+              padding: 4px 12px;
+              min-width: 280px;
+            }
+            .faktur-ref { margin-top: 34px; font-size: 12px; max-width: 360px; }
+            .faktur-ref .row { display: grid; grid-template-columns: 86px 10px 1fr; column-gap: 8px; }
+            .client-address { margin-top: 2px; white-space: pre-line; }
+            .sign-line { border-top: 1px solid #111; width: 180px; margin: 0 0 4px auto; }
               .box {
                 border: 0.5px solid var(--border);
                 border-radius: 8px;
@@ -360,7 +375,9 @@ export default function Invoices() {
               .note { font-size: 12px; }
               .sign { text-align: right; font-size: 12px; }
               
-              .note-table td { border: none; padding: 10px; vertical-align: bottom; }
+              .note-table td { border: none; padding: 10px; vertical-align: top; }
+              .note-table p { margin: 0; }
+              .note-table .note p + p { margin-top: 2px; }
               .kw-title { text-align: center; font-size: 16px; font-weight: 700; margin-top: 8px; }
               
               .kw-table td { border: none; padding: 8px; vertical-align: top; }
@@ -375,32 +392,27 @@ export default function Invoices() {
           <div class="page">
             <div class="header">
               <div class="header-bg"></div>
-              <div class="header-content">
-                <div class="title">FAKTUR TAGIHAN</div>
-              </div>
+              <div class="header-content"></div>
             </div>
-            <div class="meta">
-              <div class="left">
+            <div class="faktur-top">
+              <div style="font-size:12px;">
                 <div><strong>${data.clientName}</strong></div>
-                <div>${data.clientAddress}</div>
+                <div class="client-address">${data.clientAddress}</div>
                 <div style="padding-top: 0.5rem;">Up : ${data.clientPic}</div>
               </div>
-              <div class="right">
-                <table style="margin-left:auto;font-size:12px;">
-                  <tr>
-                    <td style="padding:0 10px 4px 0; font-weight:600;">No. Invoice</td>
-                    <td style="padding:0 8px 4px 0;">:</td>
-                    <td style="text-align:left;">${data.invoiceNumber}</td>
-                  </tr>
-                  <tr>
-                    <td style="padding-right:10px; font-weight:600;">Reff</td>
-                    <td style="padding-right:8px;">:</td>
-                    <td style="text-align:left;">${data.contractNumber}</td>
-                  </tr>
-                </table>
+              <div class="faktur-title-box">FAKTUR TAGIHAN</div>
+            </div>
+
+            <div class="faktur-ref">
+              <div class="row">
+                <div>No. Invoice</div><div>:</div><div>${data.invoiceNumber}</div>
+              </div>
+              <div class="row">
+                <div>Reff</div><div>:</div><div>${data.contractNumber}</div>
               </div>
             </div>
-              <div class="box" style="margin-top:14px;">
+
+            <div class="box" style="margin-top:14px;">
               <table class="table">
               <thead>
                 <tr>
@@ -415,25 +427,21 @@ export default function Invoices() {
                   <td>${descriptionHtml}</td>
                   <td class="right">${formatCurrency(data.dpp)}</td>
                 </tr>
+                <tr>
+                  <td colspan="2" class="right">TOTAL</td>
+                  <td class="right">${formatCurrency(data.dpp)}</td>
+                </tr>
+                <tr>
+                  <td colspan="2" class="right">PPN (11%)</td>
+                  <td class="right">${formatCurrency(data.ppn)}</td>
+                </tr>
+                <tr>
+                  <td colspan="2" class="right"><strong>TOTAL TAGIHAN</strong></td>
+                  <td class="right"><strong>${formatCurrency(data.total)}</strong></td>
+                </tr>
               </tbody>
               </table>
-              </div>
-              <div class="box" style="margin-top:8px;">
-              <table class="totals">
-              <tr>
-                <td class="right">TOTAL</td>
-                <td class="right" style="width: 180px;">${formatCurrency(data.dpp)}</td>
-              </tr>
-              <tr>
-                <td class="right">PPN (${data.ppnRate}%)</td>
-                <td class="right">${formatCurrency(data.ppn)}</td>
-              </tr>
-              <tr>
-                <td class="right"><strong>TOTAL TAGIHAN</strong></td>
-                <td class="right"><strong>${formatCurrency(data.total)}</strong></td>
-              </tr>
-              </table>
-              </div>
+            </div>
               <div class="box" style="margin-top:12px;">
               <table class="note-table">
               <tr>
@@ -444,12 +452,12 @@ export default function Invoices() {
                   <div>BANK MANDIRI</div>
                   <div>KCP JAKARTA LEBAK BULUS</div>
                   <div>No. Rekening 101-00-1469009-1</div>
-                  <div>Bukti transfer email office.rasunasaid@knfdts.id</div>
                 </td>
                 <td class="sign" style="width: 176px;">
                   <div>Jakarta, ${data.invoiceDate}</div>
                   <div class="spacer"></div>
-                  <div>${data.signerName}</div>
+                  <div class="sign-line"></div>
+                  <div><b>${data.signerName}</b></div>
                 </td>
               </tr>
               </table>
@@ -807,35 +815,33 @@ function InvoicePreview({
 }) {
   return (
     <div className="space-y-8 rounded-md bg-white p-6 text-black">
-        <div className="space-y-4">
-          <div className="relative h-44">
-            <div
-              className="absolute inset-0 bg-cover bg-top"
-              style={{ backgroundImage: `url(${headerSrc})` }}
-            />
-          </div>
-          <h3 className="mt-4 text-center text-lg font-bold tracking-wide text-primary">FAKTUR TAGIHAN</h3>
-          <div className="mt-4 flex flex-col gap-4 text-sm md:flex-row md:justify-between">
+      <div className="space-y-4">
+        <div className="relative h-44">
+          <div
+            className="absolute inset-0 bg-cover bg-top"
+            style={{ backgroundImage: `url(${headerSrc})` }}
+          />
+        </div>
+          <div className="mt-4 flex items-start justify-between gap-5 text-sm">
             <div className="space-y-1">
               <p className="font-semibold">{data.clientName}</p>
-            <p>{data.clientAddress}</p>
-            <p className='py-2'>Up : {data.clientPic}</p>
-          </div>
-          <div className="text-left md:text-right">
-            <div className="inline-block text-left">
-              <div className="flex items-center gap-2">
-                <span className="min-w-[86px] text-right font-semibold">No. Invoice</span>
-                <span className="w-3 text-center">:</span>
-                <span>{data.invoiceNumber}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="min-w-[86px] text-right font-semibold">Reff</span>
-                <span className="w-3 text-center">:</span>
-                <span>{data.contractNumber}</span>
-              </div>
+              <p className="whitespace-pre-line">{data.clientAddress}</p>
+              <p className="py-2">Up : {data.clientPic}</p>
+            </div>
+            <div className="min-w-[280px] border border-slate-400 bg-primary/10 px-4 py-1 text-center text-lg font-bold tracking-wide text-primary">
+              FAKTUR TAGIHAN
             </div>
           </div>
-        </div>
+          <div className="mt-5 max-w-[380px] text-sm">
+            <div className="grid grid-cols-[86px_12px_1fr] items-center gap-y-1">
+              <span>No. Invoice</span>
+              <span>:</span>
+              <span>{data.invoiceNumber}</span>
+              <span>Reff</span>
+              <span>:</span>
+              <span>{data.contractNumber}</span>
+            </div>
+          </div>
         <div className="overflow-auto rounded-md border border-slate-300">
           <table className="w-full text-sm">
             <thead className="bg-primary/10 text-left text-primary uppercase tracking-wide">
@@ -855,32 +861,22 @@ function InvoicePreview({
                     {formatCurrency(data.dpp)}
                   </td>
               </tr>
-            </tbody>
-          </table>
-        </div>
-        <div className="overflow-auto rounded-md border border-slate-300">
-          <table className="w-full text-sm">
-            <tbody>
               <tr>
-                  <td className="border-b border-slate-300 p-2 text-right w-[70%]">TOTAL</td>
-                  <td className="border-b border-slate-300 p-2 text-right">
-                    {formatCurrency(data.dpp)}
-                  </td>
-                </tr>
-                <tr>
-                  <td className="border-b border-slate-300 p-2 text-right">PPN ({data.ppnRate}%)</td>
-                  <td className="border-b border-slate-300 p-2 text-right">
-                    {formatCurrency(data.ppn)}
-                  </td>
-                </tr>
-                <tr>
-                  <td className="border-b border-slate-300 p-2 text-right font-semibold">
-                    TOTAL TAGIHAN
-                  </td>
-                  <td className="border-b border-slate-300 p-2 text-right font-semibold">
-                    {formatCurrency(data.total)}
-                  </td>
-                </tr>
+                <td className="border-b border-slate-300 p-2 text-right" colSpan={2}>TOTAL</td>
+                <td className="border-b border-slate-300 p-2 text-right">{formatCurrency(data.dpp)}</td>
+              </tr>
+              <tr>
+                <td className="border-b border-slate-300 p-2 text-right" colSpan={2}>PPN (11%)</td>
+                <td className="border-b border-slate-300 p-2 text-right">{formatCurrency(data.ppn)}</td>
+              </tr>
+              <tr>
+                <td className="border-b border-slate-300 p-2 text-right font-semibold" colSpan={2}>
+                  TOTAL TAGIHAN
+                </td>
+                <td className="border-b border-slate-300 p-2 text-right font-semibold">
+                  {formatCurrency(data.total)}
+                </td>
+              </tr>
             </tbody>
           </table>
         </div>
@@ -895,12 +891,12 @@ function InvoicePreview({
                   <p>BANK MANDIRI</p>
                   <p>KCP JAKARTA LEBAK BULUS</p>
                   <p>No. Rekening 101-00-1469009-1</p>
-                  <p>Bukti transfer email ke office.rasunasaid@knfdts.id</p>
                 </td>
                   <td className="border-b border-slate-300 p-3 align-top text-right w-[40%]">
                     <p>Jakarta, {data.invoiceDate}</p>
                   <div className="h-32" />
-                  <p>{data.signerName}</p>
+                  <div className="mb-1 ml-auto w-44 border-t border-black" />
+                  <p><b>{data.signerName}</b></p>
                 </td>
               </tr>
             </tbody>
