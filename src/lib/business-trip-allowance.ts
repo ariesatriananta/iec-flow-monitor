@@ -199,8 +199,9 @@ export function calculateBusinessTripCompensation(params: {
   const opeTotal = opeDaily * days;
   const mealDaily = params.settings.mealPerDay;
   const mealTotal = mealDaily * days;
-  const laundryEligible = days > params.settings.laundryMinDays;
-  const laundryWeeks = laundryEligible ? 1 : 0;
+  const laundryEligible =
+    params.isOutOfTownOvernight && days >= params.settings.laundryMinDays;
+  const laundryWeeks = laundryEligible ? Math.floor(days / 7) : 0;
   const laundryAmount = params.settings.laundryAmount;
   const laundryTotal = laundryWeeks * laundryAmount;
   const transportAmount = transportOption?.amount ?? 0;
