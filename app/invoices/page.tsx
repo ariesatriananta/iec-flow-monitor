@@ -346,7 +346,6 @@ export default function Invoices() {
             .faktur-ref { margin-top: 34px; font-size: 12px; max-width: 360px; }
             .faktur-ref .row { display: grid; grid-template-columns: 86px 10px 1fr; column-gap: 8px; }
             .client-address { margin-top: 2px; white-space: pre-line; }
-            .sign-line { border-top: 1px solid #111; width: 180px; margin: 0 0 4px auto; }
               .box {
                 border: 0.5px solid var(--border);
                 border-radius: 8px;
@@ -456,7 +455,6 @@ export default function Invoices() {
                 <td class="sign" style="width: 176px;">
                   <div>Jakarta, ${data.invoiceDate}</div>
                   <div class="spacer"></div>
-                  <div class="sign-line"></div>
                   <div><b>${data.signerName}</b></div>
                 </td>
               </tr>
@@ -497,7 +495,7 @@ export default function Invoices() {
                 <td class="sign">
                   <div>Jakarta, ${data.invoiceDate}</div>
                   <div class="spacer"></div>
-                  <div>${data.signerName}</div>
+                  <div><b>${data.signerName}</b></div>
                 </td>
               </tr>
               </table>
@@ -895,7 +893,6 @@ function InvoicePreview({
                   <td className="border-b border-slate-300 p-3 align-top text-right w-[40%]">
                     <p>Jakarta, {data.invoiceDate}</p>
                   <div className="h-32" />
-                  <div className="mb-1 ml-auto w-44 border-t border-black" />
                   <p><b>{data.signerName}</b></p>
                 </td>
               </tr>
@@ -946,7 +943,7 @@ function InvoicePreview({
                   <td className="border-b border-slate-300 p-2 text-right">
                     <p>Jakarta, {data.invoiceDate}</p>
                   <div className="h-28" />
-                  <p>{data.signerName}</p>
+                  <p><b>{data.signerName}</b></p>
                 </td>
               </tr>
             </tbody>

@@ -607,16 +607,20 @@ export default function Letters() {
             body { font-family: Arial, sans-serif; color: #111; background: #fff; }
             .page { max-width: 800px; margin: 0 auto; }
             .logos { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28px; }
-            .logo-left { width: 130px; height: auto; }
+            .logo-left { width: 260px; height: auto; }
             .logo-right { width: 150px; height: auto; }
             .content { font-size: 14px; line-height: 1.45; }
             .meta { display: flex; justify-content: space-between; margin-bottom: 28px; }
             .subject { margin: 18px 0 16px; display: grid; grid-template-columns: 80px 12px 1fr; gap: 0; }
-            .subject strong { text-decoration: underline; }
             .members { margin: 10px 0 14px; }
             .members table { width: 100%; border-collapse: collapse; }
             .signature { margin-top: 28px; }
-            .signature .name { margin-top: 96px; text-decoration: underline; }
+            .signature .name {
+              margin-top: 96px;
+              display: inline-block;
+              border-bottom: 2px solid #111;
+              line-height: 1.1;
+            }
             @media print {
               body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
             }
@@ -1505,7 +1509,7 @@ function SuratTugasPreview({
   return (
     <div className="space-y-6 rounded-md bg-white p-6 text-black font-[Arial]">
       <div className="flex items-start justify-between">
-        <Image src="/logo_knf.png" alt="KNF" width={132} height={74} className="h-auto w-[132px]" />
+        <Image src="/logo_knf.png" alt="KNF" width={264} height={148} className="h-auto w-[264px]" />
         <Image src="/logo_iecnet.png" alt="IECNET" width={156} height={74} className="h-auto w-[156px]" />
       </div>
       <div className="flex flex-col gap-3 text-sm md:flex-row md:items-start md:justify-between">
@@ -1525,7 +1529,7 @@ function SuratTugasPreview({
         <div className="mt-2 grid grid-cols-[80px_12px_1fr]">
           <p>Perihal</p>
           <p>:</p>
-          <p className="font-semibold underline underline-offset-2">{subjectText}</p>
+          <p className="font-semibold">{subjectText}</p>
         </div>
       </div>
       <div className="text-sm space-y-3">
@@ -1551,7 +1555,7 @@ function SuratTugasPreview({
         <p>Hormat kami,</p>
         <p>{companyName}</p>
         <div className="h-32" />
-        <p className="font-semibold underline underline-offset-2">{signerName}</p>
+        <p className="inline-block border-b-2 border-black font-semibold leading-tight">{signerName}</p>
         <p>Rekan</p>
       </div>
     </div>
