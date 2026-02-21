@@ -558,7 +558,7 @@ export default function LeaveManagementPage() {
                                       Batalkan
                                     </DropdownMenuItem>
                                   )}
-                                  {isAdmin && row.status === "CANCELLED" && (
+                                  {isAdmin && (
                                     <DropdownMenuItem
                                       className="text-destructive focus:text-destructive"
                                       onClick={() => setDeleteTarget(row)}
@@ -640,7 +640,7 @@ export default function LeaveManagementPage() {
                                   Batalkan
                                 </DropdownMenuItem>
                               )}
-                              {isAdmin && row.status === "CANCELLED" && (
+                              {isAdmin && (
                                 <DropdownMenuItem
                                   className="text-destructive focus:text-destructive"
                                   onClick={() => setDeleteTarget(row)}
@@ -1022,7 +1022,7 @@ export default function LeaveManagementPage() {
         title="Konfirmasi Delete Permanen"
         description={
           deleteTarget
-            ? `Yakin ingin menghapus permanen pengajuan ${deleteTarget.leaveType} milik ${deleteTarget.employee?.fullName ?? deleteTarget.user?.name ?? "-" }? Aksi ini tidak bisa dibatalkan.`
+            ? `Yakin ingin menghapus permanen pengajuan ${deleteTarget.leaveType} milik ${deleteTarget.employee?.fullName ?? deleteTarget.user?.name ?? "-"}? Aksi ini tidak bisa dibatalkan. Perhatian: pengajuan dengan status APPROVED juga akan terhapus permanen.`
             : ""
         }
         confirmLabel="DELETE PERMANEN"

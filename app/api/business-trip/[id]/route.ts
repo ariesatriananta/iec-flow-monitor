@@ -550,13 +550,6 @@ export async function DELETE(
     );
   }
 
-  if (existing.status !== "CANCELLED") {
-    return NextResponse.json(
-      { error: "Hard delete hanya diizinkan untuk status CANCELLED" },
-      { status: 400 }
-    );
-  }
-
   await createWorkflowEvent(db, {
     module: "BUSINESS_TRIP",
     entityId: existing.id,

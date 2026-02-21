@@ -208,6 +208,8 @@ export interface Employee {
   createdAt: Date;
   updatedAt: Date;
   user?: Pick<User, "id" | "username" | "name" | "role">;
+  canHardDelete?: boolean;
+  hardDeleteReasons?: string[];
 }
 
 export type AttendanceStatus = "PRESENT" | "SICK" | "LEAVE" | "ABSENT";

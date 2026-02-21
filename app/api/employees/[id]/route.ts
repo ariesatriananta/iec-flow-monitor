@@ -1,18 +1,12 @@
 ﻿export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
-import { eq, inArray, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/lib/db";
-import {
-  attendanceRecords,
-  businessTrips,
-  employees,
-  leaveRequests,
-  reimbursements,
-  users,
-} from "@/lib/db/schema";
+import { employees, users } from "@/lib/db/schema";
 import { requireAdmin } from "@/lib/auth/server";
+import { buildEmployeeHardDeleteEligibilityMap } from "@/lib/employee-hard-delete";
 
 const updateEmployeeSchema = z.object({
   fullName: z.string().trim().min(1).optional(),
@@ -64,6 +58,15 @@ export async function GET(
     return NextResponse.json({ error: "Employee tidak ditemukan" }, { status: 404 });
   }
 
+  const eligibilityMap = await buildEmployeeHardDeleteEligibilityMap(db, [
+    {
+      id: row.employee.id,
+      isActive: row.employee.isActive,
+      hasLinkedUser: Boolean(row.user?.id),
+    },
+  ]);
+  const eligibility = eligibilityMap.get(row.employee.id);
+
   return NextResponse.json({
     ...row.employee,
     user: row.user
@@ -74,6 +77,8 @@ export async function GET(
           role: row.user.role,
         }
       : undefined,
+    canHardDelete: eligibility?.canHardDelete ?? false,
+    hardDeleteReasons: eligibility?.reasons ?? [],
   });
 }
 
@@ -143,7 +148,7 @@ export async function DELETE(
 
   const db = getDb();
   const [employee] = await db
-    .select({ id: employees.id })
+    .select({ id: employees.id, isActive: employees.isActive })
     .from(employees)
     .where(eq(employees.id, params.id))
     .limit(1);
@@ -153,54 +158,43 @@ export async function DELETE(
   }
 
   const linkedUsers = await db
-    .select({ id: users.id })
+    .select({
+      id: users.id,
+      employeeId: users.employeeId,
+      role: users.role,
+      username: users.username,
+      name: users.name,
+    })
     .from(users)
     .where(eq(users.employeeId, params.id));
 
-  const linkedUserIds = linkedUsers.map((item) => item.id);
-  const [attendanceCount] = await db
-    .select({ count: sql<number>`count(*)` })
-    .from(attendanceRecords)
-    .where(eq(attendanceRecords.employeeId, params.id));
+  const [eligibility] = Array.from(
+    (
+      await buildEmployeeHardDeleteEligibilityMap(db, [
+        {
+          id: employee.id,
+          isActive: employee.isActive,
+          hasLinkedUser: linkedUsers.length > 0,
+        },
+      ])
+    ).values()
+  );
 
-  const [leaveCount, tripCount, reimbursementCount] = await Promise.all([
-    db
-      .select({ count: sql<number>`count(*)` })
-      .from(leaveRequests)
-      .where(eq(leaveRequests.employeeId, params.id)),
-    db
-      .select({ count: sql<number>`count(*)` })
-      .from(businessTrips)
-      .where(eq(businessTrips.employeeId, params.id)),
-    db
-      .select({ count: sql<number>`count(*)` })
-      .from(reimbursements)
-      .where(eq(reimbursements.employeeId, params.id)),
-  ]);
-
-  const usedInWorkflow =
-    Number(attendanceCount?.count ?? 0) > 0 ||
-    Number(leaveCount[0]?.count ?? 0) > 0 ||
-    Number(tripCount[0]?.count ?? 0) > 0 ||
-    Number(reimbursementCount[0]?.count ?? 0) > 0;
-
-  if (usedInWorkflow) {
+  if (!eligibility?.canHardDelete) {
+    const reasonText =
+      eligibility?.reasons && eligibility.reasons.length > 0
+        ? ` Alasan: ${eligibility.reasons.join(" ")}`
+        : "";
     return NextResponse.json(
-      { error: "Employee tidak bisa dihapus karena sudah dipakai transaksi/workflow" },
+      {
+        error: `Hard delete tidak diizinkan. Gunakan Deactivate jika employee sudah pernah dipakai atau masih terhubung.${reasonText}`,
+        reasons: eligibility?.reasons ?? [],
+      },
       { status: 409 }
     );
   }
 
-  await db.transaction(async (tx) => {
-    if (linkedUserIds.length > 0) {
-      await tx
-        .update(users)
-        .set({ employeeId: null, updatedAt: new Date() })
-        .where(inArray(users.id, linkedUserIds));
-    }
-
-    await tx.delete(employees).where(eq(employees.id, params.id));
-  });
+  await db.delete(employees).where(eq(employees.id, params.id));
 
   return NextResponse.json({ ok: true });
 }

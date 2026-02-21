@@ -328,13 +328,6 @@ export async function DELETE(
     return NextResponse.json({ error: "Pengajuan cuti tidak ditemukan" }, { status: 404 });
   }
 
-  if (existing.status !== "CANCELLED") {
-    return NextResponse.json(
-      { error: "Hard delete hanya diizinkan untuk status CANCELLED" },
-      { status: 400 }
-    );
-  }
-
   await createWorkflowEvent(db, {
     module: "LEAVE",
     entityId: existing.id,

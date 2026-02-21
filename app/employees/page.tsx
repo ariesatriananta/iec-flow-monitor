@@ -482,13 +482,15 @@ export default function EmployeesPage() {
                                   Activate
                                 </DropdownMenuItem>
                               )}
-                              <DropdownMenuItem
-                                className="text-destructive focus:text-destructive"
-                                onClick={() => setDeleteTarget(employee)}
-                              >
-                                <Trash2 className="mr-2 h-4 w-4" />
-                                Delete
-                              </DropdownMenuItem>
+                              {employee.canHardDelete ? (
+                                <DropdownMenuItem
+                                  className="text-destructive focus:text-destructive"
+                                  onClick={() => setDeleteTarget(employee)}
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Hard Delete
+                                </DropdownMenuItem>
+                              ) : null}
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </TableCell>
@@ -556,13 +558,15 @@ export default function EmployeesPage() {
                               Activate
                             </DropdownMenuItem>
                           )}
-                          <DropdownMenuItem
-                            className="text-destructive focus:text-destructive"
-                            onClick={() => setDeleteTarget(employee)}
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Delete
-                          </DropdownMenuItem>
+                          {employee.canHardDelete ? (
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={() => setDeleteTarget(employee)}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Hard Delete
+                            </DropdownMenuItem>
+                          ) : null}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
@@ -838,13 +842,12 @@ export default function EmployeesPage() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Hapus Employee</AlertDialogTitle>
+            <AlertDialogTitle>Hard Delete Employee</AlertDialogTitle>
             <AlertDialogDescription>
-              Employee{" "}
-              <span className="font-medium text-foreground">
-                {deleteTarget?.fullName ?? deleteTarget?.nip}
-              </span>{" "}
-              akan dihapus permanen. Hanya bisa jika belum dipakai transaksi/workflow. Lanjutkan?
+              Data employee{" "}
+              <span className="font-medium text-foreground">{deleteTarget?.fullName ?? deleteTarget?.nip}</span>{" "}
+              akan dihapus permanen dan tidak bisa dipulihkan. Aksi ini hanya untuk data yang benar-benar belum
+              pernah dipakai apa pun.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -853,7 +856,7 @@ export default function EmployeesPage() {
               {actionLoadingId === deleteTarget?.id ? (
                 <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
               ) : (
-                "Hapus"
+                "Delete Permanen"
               )}
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -871,10 +874,9 @@ export default function EmployeesPage() {
             <AlertDialogTitle>Deactivate Employee</AlertDialogTitle>
             <AlertDialogDescription>
               Employee{" "}
-              <span className="font-medium text-foreground">
-                {deactivateTarget?.fullName ?? deactivateTarget?.nip}
-              </span>{" "}
-              akan dinonaktifkan (`is_active = false`). Lanjutkan?
+              <span className="font-medium text-foreground">{deactivateTarget?.fullName ?? deactivateTarget?.nip}</span>{" "}
+              akan dinonaktifkan (`is_active = false`) namun data tetap tersimpan dan aman. Ini adalah aksi default
+              yang direkomendasikan.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

@@ -6,6 +6,7 @@ import { z } from "zod";
 import { getDb } from "@/lib/db";
 import { employees, users } from "@/lib/db/schema";
 import { requireAdmin } from "@/lib/auth/server";
+import { buildEmployeeHardDeleteEligibilityMap } from "@/lib/employee-hard-delete";
 
 const querySchema = z.object({
   limit: z.coerce.number().int().min(1).max(500).optional().default(20),
@@ -136,17 +137,31 @@ export async function GET(request: Request) {
         .limit(limit)
         .offset(offset);
 
-  const items = rows.map(({ employee, user }) => ({
-    ...employee,
-    user: user
-      ? {
-          id: user.id,
-          username: user.username,
-          name: user.name,
-          role: user.role,
-        }
-      : undefined,
-  }));
+  const eligibilityByEmployeeId = await buildEmployeeHardDeleteEligibilityMap(
+    db,
+    rows.map(({ employee, user }) => ({
+      id: employee.id,
+      isActive: employee.isActive,
+      hasLinkedUser: Boolean(user?.id),
+    }))
+  );
+
+  const items = rows.map(({ employee, user }) => {
+    const eligibility = eligibilityByEmployeeId.get(employee.id);
+    return {
+      ...employee,
+      user: user
+        ? {
+            id: user.id,
+            username: user.username,
+            name: user.name,
+            role: user.role,
+          }
+        : undefined,
+      canHardDelete: eligibility?.canHardDelete ?? false,
+      hardDeleteReasons: eligibility?.reasons ?? [],
+    };
+  });
 
   const hasMore = offset + items.length < total;
 

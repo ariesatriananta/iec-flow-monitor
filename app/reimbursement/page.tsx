@@ -1531,7 +1531,7 @@ export default function ReimbursementPage() {
                                           Batalkan
                                         </DropdownMenuItem>
                                       )}
-                                      {isAdmin && row.status === "CANCELLED" && (
+                                      {isAdmin && (
                                         <DropdownMenuItem
                                           className="text-destructive focus:text-destructive"
                                           onClick={() => setDeleteTarget(row)}
@@ -1653,7 +1653,7 @@ export default function ReimbursementPage() {
                                     Batalkan
                                   </DropdownMenuItem>
                                 )}
-                                {isAdmin && row.status === "CANCELLED" && (
+                                {isAdmin && (
                                   <DropdownMenuItem
                                     className="text-destructive focus:text-destructive"
                                     onClick={() => setDeleteTarget(row)}
@@ -2931,7 +2931,7 @@ export default function ReimbursementPage() {
         title="Konfirmasi Delete Permanen"
         description={
           deleteTarget
-            ? `Yakin ingin menghapus permanen reimbursement ${getReimbursementSummaryLabel(deleteTarget.category, deleteTarget.itemCount, deleteTarget.items?.length)} (${formatCurrency(Number(deleteTarget.amount))})? Aksi ini tidak bisa dibatalkan.`
+            ? `Yakin ingin menghapus permanen reimbursement ${getReimbursementSummaryLabel(deleteTarget.category, deleteTarget.itemCount, deleteTarget.items?.length)} (${formatCurrency(Number(deleteTarget.amount))})? Aksi ini tidak bisa dibatalkan. Perhatian: pengajuan dengan status APPROVED maupun PAID juga akan terhapus permanen.`
             : ""
         }
         confirmLabel="DELETE PERMANEN"

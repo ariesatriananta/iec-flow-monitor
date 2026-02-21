@@ -46,20 +46,8 @@ export async function requireSessionUser(): Promise<GuardResult> {
     };
   }
 
-  // Fast path: token already has user snapshot (new session format).
-  if (session.username && session.name) {
-    return {
-      user: {
-        id: session.sub,
-        username: session.username,
-        name: session.name,
-        role: session.role === "STAFF" ? "STAFF" : "ADMIN",
-        employeeId: session.employeeId ?? null,
-      },
-    };
-  }
-
-  // Backward compatibility for old tokens: fallback to DB lookup.
+  // Always refresh from DB so role/employee linkage changes are applied immediately
+  // without forcing user to re-login.
   let user:
     | {
         id: string;
