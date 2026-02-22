@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic"
 import { NextResponse } from "next/server";
 import { and, eq, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { clients, contracts } from "@/lib/db/schema";
+import { clients, contracts, settings } from "@/lib/db/schema";
 import { generateProposalNumber } from "@/lib/numbering";
 import { requireAdmin } from "@/lib/auth/server";
 
@@ -48,6 +48,10 @@ export async function POST(request: Request) {
 
   const now = new Date();
   const db = getDb();
+  const [settingsRow] = await db
+    .select({ numberingPrefix: settings.numberingPrefix })
+    .from(settings)
+    .limit(1);
   const [{ maxEngagement }] = await db
     .select({ maxEngagement: sql<number>`coalesce(max(${contracts.engagementNo}), 0)` })
     .from(contracts)
@@ -58,6 +62,7 @@ export async function POST(request: Request) {
     serviceCode: body.serviceCode,
     engagementNo,
     proposalDate: new Date(body.proposalDate),
+    numberingPrefix: settingsRow?.numberingPrefix,
   });
 
   const [created] = await db

@@ -172,7 +172,7 @@ export default function Login() {
             priority
             className="mx-auto mb-4 h-auto w-auto max-w-full rounded-lg"
           />
-          <h1 className="text-2xl font-bold text-foreground">IECNET Admin System</h1>
+          <h1 className="text-2xl font-bold text-foreground">IECNET by ARM</h1>
           <div className="mx-auto mt-2 flex max-w-[220px] items-center justify-center gap-2 rounded-full border border-white/20 bg-white/10 px-1 py-1 text-xs text-muted-foreground backdrop-blur">
             <button
               type="button"
@@ -289,7 +289,7 @@ export default function Login() {
           </div>
         </Card>
       </div>
-      <audio ref={audioRef} src="/one-more-try.mp3" preload="auto" />
+      <audio ref={audioRef} src="/charli-xcx.mp3" preload="auto" />
     </div>
   );
 }

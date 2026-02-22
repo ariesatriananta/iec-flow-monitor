@@ -451,6 +451,7 @@ export default function Invoices() {
                   <div>BANK MANDIRI</div>
                   <div>KCP JAKARTA LEBAK BULUS</div>
                   <div>No. Rekening 101-00-1469009-1</div>
+                  <div>Bukti transfer email office.rasunasaid@knfdts.id</div>
                 </td>
                 <td class="sign" style="width: 176px;">
                   <div>Jakarta, ${data.invoiceDate}</div>
@@ -889,6 +890,7 @@ function InvoicePreview({
                   <p>BANK MANDIRI</p>
                   <p>KCP JAKARTA LEBAK BULUS</p>
                   <p>No. Rekening 101-00-1469009-1</p>
+                  <p>Bukti transfer email ke office.rasunasaid@knfdts.id</p>
                 </td>
                   <td className="border-b border-slate-300 p-3 align-top text-right w-[40%]">
                     <p>Jakarta, {data.invoiceDate}</p>

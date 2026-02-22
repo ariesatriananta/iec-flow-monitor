@@ -1,5 +1,5 @@
 /**
- * Numbering utility functions for IECNET Admin System
+ * Numbering utility functions for IECNET by ARM
  * All date operations use Asia/Jakarta (WIB) timezone
  */
 
@@ -7,6 +7,13 @@ const ROMAN_MONTHS = [
   'I', 'II', 'III', 'IV', 'V', 'VI',
   'VII', 'VIII', 'IX', 'X', 'XI', 'XII'
 ] as const;
+
+const DEFAULT_NUMBERING_PREFIX = 'AP.2137';
+
+function normalizeNumberingPrefix(prefix?: string | null): string {
+  const value = (prefix ?? '').trim();
+  return value || DEFAULT_NUMBERING_PREFIX;
+}
 
 /**
  * Convert month number (1-12) to Roman numeral
@@ -71,17 +78,19 @@ export function generateProposalNumber(params: {
   serviceCode: 'A' | 'B';
   engagementNo: number;
   proposalDate: Date;
+  numberingPrefix?: string | null;
 }): string {
-  const { seqNo, serviceCode, engagementNo, proposalDate } = params;
+  const { seqNo, serviceCode, engagementNo, proposalDate, numberingPrefix } = params;
   const { month, year } = getJakartaMonthYear(proposalDate);
-  
-  return `P.${padSeq(seqNo)}/${serviceCode}/AP.2137-${engagementNo}/${romanMonth(month)}/${year}`;
+  const prefix = normalizeNumberingPrefix(numberingPrefix);
+
+  return `P.${padSeq(seqNo)}/${serviceCode}/${prefix}-${engagementNo}/${romanMonth(month)}/${year}`;
 }
 
 /**
- * Generate invoice number
- * Format: I.{SEQ}/AP.2137/{MONTH_ROMAN}/{YEAR}
- * Example: I.001/AP.2137/XII/2025
+ * Generate invoice number (hardcoded invoice prefix)
+ * Format: I.{SEQ}/ARM/{MONTH_ROMAN}/{YEAR}
+ * Example: I.001/ARM/XII/2025
  */
 export function generateInvoiceNumber(params: {
   seqNo: number;
@@ -89,8 +98,7 @@ export function generateInvoiceNumber(params: {
 }): string {
   const { seqNo, invoiceDate } = params;
   const { month, year } = getJakartaMonthYear(invoiceDate);
-  
-  return `I.${padSeq(seqNo)}/AP.2137/${romanMonth(month)}/${year}`;
+  return `I.${padSeq(seqNo)}/ARM/${romanMonth(month)}/${year}`;
 }
 
 /**
@@ -103,9 +111,11 @@ export function generateLetterNumber(params: {
   letterDate: Date;
   letterType: 'HRGA' | 'UMUM' | 'SURAT_TUGAS';
   hrgaCategory?: 'PERMANEN' | 'NON_PERMANEN' | 'INTERNSHIP';
+  numberingPrefix?: string | null;
 }): string {
-  const { seqNo, letterDate, letterType, hrgaCategory } = params;
+  const { seqNo, letterDate, letterType, hrgaCategory, numberingPrefix } = params;
   const { month, year } = getJakartaMonthYear(letterDate);
+  const prefix = normalizeNumberingPrefix(numberingPrefix);
 
   if (letterType === 'HRGA') {
     const categoryLabel =
@@ -114,10 +124,10 @@ export function generateLetterNumber(params: {
         : hrgaCategory === 'INTERNSHIP'
         ? 'Employee-C'
         : 'Employee-A';
-    return `${padSeq(seqNo)}/AP.2137/${categoryLabel}/${romanMonth(month)}/${year}`;
+    return `${padSeq(seqNo)}/${prefix}/${categoryLabel}/${romanMonth(month)}/${year}`;
   }
 
-  return `L.${padSeq(seqNo)}/AP.2137/${romanMonth(month)}/${year}`;
+  return `L.${padSeq(seqNo)}/${prefix}/${romanMonth(month)}/${year}`;
 }
 
 /**

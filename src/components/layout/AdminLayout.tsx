@@ -35,7 +35,7 @@ export function AdminLayout({ children, title }: AdminLayoutProps) {
     if (title) {
       document.title = `IECNET - ${title}`;
     } else {
-      document.title = 'IECNET - Admin System';
+      document.title = 'IECNET - by ARM';
     }
   }, [title]);
 

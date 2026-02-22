@@ -3,8 +3,8 @@ import { Providers } from "./providers";
 import type { Metadata, Viewport } from "next";
 
 export const metadata: Metadata = {
-  title: "IECNET - Admin System",
-  description: "IECNET Admin System",
+  title: "IECNET - By ARM",
+  description: "IECNET By ARM",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,

@@ -128,7 +128,7 @@ export function GlobalAudioProvider({ children }: { children: React.ReactNode })
       value={{ isPlaying, progress, duration, toggle, seek }}
     >
       {children}
-      <audio ref={audioRef} src="/one-more-try.mp3" preload="auto" />
+      <audio ref={audioRef} src="/charli-xcx.mp3" preload="auto" />
     </GlobalAudioContext.Provider>
   );
 }

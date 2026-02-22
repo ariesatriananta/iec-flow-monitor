@@ -8,6 +8,7 @@ import {
   letters,
   letterAssignments,
   letterAssignmentMembers,
+  settings,
 } from "@/lib/db/schema";
 import { generateLetterNumber, getJakartaMonthYear } from "@/lib/numbering";
 import { requireAdmin } from "@/lib/auth/server";
@@ -92,6 +93,10 @@ export async function PUT(
   }
 
   const db = getDb();
+  const [settingsRow] = await db
+    .select({ numberingPrefix: settings.numberingPrefix })
+    .from(settings)
+    .limit(1);
   const [existing] = await db
     .select({
       id: letters.id,
@@ -231,6 +236,7 @@ export async function PUT(
       letterDate: nextLetterDate,
       letterType: nextLetterType,
       hrgaCategory: nextHrgaCategory ?? undefined,
+      numberingPrefix: settingsRow?.numberingPrefix,
     });
     updateData.seqNo = seqNo;
     updateData.letterNumber = letterNumber;

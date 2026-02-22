@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic"
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { clients, letters, letterAssignments, letterAssignmentMembers } from "@/lib/db/schema";
+import { clients, letters, letterAssignments, letterAssignmentMembers, settings } from "@/lib/db/schema";
 import { generateLetterNumber, getJakartaMonthYear } from "@/lib/numbering";
 import { requireAdmin } from "@/lib/auth/server";
 
@@ -81,6 +81,10 @@ export async function POST(request: Request) {
   const letterDate = new Date(body.letterDate);
   const { year } = getJakartaMonthYear(letterDate);
   const db = getDb();
+  const [settingsRow] = await db
+    .select({ numberingPrefix: settings.numberingPrefix })
+    .from(settings)
+    .limit(1);
   const existingLetters = await db
     .select({
       letterDate: letters.letterDate,
@@ -109,6 +113,7 @@ export async function POST(request: Request) {
     letterDate,
     letterType: body.letterType,
     hrgaCategory: body.hrgaCategory,
+    numberingPrefix: settingsRow?.numberingPrefix,
   });
 
   const result = await db.transaction(async (tx) => {

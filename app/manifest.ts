@@ -2,9 +2,9 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "IECNET Admin System",
+    name: "IECNET By ARM",
     short_name: "IECNET",
-    description: "IECNET Admin System",
+    description: "IECNET by ARM",
     start_url: "/dashboard",
     display: "standalone",
     background_color: "#ffffff",

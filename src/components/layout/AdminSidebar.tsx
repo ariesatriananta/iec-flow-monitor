@@ -196,7 +196,7 @@ export function AdminSidebar({ variant = 'default', onNavigate }: AdminSidebarPr
           {!isCollapsed && (
             <div className="flex flex-col min-w-0">
               <span className="font-semibold text-sm">IECNET</span>
-              <span className="text-xs opacity-80">Admin System</span>
+              <span className="text-xs opacity-80">by ARM</span>
             </div>
           )}
         </div>
