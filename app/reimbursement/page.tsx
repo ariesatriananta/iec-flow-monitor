@@ -192,6 +192,11 @@ const formatActorLabel = (event?: WorkflowEvent | null) => {
   return [name, title].filter(Boolean).join(" - ");
 };
 
+const formatActorNameOnly = (event?: WorkflowEvent | null) => {
+  if (!event) return "-";
+  return event.actorEmployee?.fullName ?? event.actorUser?.name ?? "-";
+};
+
 const formatDateTime = (value?: Date | string | null) => {
   if (!value) return "-";
   return new Intl.DateTimeFormat("id-ID", {
@@ -487,7 +492,8 @@ export default function ReimbursementPage() {
   const isApprover = isApproverLevel1 || isApproverLevel2;
   const canApprovalAction = (status: string) => status === "SUBMITTED" || status === "WAITING_LEVEL_2";
   const canMarkPaid = (status: string) =>
-    status === "APPROVED" && (approvalLevels === 2 ? isApproverLevel2 : isApproverLevel1);
+    status === "APPROVED" &&
+    (isAdmin || (approvalLevels === 2 ? isApproverLevel2 : isApproverLevel1));
   const getApproveLabel = (status: string) => {
     if (status === "SUBMITTED" && approvalLevels === 2) return "Setujui L1";
     if (status === "WAITING_LEVEL_2") return "Setujui L2";
@@ -786,7 +792,7 @@ export default function ReimbursementPage() {
       printRow.workflowEvents ?? [],
       (event) => event.toStatus === "APPROVED"
     );
-    const approvedByLabel = formatActorLabel(approvedEvent);
+    const approvedByLabel = formatActorNameOnly(approvedEvent);
 
     const rowsHtml = (printRow.items ?? [])
       .map((item, index) => {
@@ -2956,7 +2962,7 @@ function ReimbursementPrintPreview({
     row.workflowEvents ?? [],
     (event) => event.toStatus === "APPROVED"
   );
-  const approvedByLabel = formatActorLabel(approvedEvent);
+  const approvedByLabel = formatActorNameOnly(approvedEvent);
 
   return (
     <div className="mx-auto mt-4 max-w-[840px] space-y-4 rounded-md bg-white p-6 text-black font-[Arial] shadow-sm">

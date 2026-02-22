@@ -370,10 +370,11 @@ export async function PUT(
     }
   } else if (requestedStatus === "PAID") {
     const canMarkPaid =
-      approvalLevels === 2 ? isApproverLevel2 : isApproverLevel1;
+      auth.user.role === "ADMIN" ||
+      (approvalLevels === 2 ? isApproverLevel2 : isApproverLevel1);
     if (!canMarkPaid) {
       return NextResponse.json(
-        { error: "Anda bukan approver final untuk mark paid perjalanan dinas ini" },
+        { error: "Hanya approver final atau admin yang dapat mark paid perjalanan dinas ini" },
         { status: 403 }
       );
     }

@@ -224,8 +224,8 @@ export default async function BusinessTripPrintPage({ params }: PageProps) {
                 {formatCurrency(Number(compensation.meal.total))}
               </p>
               <p>
-                Laundry: {formatCurrency(Number(compensation.laundry.amount))} ({Number(compensation.laundry.weeks)}x, 1x per 7 hari, aktif jika luar kota/menginap & durasi {" >= "}{" "}
-                {Number(compensation.laundry.minDays)} hari) ={" "}
+                Laundry: {formatCurrency(Number(compensation.laundry.amount))} X{" "}
+                {Number(compensation.laundry.weeks)} ={" "}
                 {formatCurrency(Number(compensation.laundry.total))}
               </p>
               <p>

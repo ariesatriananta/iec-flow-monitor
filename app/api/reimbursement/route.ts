@@ -23,7 +23,7 @@ import {
 } from "@/lib/notifications";
 
 const MAX_REIMBURSEMENT_FILES = 5;
-const MAX_REIMBURSEMENT_FILE_SIZE_BYTES = 2 * 1024 * 1024;
+const MAX_REIMBURSEMENT_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 
 const workflowStatusSchema = z.union([
   z.literal("SUBMITTED"),

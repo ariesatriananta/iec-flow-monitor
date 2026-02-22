@@ -120,6 +120,11 @@ const formatActorLabel = (event?: WorkflowEvent | null) => {
   return [name, title].filter(Boolean).join(" - ");
 };
 
+const formatActorNameOnly = (event?: WorkflowEvent | null) => {
+  if (!event) return "-";
+  return event.actorEmployee?.fullName ?? event.actorUser?.name ?? "-";
+};
+
 const formatDateTime = (value?: Date | string | null) => {
   if (!value) return "-";
   return new Intl.DateTimeFormat("id-ID", {
@@ -350,7 +355,8 @@ export default function BusinessTripPage() {
   const showRequesterColumn = isAdmin || isApprover;
   const canAdminProcess = (status: string) => status === "SUBMITTED" || status === "WAITING_LEVEL_2";
   const canMarkPaid = (status: string) =>
-    status === "APPROVED" && (approvalLevels === 2 ? isApproverLevel2 : isApproverLevel1);
+    status === "APPROVED" &&
+    (isAdmin || (approvalLevels === 2 ? isApproverLevel2 : isApproverLevel1));
   const getApproveButtonLabel = (status: string) => {
     if (status === "SUBMITTED" && approvalLevels === 2) return "Setujui L1";
     if (status === "WAITING_LEVEL_2") return "Setujui L2";
@@ -479,7 +485,7 @@ export default function BusinessTripPage() {
       printRow.workflowEvents ?? [],
       (event) => event.toStatus === "APPROVED"
     );
-    const approvedByLabel = formatActorLabel(approvedEvent);
+    const approvedByLabel = formatActorNameOnly(approvedEvent);
     const approvedAtLabel = approvedEvent
       ? formatDateTime(approvedEvent.createdAt)
       : printRow.approvedAt
@@ -556,7 +562,7 @@ export default function BusinessTripPage() {
                 <thead>
                   <tr>
                     <th>Komponen</th>
-                    <th>Rumus</th>
+                    <th>Keterangan</th>
                     <th>Nominal</th>
                   </tr>
                 </thead>
@@ -577,11 +583,9 @@ export default function BusinessTripPage() {
                   </tr>
                   <tr>
                     <td>Laundry</td>
-                    <td>${formatCurrency(Number(printRow.compensationBreakdown?.laundry.amount ?? 0))} (${Number(
+                    <td>${formatCurrency(Number(printRow.compensationBreakdown?.laundry.amount ?? 0))} X ${Number(
       printRow.compensationBreakdown?.laundry.weeks ?? 0
-    )}x, 1x per 7 hari, aktif jika luar kota/menginap & durasi &gt;= ${
-      printRow.compensationBreakdown?.laundry.minDays ?? 0
-    } hari)</td>
+    )}</td>
                     <td>${formatCurrency(Number(printRow.compensationBreakdown?.laundry.total ?? 0))}</td>
                   </tr>
                   <tr>
@@ -1171,7 +1175,7 @@ export default function BusinessTripPage() {
                     {formatCurrency(compensationPreview.meal.total)}
                   </p>
                   <p>
-                    Laundry: {formatCurrency(compensationPreview.laundry.amount)} ({compensationPreview.laundry.weeks}x, 1x per 7 hari, aktif jika luar kota/menginap & durasi &gt;= {compensationPreview.laundry.minDays} hari) ={" "}
+                    Laundry: {formatCurrency(compensationPreview.laundry.amount)} X {compensationPreview.laundry.weeks} ={" "}
                     {formatCurrency(compensationPreview.laundry.total)}
                   </p>
                   <p>
@@ -1265,7 +1269,7 @@ export default function BusinessTripPage() {
                         <thead className="bg-muted/60">
                           <tr>
                             <th className="p-2 text-left font-medium">Komponen</th>
-                            <th className="p-2 text-left font-medium">Rumus</th>
+                            <th className="p-2 text-left font-medium">Keterangan</th>
                             <th className="p-2 text-right font-medium">Nominal</th>
                           </tr>
                         </thead>
@@ -1293,8 +1297,8 @@ export default function BusinessTripPage() {
                           <tr className="border-t">
                             <td className="p-2">Laundry</td>
                             <td className="p-2">
-                              {formatCurrency(detailRow.compensationBreakdown.laundry.amount)} ({detailRow.compensationBreakdown.laundry.weeks}x, 1x per 7 hari, aktif jika luar kota/menginap & durasi &gt;={" "}
-                              {detailRow.compensationBreakdown.laundry.minDays} hari)
+                              {formatCurrency(detailRow.compensationBreakdown.laundry.amount)} X{" "}
+                              {detailRow.compensationBreakdown.laundry.weeks}
                             </td>
                             <td className="p-2 text-right">
                               {formatCurrency(detailRow.compensationBreakdown.laundry.total)}
@@ -1342,8 +1346,8 @@ export default function BusinessTripPage() {
                       <div className="rounded-md border p-3 text-sm">
                         <p className="font-medium">Laundry</p>
                         <p className="text-muted-foreground">
-                          {formatCurrency(detailRow.compensationBreakdown.laundry.amount)} ({detailRow.compensationBreakdown.laundry.weeks}x, 1x per 7 hari, aktif jika luar kota/menginap & durasi &gt;={" "}
-                          {detailRow.compensationBreakdown.laundry.minDays} hari)
+                          {formatCurrency(detailRow.compensationBreakdown.laundry.amount)} X{" "}
+                          {detailRow.compensationBreakdown.laundry.weeks}
                         </p>
                         <p className="font-semibold">
                           {formatCurrency(detailRow.compensationBreakdown.laundry.total)}
@@ -1538,7 +1542,7 @@ function BusinessTripPrintPreview({
     row.workflowEvents ?? [],
     (event) => event.toStatus === "APPROVED"
   );
-  const approvedByLabel = formatActorLabel(approvedEvent);
+  const approvedByLabel = formatActorNameOnly(approvedEvent);
   const approvedAtLabel = approvedEvent
     ? formatDateTime(approvedEvent.createdAt)
     : row.approvedAt
@@ -1594,7 +1598,7 @@ function BusinessTripPrintPreview({
             <thead className="bg-muted/60">
               <tr>
                 <th className="border border-black/80 p-2 text-left">Komponen</th>
-                <th className="border border-black/80 p-2 text-left">Rumus</th>
+                <th className="border border-black/80 p-2 text-left">Keterangan</th>
                 <th className="border border-black/80 p-2 text-right">Nominal</th>
               </tr>
             </thead>
@@ -1622,10 +1626,8 @@ function BusinessTripPrintPreview({
               <tr>
                 <td className="border border-black/80 p-2">Laundry</td>
                 <td className="border border-black/80 p-2">
-                  {formatCurrency(Number(row.compensationBreakdown?.laundry.amount ?? 0))} ({Number(
-                    row.compensationBreakdown?.laundry.weeks ?? 0
-                  )}x, 1x per 7 hari, aktif jika luar kota/menginap & durasi {" >= "}{" "}
-                  {row.compensationBreakdown?.laundry.minDays ?? 0} hari)
+                  {formatCurrency(Number(row.compensationBreakdown?.laundry.amount ?? 0))} X{" "}
+                  {Number(row.compensationBreakdown?.laundry.weeks ?? 0)}
                 </td>
                 <td className="border border-black/80 p-2 text-right">
                   {formatCurrency(Number(row.compensationBreakdown?.laundry.total ?? 0))}
@@ -1677,4 +1679,3 @@ function BusinessTripPrintPreview({
     </div>
   );
 }
-

@@ -607,7 +607,7 @@ export default function Letters() {
             body { font-family: Arial, sans-serif; color: #111; background: #fff; }
             .page { max-width: 800px; margin: 0 auto; }
             .logos { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28px; }
-            .logo-left { width: 260px; height: auto; }
+            .logo-left { width: 195px; height: auto; }
             .logo-right { width: 150px; height: auto; }
             .content { font-size: 14px; line-height: 1.45; }
             .meta { display: flex; justify-content: space-between; margin-bottom: 28px; }
@@ -618,7 +618,7 @@ export default function Letters() {
             .signature .name {
               margin-top: 96px;
               display: inline-block;
-              border-bottom: 2px solid #111;
+              border-bottom: 1px solid #111;
               line-height: 1.1;
             }
             @media print {
@@ -1508,9 +1508,25 @@ function SuratTugasPreview({
   const closingText = suratTugasClosingText;
   return (
     <div className="space-y-6 rounded-md bg-white p-6 text-black font-[Arial]">
-      <div className="flex items-start justify-between">
-        <Image src="/logo_knf.png" alt="KNF" width={264} height={148} className="h-auto w-[264px]" />
-        <Image src="/logo_iecnet.png" alt="IECNET" width={156} height={74} className="h-auto w-[156px]" />
+      <div className="grid grid-cols-[1fr_auto] items-start">
+        <div className="flex justify-start">
+          <Image
+            src="/logo_knf.png"
+            alt="KNF"
+            width={198}
+            height={111}
+            className="block h-auto w-[198px]"
+          />
+        </div>
+        <div className="flex justify-end">
+          <Image
+            src="/logo_iecnet.png"
+            alt="IECNET"
+            width={156}
+            height={74}
+            className="block h-auto w-[156px]"
+          />
+        </div>
       </div>
       <div className="flex flex-col gap-3 text-sm md:flex-row md:items-start md:justify-between">
         <div>No. {letter.letterNumber}</div>
@@ -1555,7 +1571,7 @@ function SuratTugasPreview({
         <p>Hormat kami,</p>
         <p>{companyName}</p>
         <div className="h-32" />
-        <p className="inline-block border-b-2 border-black font-semibold leading-tight">{signerName}</p>
+        <p className="inline-block border-b border-black font-semibold leading-tight">{signerName}</p>
         <p>Rekan</p>
       </div>
     </div>

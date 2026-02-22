@@ -18,7 +18,7 @@ import {
 } from "@/lib/notifications";
 
 const MAX_REIMBURSEMENT_FILES = 5;
-const MAX_REIMBURSEMENT_FILE_SIZE_BYTES = 2 * 1024 * 1024;
+const MAX_REIMBURSEMENT_FILE_SIZE_BYTES = 5 * 1024 * 1024;
 
 const workflowStatusSchema = z.union([
   z.literal("SUBMITTED"),
@@ -379,10 +379,11 @@ export async function PUT(
     }
   } else if (requestedStatus === "PAID") {
     const canMarkPaid =
-      approvalLevels === 2 ? isApproverLevel2 : isApproverLevel1;
+      auth.user.role === "ADMIN" ||
+      (approvalLevels === 2 ? isApproverLevel2 : isApproverLevel1);
     if (!canMarkPaid) {
       return NextResponse.json(
-        { error: "Anda bukan approver final untuk mark paid reimbursement ini" },
+        { error: "Hanya approver final atau admin yang dapat mark paid reimbursement ini" },
         { status: 403 }
       );
     }
