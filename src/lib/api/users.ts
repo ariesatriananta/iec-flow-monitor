@@ -34,6 +34,7 @@ export async function updateUser(
     name?: string;
     password?: string;
     role?: User["role"];
+    isActive?: boolean;
     employeeId?: string | null;
   }
 ): Promise<User> {

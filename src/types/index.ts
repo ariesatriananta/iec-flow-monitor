@@ -132,6 +132,7 @@ export interface User {
   username: string;
   name: string;
   role: 'ADMIN' | 'STAFF';
+  isActive: boolean;
   employeeId?: string | null;
   employee?: {
     id: string;

@@ -178,6 +178,7 @@ export const users = pgTable(
     username: text("username").notNull(),
     name: text("name").notNull(),
     role: userRoleEnum("role").notNull().default("ADMIN"),
+    isActive: boolean("is_active").notNull().default(true),
     employeeId: text("employee_id").references(() => employees.id),
     passwordHash: text("password_hash").notNull(),
     createdAt: timestamp("created_at", { mode: "date" }).notNull(),

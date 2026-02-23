@@ -10,6 +10,7 @@ export type SessionUser = {
   username: string;
   name: string;
   role: "ADMIN" | "STAFF";
+  isActive: boolean;
   employeeId: string | null;
 };
 
@@ -25,6 +26,7 @@ const loadUserFromDb = async (userId: string) => {
       username: users.username,
       name: users.name,
       role: users.role,
+      isActive: users.isActive,
       employeeId: users.employeeId,
     })
     .from(users)
@@ -54,6 +56,7 @@ export async function requireSessionUser(): Promise<GuardResult> {
         username: string;
         name: string;
         role: "ADMIN" | "STAFF";
+        isActive: boolean;
         employeeId: string | null;
       }
     | undefined;
@@ -77,6 +80,14 @@ export async function requireSessionUser(): Promise<GuardResult> {
       ),
     };
   }
+  if (!user.isActive) {
+    return {
+      response: NextResponse.json(
+        { error: "Akun nonaktif" },
+        { status: 403 }
+      ),
+    };
+  }
 
   return {
     user: {
@@ -84,6 +95,7 @@ export async function requireSessionUser(): Promise<GuardResult> {
       username: user.username,
       name: user.name,
       role: user.role === "STAFF" ? "STAFF" : "ADMIN",
+      isActive: user.isActive,
       employeeId: user.employeeId ?? null,
     },
   };

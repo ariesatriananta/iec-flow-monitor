@@ -482,15 +482,13 @@ export default function EmployeesPage() {
                                   Activate
                                 </DropdownMenuItem>
                               )}
-                              {employee.canHardDelete ? (
-                                <DropdownMenuItem
-                                  className="text-destructive focus:text-destructive"
-                                  onClick={() => setDeleteTarget(employee)}
-                                >
-                                  <Trash2 className="mr-2 h-4 w-4" />
-                                  Hard Delete
-                                </DropdownMenuItem>
-                              ) : null}
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive"
+                                onClick={() => setDeleteTarget(employee)}
+                              >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Hard Delete
+                              </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </TableCell>
@@ -558,15 +556,13 @@ export default function EmployeesPage() {
                               Activate
                             </DropdownMenuItem>
                           )}
-                          {employee.canHardDelete ? (
-                            <DropdownMenuItem
-                              className="text-destructive focus:text-destructive"
-                              onClick={() => setDeleteTarget(employee)}
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Hard Delete
-                            </DropdownMenuItem>
-                          ) : null}
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={() => setDeleteTarget(employee)}
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Hard Delete
+                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
@@ -846,8 +842,8 @@ export default function EmployeesPage() {
             <AlertDialogDescription>
               Data employee{" "}
               <span className="font-medium text-foreground">{deleteTarget?.fullName ?? deleteTarget?.nip}</span>{" "}
-              akan dihapus permanen dan tidak bisa dipulihkan. Aksi ini hanya untuk data yang benar-benar belum
-              pernah dipakai apa pun.
+              akan dihapus permanen dan tidak bisa dipulihkan. Seluruh histori terkait (attendance, leave, business
+              trip, reimbursement), notifikasi, dan jejak workflow milik employee ini juga akan ikut dihapus.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

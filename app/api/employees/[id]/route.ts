@@ -1,12 +1,24 @@
 ﻿export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { and, eq, inArray, or } from "drizzle-orm";
 import { z } from "zod";
 import { getDb } from "@/lib/db";
-import { employees, users } from "@/lib/db/schema";
+import {
+  attendanceRecords,
+  businessTrips,
+  employees,
+  leaveRequests,
+  notifications,
+  reimbursementAttachments,
+  reimbursementItems,
+  reimbursements,
+  settingsApprovalFlow,
+  users,
+  workflowEvents,
+} from "@/lib/db/schema";
 import { requireAdmin } from "@/lib/auth/server";
-import { buildEmployeeHardDeleteEligibilityMap } from "@/lib/employee-hard-delete";
+import { deleteObjectFromR2 } from "@/lib/storage/r2";
 
 const updateEmployeeSchema = z.object({
   fullName: z.string().trim().min(1).optional(),
@@ -58,15 +70,6 @@ export async function GET(
     return NextResponse.json({ error: "Employee tidak ditemukan" }, { status: 404 });
   }
 
-  const eligibilityMap = await buildEmployeeHardDeleteEligibilityMap(db, [
-    {
-      id: row.employee.id,
-      isActive: row.employee.isActive,
-      hasLinkedUser: Boolean(row.user?.id),
-    },
-  ]);
-  const eligibility = eligibilityMap.get(row.employee.id);
-
   return NextResponse.json({
     ...row.employee,
     user: row.user
@@ -77,8 +80,8 @@ export async function GET(
           role: row.user.role,
         }
       : undefined,
-    canHardDelete: eligibility?.canHardDelete ?? false,
-    hardDeleteReasons: eligibility?.reasons ?? [],
+    canHardDelete: true,
+    hardDeleteReasons: [],
   });
 }
 
@@ -168,33 +171,140 @@ export async function DELETE(
     .from(users)
     .where(eq(users.employeeId, params.id));
 
-  const [eligibility] = Array.from(
-    (
-      await buildEmployeeHardDeleteEligibilityMap(db, [
-        {
-          id: employee.id,
-          isActive: employee.isActive,
-          hasLinkedUser: linkedUsers.length > 0,
-        },
-      ])
-    ).values()
+  const [leaveRows, tripRows, reimbursementRows] = await Promise.all([
+    db
+      .select({ id: leaveRequests.id })
+      .from(leaveRequests)
+      .where(eq(leaveRequests.employeeId, params.id)),
+    db
+      .select({ id: businessTrips.id })
+      .from(businessTrips)
+      .where(eq(businessTrips.employeeId, params.id)),
+    db
+      .select({ id: reimbursements.id })
+      .from(reimbursements)
+      .where(eq(reimbursements.employeeId, params.id)),
+  ]);
+
+  const leaveIds = leaveRows.map((row) => row.id);
+  const tripIds = tripRows.map((row) => row.id);
+  const reimbursementIds = reimbursementRows.map((row) => row.id);
+
+  const attachmentRows =
+    reimbursementIds.length > 0
+      ? await db
+          .select({ id: reimbursementAttachments.id, fileKey: reimbursementAttachments.fileKey })
+          .from(reimbursementAttachments)
+          .where(inArray(reimbursementAttachments.reimbursementId, reimbursementIds))
+      : [];
+
+  await db.transaction(async (tx) => {
+    // Unlink any login account from this employee.
+    if (linkedUsers.length > 0) {
+      await tx
+        .update(users)
+        .set({ employeeId: null, updatedAt: new Date() })
+        .where(eq(users.employeeId, params.id));
+    }
+
+    // Remove employee from approval-flow assignments if referenced.
+    await tx
+      .update(settingsApprovalFlow)
+      .set({ leaveApproverLevel1EmployeeId: null, updatedAt: new Date() })
+      .where(eq(settingsApprovalFlow.leaveApproverLevel1EmployeeId, params.id));
+    await tx
+      .update(settingsApprovalFlow)
+      .set({ leaveApproverLevel2EmployeeId: null, updatedAt: new Date() })
+      .where(eq(settingsApprovalFlow.leaveApproverLevel2EmployeeId, params.id));
+    await tx
+      .update(settingsApprovalFlow)
+      .set({ reimbursementApproverLevel1EmployeeId: null, updatedAt: new Date() })
+      .where(eq(settingsApprovalFlow.reimbursementApproverLevel1EmployeeId, params.id));
+    await tx
+      .update(settingsApprovalFlow)
+      .set({ reimbursementApproverLevel2EmployeeId: null, updatedAt: new Date() })
+      .where(eq(settingsApprovalFlow.reimbursementApproverLevel2EmployeeId, params.id));
+    await tx
+      .update(settingsApprovalFlow)
+      .set({ businessTripApproverLevel1EmployeeId: null, updatedAt: new Date() })
+      .where(eq(settingsApprovalFlow.businessTripApproverLevel1EmployeeId, params.id));
+    await tx
+      .update(settingsApprovalFlow)
+      .set({ businessTripApproverLevel2EmployeeId: null, updatedAt: new Date() })
+      .where(eq(settingsApprovalFlow.businessTripApproverLevel2EmployeeId, params.id));
+
+    // Delete notifications linked to workflow entities owned by this employee.
+    if (leaveIds.length > 0) {
+      await tx.delete(notifications).where(entityMatch(notifications.entityType, notifications.entityId, "LEAVE", leaveIds));
+    }
+    if (tripIds.length > 0) {
+      await tx
+        .delete(notifications)
+        .where(entityMatch(notifications.entityType, notifications.entityId, "BUSINESS_TRIP", tripIds));
+    }
+    if (reimbursementIds.length > 0) {
+      await tx
+        .delete(notifications)
+        .where(entityMatch(notifications.entityType, notifications.entityId, "REIMBURSEMENT", reimbursementIds));
+    }
+
+    // Delete workflow events referencing those entities and any events performed by this employee.
+    await tx.delete(workflowEvents).where(eq(workflowEvents.actorEmployeeId, params.id));
+    if (tripIds.length > 0) {
+      await tx
+        .delete(workflowEvents)
+        .where(entityMatch(workflowEvents.module, workflowEvents.entityId, "BUSINESS_TRIP", tripIds));
+    }
+    if (leaveIds.length > 0) {
+      await tx
+        .delete(workflowEvents)
+        .where(entityMatch(workflowEvents.module, workflowEvents.entityId, "LEAVE", leaveIds));
+    }
+    if (reimbursementIds.length > 0) {
+      await tx
+        .delete(workflowEvents)
+        .where(entityMatch(workflowEvents.module, workflowEvents.entityId, "REIMBURSEMENT", reimbursementIds));
+    }
+
+    // Delete attendance/history rows.
+    await tx.delete(attendanceRecords).where(eq(attendanceRecords.employeeId, params.id));
+    if (leaveIds.length > 0) {
+      await tx.delete(leaveRequests).where(inArray(leaveRequests.id, leaveIds));
+    }
+    if (tripIds.length > 0) {
+      await tx.delete(businessTrips).where(inArray(businessTrips.id, tripIds));
+    }
+    if (reimbursementIds.length > 0) {
+      await tx
+        .delete(reimbursementAttachments)
+        .where(inArray(reimbursementAttachments.reimbursementId, reimbursementIds));
+      await tx
+        .delete(reimbursementItems)
+        .where(inArray(reimbursementItems.reimbursementId, reimbursementIds));
+      await tx.delete(reimbursements).where(inArray(reimbursements.id, reimbursementIds));
+    }
+    await tx.delete(employees).where(eq(employees.id, params.id));
+  });
+
+  // Best-effort R2 cleanup for deleted reimbursement attachments (do not fail the delete flow).
+  await Promise.allSettled(
+    attachmentRows
+      .map((row) => row.fileKey)
+      .filter((key): key is string => Boolean(key))
+      .map((key) => deleteObjectFromR2(key))
   );
 
-  if (!eligibility?.canHardDelete) {
-    const reasonText =
-      eligibility?.reasons && eligibility.reasons.length > 0
-        ? ` Alasan: ${eligibility.reasons.join(" ")}`
-        : "";
-    return NextResponse.json(
-      {
-        error: `Hard delete tidak diizinkan. Gunakan Deactivate jika employee sudah pernah dipakai atau masih terhubung.${reasonText}`,
-        reasons: eligibility?.reasons ?? [],
-      },
-      { status: 409 }
-    );
-  }
-
-  await db.delete(employees).where(eq(employees.id, params.id));
-
   return NextResponse.json({ ok: true });
+}
+
+function entityMatch(
+  entityTypeColumn: typeof notifications.entityType | typeof workflowEvents.module,
+  entityIdColumn: typeof notifications.entityId | typeof workflowEvents.entityId,
+  entityType: "LEAVE" | "BUSINESS_TRIP" | "REIMBURSEMENT",
+  ids: string[]
+) {
+  return and(
+    or(eq(entityTypeColumn, entityType), eq(entityTypeColumn, entityType.toLowerCase())),
+    inArray(entityIdColumn, ids)
+  );
 }

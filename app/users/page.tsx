@@ -37,7 +37,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, Search, MoreHorizontal, Pencil, Trash2, UserCog, Eye, EyeOff } from 'lucide-react';
+import { Plus, Search, MoreHorizontal, Pencil, Trash2, UserCog, Eye, EyeOff, UserX } from 'lucide-react';
 import type { User } from '@/types';
 import { formatDate } from '@/lib/numbering';
 import { useToast } from '@/hooks/use-toast';
@@ -238,6 +238,29 @@ export default function Users() {
     }
   };
 
+  const handleToggleUserActive = async (user: User, isActive: boolean) => {
+    const actionLabel = isActive ? "mengaktifkan" : "menonaktifkan";
+    const confirmed = window.confirm(
+      `Yakin ingin ${actionLabel} user ${user.username}?`
+    );
+    if (!confirmed) return;
+
+    try {
+      const updated = await updateUser(user.id, { isActive });
+      setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
+      toast({
+        title: "Success",
+        description: `User berhasil ${isActive ? "diaktifkan" : "dinonaktifkan"}`,
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : `Gagal ${actionLabel} user`,
+        variant: "destructive",
+      });
+    }
+  };
+
   if (isLoading) {
     return (
       <AdminLayout title="Users">
@@ -279,6 +302,7 @@ export default function Users() {
                     <TableHead>Name</TableHead>
                     <TableHead>Username</TableHead>
                     <TableHead>Role</TableHead>
+                    <TableHead>Status</TableHead>
                     <TableHead>Employee Name</TableHead>
                     <TableHead>Created</TableHead>
                     <TableHead className="w-[50px]"></TableHead>
@@ -287,7 +311,7 @@ export default function Users() {
                 <TableBody>
                   {filteredUsers.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8">
+                      <TableCell colSpan={7} className="text-center py-8">
                         <div className="flex flex-col items-center gap-2 text-muted-foreground">
                           <UserCog className="w-8 h-8" />
                           <p>Tidak ada user ditemukan</p>
@@ -302,6 +326,14 @@ export default function Users() {
                         <TableCell>
                           <Badge variant="outline" className="bg-primary/10 text-primary">
                             {user.role}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant="outline"
+                            className={user.isActive ? "bg-success text-success-foreground" : "bg-muted text-muted-foreground"}
+                          >
+                            {user.isActive ? "ACTIVE" : "INACTIVE"}
                           </Badge>
                         </TableCell>
                         <TableCell>
@@ -320,6 +352,17 @@ export default function Users() {
                                 <Pencil className="w-4 h-4 mr-2" />
                                 Edit
                               </DropdownMenuItem>
+                              {user.isActive ? (
+                                <DropdownMenuItem onClick={() => void handleToggleUserActive(user, false)}>
+                                  <UserX className="w-4 h-4 mr-2" />
+                                  Deactivate
+                                </DropdownMenuItem>
+                              ) : (
+                                <DropdownMenuItem onClick={() => void handleToggleUserActive(user, true)}>
+                                  <UserX className="w-4 h-4 mr-2" />
+                                  Activate
+                                </DropdownMenuItem>
+                              )}
                               <DropdownMenuItem
                                 className="text-destructive"
                                 onClick={() => handleDeleteUser(user)}
@@ -356,6 +399,14 @@ export default function Users() {
                         {user.role}
                       </Badge>
                     </div>
+                    <p className="mt-2 text-xs">
+                      <Badge
+                        variant="outline"
+                        className={user.isActive ? "bg-success text-success-foreground" : "bg-muted text-muted-foreground"}
+                      >
+                        {user.isActive ? "ACTIVE" : "INACTIVE"}
+                      </Badge>
+                    </p>
                     <p className="mt-2 text-xs text-muted-foreground">
                       Employee Name: {employees.find((employee) => employee.id === user.employeeId)?.fullName ?? '-'}
                     </p>
@@ -374,6 +425,17 @@ export default function Users() {
                             <Pencil className="w-4 h-4 mr-2" />
                             Edit
                           </DropdownMenuItem>
+                          {user.isActive ? (
+                            <DropdownMenuItem onClick={() => void handleToggleUserActive(user, false)}>
+                              <UserX className="w-4 h-4 mr-2" />
+                              Deactivate
+                            </DropdownMenuItem>
+                          ) : (
+                            <DropdownMenuItem onClick={() => void handleToggleUserActive(user, true)}>
+                              <UserX className="w-4 h-4 mr-2" />
+                              Activate
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuItem
                             className="text-destructive"
                             onClick={() => handleDeleteUser(user)}

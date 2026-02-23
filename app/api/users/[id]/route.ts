@@ -83,6 +83,9 @@ export async function PUT(
   if (body.role !== undefined) {
     updateData.role = body.role === "STAFF" ? "STAFF" : "ADMIN";
   }
+  if (body.isActive !== undefined) {
+    updateData.isActive = Boolean(body.isActive);
+  }
   if (body.employeeId !== undefined) {
     updateData.employeeId = body.employeeId || null;
   }
@@ -99,6 +102,7 @@ export async function PUT(
       username: users.username,
       name: users.name,
       role: users.role,
+      isActive: users.isActive,
       employeeId: users.employeeId,
       createdAt: users.createdAt,
       updatedAt: users.updatedAt,

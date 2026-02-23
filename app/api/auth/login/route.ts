@@ -54,6 +54,12 @@ export async function POST(request: Request) {
       { status: 401 }
     );
   }
+  if (!row.user.isActive) {
+    return NextResponse.json(
+      { error: "Akun nonaktif, hubungi admin" },
+      { status: 403 }
+    );
+  }
 
   const isValid = await bcrypt.compare(body.password, row.user.passwordHash);
   if (!isValid) {
@@ -79,6 +85,7 @@ export async function POST(request: Request) {
     username: row.user.username,
     name: row.user.name,
     role,
+    isActive: row.user.isActive,
     employeeId: row.user.employeeId,
     employee: row.employee?.id ? row.employee : null,
     createdAt: row.user.createdAt,
