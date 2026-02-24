@@ -90,7 +90,7 @@ export async function PUT(
       .limit(1);
 
     if (contractRow) {
-      const invoiceDate = new Date();
+      const invoiceDate = updated.dueDate ? new Date(updated.dueDate) : new Date();
       const { year } = getJakartaMonthYear(invoiceDate);
       const existingInvoices = await db
         .select({ invoiceDate: invoices.invoiceDate, seqNo: invoices.seqNo })

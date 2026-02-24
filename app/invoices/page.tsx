@@ -451,7 +451,7 @@ export default function Invoices() {
                   <div>BANK MANDIRI</div>
                   <div>KCP JAKARTA LEBAK BULUS</div>
                   <div>No. Rekening 101-00-1469009-1</div>
-                  <div>Bukti transfer email office.rasunasaid@knfdts.id</div>
+                  <div>Bukti transfer email ke office.rasunasaid@knfdts.id</div>
                 </td>
                 <td class="sign" style="width: 176px;">
                   <div>Jakarta, ${data.invoiceDate}</div>
