@@ -648,7 +648,7 @@ export default function ContractDetail() {
 
                         return (
                         <TableRow key={termin.id}>
-                          <TableCell className="font-medium whitespace-pre-line">
+                          <TableCell className="font-medium whitespace-pre-wrap">
                             {termin.terminName}
                           </TableCell>
                           <TableCell className="text-right">
@@ -780,7 +780,7 @@ export default function ContractDetail() {
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <p className="text-xs text-muted-foreground">Nama Termin</p>
-                            <p className="font-medium whitespace-pre-line">{termin.terminName}</p>
+                            <p className="font-medium whitespace-pre-wrap">{termin.terminName}</p>
                             <p className="text-xs text-muted-foreground mt-2">Nominal</p>
                             <p className="text-sm">{formatCurrency(termin.terminAmount)}</p>
                           </div>
@@ -979,7 +979,7 @@ export default function ContractDetail() {
 
       {/* Add Termin Dialog */}
       <Dialog open={isTerminDialogOpen} onOpenChange={setIsTerminDialogOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-[600px]">
           <form onSubmit={handleAddTermin}>
             <DialogHeader>
               <DialogTitle>Tambah Termin</DialogTitle>

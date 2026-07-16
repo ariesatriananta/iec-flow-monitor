@@ -364,6 +364,7 @@ export default function Invoices() {
                 }
                 
               .table th, .table td { border: none; padding: 8px; vertical-align: top; }
+              .description { white-space: pre-wrap; }
               .table tr + tr td { border-top: 1px solid var(--border); }
               .table th { text-align: left; background: var(--primary-soft); color: var(--primary); }
               .table tbody tr:nth-child(even) { background: #f2f6fc; }
@@ -423,7 +424,7 @@ export default function Invoices() {
               <tbody>
                 <tr>
                   <td>1</td>
-                  <td>${descriptionHtml}</td>
+                  <td class="description">${descriptionHtml}</td>
                   <td class="right">${formatCurrency(data.dpp)}</td>
                 </tr>
                 <tr>
@@ -485,7 +486,7 @@ export default function Invoices() {
               </tr>
               <tr>
                 <td class="kw-label">UNTUK PEMBAYARAN:</td>
-                <td>${descriptionHtml}</td>
+                <td class="description">${descriptionHtml}</td>
               </tr>
               <tr>
                 <td class="kw-label">JUMLAH:</td>
@@ -853,7 +854,7 @@ function InvoicePreview({
             <tbody className="[&>tr:nth-child(even)]:bg-slate-50">
               <tr>
                   <td className="border-b border-slate-200 p-2">1</td>
-                  <td className="border-b border-slate-200 p-2 whitespace-pre-line">
+                  <td className="border-b border-slate-200 p-2 whitespace-pre-wrap">
                     {data.description}
                   </td>
                   <td className="border-b border-slate-200 p-2 text-right">
@@ -930,7 +931,7 @@ function InvoicePreview({
                 </tr>
                 <tr>
                   <td className="border-b border-slate-300 p-2">UNTUK PEMBAYARAN:</td>
-                  <td className="border-b border-slate-300 p-2 whitespace-pre-line">
+                  <td className="border-b border-slate-300 p-2 whitespace-pre-wrap">
                     {data.description}
                   </td>
                 </tr>
