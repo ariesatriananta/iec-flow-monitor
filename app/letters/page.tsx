@@ -640,7 +640,8 @@ export default function Letters() {
             .header { height: 145px; overflow: hidden; }
             .header img { display: block; width: 100%; height: auto; }
             .title { margin: 8px 0 28px; text-align: center; font-size: 14px; font-weight: 700; }
-            .meta { display: grid; grid-template-columns: 120px minmax(0, 1fr) 210px; gap: 0; margin-bottom: 4px; }
+            .meta { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 4px; margin-bottom: 4px; }
+            .meta .date { text-align: right; }
             .recipient { margin: 0 0 22px; }
             .recipient .client { margin-top: 14px; }
             .subject { display: grid; grid-template-columns: 120px 16px minmax(0, 1fr); gap: 0; margin-bottom: 20px; }
@@ -660,7 +661,7 @@ export default function Letters() {
           <div class="page content">
             <div class="header"><img src="${headerUrl}" alt="Kop surat" /></div>
             <div class="title">SURAT TUGAS</div>
-            <div class="meta"><div><strong>No.</strong></div><div><strong>${printLetter.letterNumber}</strong></div><div>Jakarta, ${letterDate}</div></div>
+            <div class="meta"><div><strong>No.</strong></div><div><strong>${printLetter.letterNumber}</strong></div><div class="date">Jakarta, ${letterDate}</div></div>
             <div class="recipient"><div>Kepada Yth</div><div>Bapak/Ibu ${clientPic}</div><div class="client"><strong>${clientName}</strong></div><div>${clientAddress}</div></div>
             <div class="subject"><div>Perihal</div><div>:</div><div><strong>${subjectText}</strong></div></div>
             <p class="body body-copy">${introText}</p>
@@ -1603,10 +1604,10 @@ function SuratTugasPreview({
       <div className="mb-7 mt-2 py-2 text-center text-sm font-bold">
         SURAT TUGAS
       </div>
-      <div className="grid grid-cols-[120px_minmax(0,1fr)_210px]">
+      <div className="grid grid-cols-[28px_minmax(0,1fr)_auto] gap-x-1">
         <p className="font-bold">No.</p>
         <p className="font-bold">{letter.letterNumber}</p>
-        <p>Jakarta, {formatDateLong(letter.letterDate)}</p>
+        <p className="text-right">Jakarta, {formatDateLong(letter.letterDate)}</p>
       </div>
       <div className="mb-5">
         <p>Kepada Yth</p>
