@@ -103,6 +103,8 @@ const hrgaCategoryLabels: Record<HrgaCategory, string> = {
 const createEmptyAssignment = () => ({
   title: 'Penugasan Jasa Audit Laporan Keuangan.',
   auditPeriodText: '',
+  executionStartDate: undefined as Date | undefined,
+  executionEndDate: undefined as Date | undefined,
   members: [{ name: '', role: '' }],
 });
 
@@ -234,6 +236,12 @@ export default function Letters() {
             setAssignmentForm({
               title: detail.assignment.title,
               auditPeriodText: detail.assignment.auditPeriodText,
+              executionStartDate: detail.assignment.executionStartDate
+                ? new Date(detail.assignment.executionStartDate)
+                : undefined,
+              executionEndDate: detail.assignment.executionEndDate
+                ? new Date(detail.assignment.executionEndDate)
+                : undefined,
               members:
                 detail.assignment.members?.map((member) => ({
                   name: member.name,
@@ -294,10 +302,23 @@ export default function Letters() {
         const cleanedMembers = assignmentForm.members.filter(
           (member) => member.name.trim() && member.role.trim()
         );
-        if (!assignmentForm.title.trim() || !assignmentForm.auditPeriodText.trim()) {
+        if (
+          !assignmentForm.title.trim() ||
+          !assignmentForm.auditPeriodText.trim() ||
+          !assignmentForm.executionStartDate ||
+          !assignmentForm.executionEndDate
+        ) {
           toast({
             title: 'Error',
-            description: 'Lengkapi data surat tugas terlebih dahulu',
+            description: 'Lengkapi data surat tugas dan waktu pelaksanaan terlebih dahulu',
+            variant: 'destructive',
+          });
+          return;
+        }
+        if (assignmentForm.executionEndDate < assignmentForm.executionStartDate) {
+          toast({
+            title: 'Error',
+            description: 'Tanggal selesai pelaksanaan tidak boleh sebelum tanggal mulai',
             variant: 'destructive',
           });
           return;
@@ -325,6 +346,8 @@ export default function Letters() {
               ? {
                   title: assignmentForm.title,
                   auditPeriodText: assignmentForm.auditPeriodText,
+                  executionStartDate: assignmentForm.executionStartDate!,
+                  executionEndDate: assignmentForm.executionEndDate!,
                   members: assignmentForm.members
                     .filter((member) => member.name.trim() && member.role.trim())
                     .map((member) => ({
@@ -355,6 +378,8 @@ export default function Letters() {
               ? {
                   title: assignmentForm.title,
                   auditPeriodText: assignmentForm.auditPeriodText,
+                  executionStartDate: assignmentForm.executionStartDate!,
+                  executionEndDate: assignmentForm.executionEndDate!,
                   members: assignmentForm.members
                     .filter((member) => member.name.trim() && member.role.trim())
                     .map((member) => ({
@@ -503,7 +528,7 @@ export default function Letters() {
       timeZone: 'Asia/Jakarta',
       year: 'numeric',
     });
-    return `${month} ${day}, ${year}`;
+    return `${day} ${month} ${year}`;
   };
 
 
@@ -572,8 +597,7 @@ export default function Letters() {
     if (!printLetter || !printAssignment) return;
     const printWindow = window.open('', '_blank', 'width=1000,height=800');
     if (!printWindow) return;
-    const logoKnfUrl = `${window.location.origin}/logo_knf.png`;
-    const logoIecnetUrl = `${window.location.origin}/logo_iecnet.png`;
+    const headerUrl = `${window.location.origin}/invoice-header.png`;
     const letterDate = formatDateLong(printLetter.letterDate);
     const clientName = printLetter.client?.name ?? '-';
     const clientAddress = printLetter.client?.address ?? '-';
@@ -584,6 +608,12 @@ export default function Letters() {
     const auditPeriodText = printAssignment.auditPeriodText?.trim() || '-';
     const subjectText = buildSuratTugasSubject(clientName, auditPeriodText);
     const introText = buildSuratTugasIntro(clientName, auditPeriodText);
+    const executionPeriodText =
+      printAssignment.executionStartDate && printAssignment.executionEndDate
+        ? `Dengan waktu pelaksanaan pada tanggal ${formatDateLong(
+            printAssignment.executionStartDate
+          )} sampai dengan ${formatDateLong(printAssignment.executionEndDate)}`
+        : null;
     const members = printAssignment.members ?? [];
     const membersHtml = members
       .map(
@@ -603,24 +633,24 @@ export default function Letters() {
           <meta charset="utf-8" />
           <title>Surat Tugas ${printLetter.letterNumber}</title>
           <style>
-            @page { size: A4; margin: 20mm; }
+            @page { size: A4; margin: 14mm; }
             body { font-family: Arial, sans-serif; color: #111; background: #fff; }
             .page { max-width: 800px; margin: 0 auto; }
-            .logos { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28px; }
-            .logo-left { width: 195px; height: auto; }
-            .logo-right { width: 150px; height: auto; }
-            .content { font-size: 14px; line-height: 1.45; }
-            .meta { display: flex; justify-content: space-between; margin-bottom: 28px; }
-            .subject { margin: 18px 0 16px; display: grid; grid-template-columns: 80px 12px 1fr; gap: 0; }
-            .members { margin: 10px 0 14px; }
-            .members table { width: 100%; border-collapse: collapse; }
-            .signature { margin-top: 28px; }
-            .signature .name {
-              margin-top: 96px;
-              display: inline-block;
-              border-bottom: 1px solid #111;
-              line-height: 1.1;
-            }
+            .content { font-size: 12px; line-height: 1.35; }
+            .header { height: 145px; overflow: hidden; }
+            .header img { display: block; width: 100%; height: auto; }
+            .title { margin: 8px 0 28px; text-align: center; font-size: 14px; font-weight: 700; }
+            .meta { display: grid; grid-template-columns: 120px minmax(0, 1fr) 210px; gap: 0; margin-bottom: 4px; }
+            .recipient { margin: 0 0 22px; }
+            .recipient .client { margin-top: 14px; }
+            .subject { display: grid; grid-template-columns: 120px 16px minmax(0, 1fr); gap: 0; margin-bottom: 20px; }
+            .body { margin: 0 0 16px; }
+            .body-copy { white-space: pre-line; }
+            .execution { margin: 16px 0; }
+            .member-table { width: 100%; border-collapse: collapse; }
+            .member-table td { border: 0; padding: 0 0 3px; vertical-align: top; }
+            .signature { margin-top: 18px; }
+            .signature-space { height: 120px; }
             @media print {
               body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
             }
@@ -628,39 +658,16 @@ export default function Letters() {
         </head>
         <body>
           <div class="page content">
-            <div class="logos">
-              <img class="logo-left" src="${logoKnfUrl}" alt="KNF" />
-              <img class="logo-right" src="${logoIecnetUrl}" alt="IECNET" />
-            </div>
-            <div class="meta">
-              <div>No. ${printLetter.letterNumber}</div>
-              <div>Jakarta, ${letterDate}</div>
-            </div>
-            <div style="margin-bottom: 16px;">
-              <div>Kepada Yth</div>
-              <div><strong>Bapak/Ibu ${clientPic}</strong></div>
-              <div style="margin-top:10px;"><strong>${clientName}</strong></div>
-              <div>${clientAddress}</div>
-            </div>
-            <div>Dengan hormat,</div>
-            <div class="subject">
-              <div>Perihal</div>
-              <div>:</div>
-              <div><strong>${subjectText}</strong></div>
-            </div>
-            <p>${introText}</p>
-            <div class="members">
-              <table>
-                ${membersHtml}
-              </table>
-            </div>
-            <p>${suratTugasClosingText}</p>
-            <div class="signature">
-              <div>Hormat kami,</div>
-              <div>${signerCompany}</div>
-              <div class="name">${settings?.defaultSignerName || 'Anita Rahman, CPA'}</div>
-              <div>Rekan</div>
-            </div>
+            <div class="header"><img src="${headerUrl}" alt="Kop surat" /></div>
+            <div class="title">SURAT TUGAS</div>
+            <div class="meta"><div><strong>No.</strong></div><div><strong>${printLetter.letterNumber}</strong></div><div>Jakarta, ${letterDate}</div></div>
+            <div class="recipient"><div>Kepada Yth</div><div>Bapak/Ibu ${clientPic}</div><div class="client"><strong>${clientName}</strong></div><div>${clientAddress}</div></div>
+            <div class="subject"><div>Perihal</div><div>:</div><div><strong>${subjectText}</strong></div></div>
+            <p class="body body-copy">${introText}</p>
+            <div class="body"><table class="member-table">${membersHtml}</table></div>
+            ${executionPeriodText ? `<p class="execution">${executionPeriodText}</p>` : ''}
+            <p class="body body-copy">${suratTugasClosingText}</p>
+            <div class="signature"><div>Hormat kami,</div><div><strong>${signerCompany}</strong></div><div class="signature-space"></div><div><strong>${settings?.defaultSignerName || 'Anita Rahman, CPA'}</strong></div><div>Rekan</div></div>
           </div>
         </body>
       </html>
@@ -1010,7 +1017,7 @@ export default function Letters() {
 
       {/* Create Dialog */}
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="sm:max-w-[500px] max-h-[85vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-[720px] max-h-[85vh] overflow-y-auto">
           <form onSubmit={handleSubmit}>
             <DialogHeader>
               <DialogTitle>
@@ -1183,6 +1190,82 @@ export default function Letters() {
                       disabled={isAssignmentLoading}
                       required
                     />
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label>Waktu Pelaksanaan: Mulai *</Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className={cn(
+                              'w-full justify-start text-left font-normal',
+                              !assignmentForm.executionStartDate && 'text-muted-foreground'
+                            )}
+                            disabled={isAssignmentLoading}
+                          >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {assignmentForm.executionStartDate
+                              ? format(assignmentForm.executionStartDate, 'dd/MM/yyyy')
+                              : 'Pilih tanggal mulai'}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={assignmentForm.executionStartDate}
+                            onSelect={(date) =>
+                              setAssignmentForm((prev) => ({
+                                ...prev,
+                                executionStartDate: date,
+                              }))
+                            }
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Waktu Pelaksanaan: Selesai *</Label>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className={cn(
+                              'w-full justify-start text-left font-normal',
+                              !assignmentForm.executionEndDate && 'text-muted-foreground'
+                            )}
+                            disabled={isAssignmentLoading}
+                          >
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {assignmentForm.executionEndDate
+                              ? format(assignmentForm.executionEndDate, 'dd/MM/yyyy')
+                              : 'Pilih tanggal selesai'}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={assignmentForm.executionEndDate}
+                            disabled={(date) =>
+                              Boolean(
+                                assignmentForm.executionStartDate &&
+                                  date < assignmentForm.executionStartDate
+                              )
+                            }
+                            onSelect={(date) =>
+                              setAssignmentForm((prev) => ({
+                                ...prev,
+                                executionEndDate: date,
+                              }))
+                            }
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
                   </div>
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
@@ -1506,72 +1589,57 @@ function SuratTugasPreview({
   const subjectText = buildSuratTugasSubject(clientName, auditPeriodText);
   const introText = buildSuratTugasIntro(clientName, auditPeriodText);
   const closingText = suratTugasClosingText;
+  const executionPeriodText =
+    assignment.executionStartDate && assignment.executionEndDate
+      ? `Dengan waktu pelaksanaan pada tanggal ${formatDateLong(
+          assignment.executionStartDate
+        )} sampai dengan ${formatDateLong(assignment.executionEndDate)}`
+      : null;
   return (
-    <div className="space-y-6 rounded-md bg-white p-6 text-black font-[Arial]">
-      <div className="grid grid-cols-[1fr_auto] items-start">
-        <div className="flex justify-start">
-          <Image
-            src="/logo_knf.png"
-            alt="KNF"
-            width={198}
-            height={111}
-            className="block h-auto w-[198px]"
-          />
-        </div>
-        <div className="flex justify-end">
-          <Image
-            src="/logo_iecnet.png"
-            alt="IECNET"
-            width={156}
-            height={74}
-            className="block h-auto w-[156px]"
-          />
-        </div>
+    <div className="rounded-md bg-white p-6 text-[12px] leading-[1.35] text-black font-[Arial]">
+      <div className="h-[145px] overflow-hidden">
+        <img src="/invoice-header.png" alt="Kop surat" className="block w-full" />
       </div>
-      <div className="flex flex-col gap-3 text-sm md:flex-row md:items-start md:justify-between">
-        <div>No. {letter.letterNumber}</div>
-        <div>
-          Jakarta, {formatDateLong(letter.letterDate)}
-        </div>
+      <div className="mb-7 mt-2 py-2 text-center text-sm font-bold">
+        SURAT TUGAS
       </div>
-      <div className="text-sm">
+      <div className="grid grid-cols-[120px_minmax(0,1fr)_210px]">
+        <p className="font-bold">No.</p>
+        <p className="font-bold">{letter.letterNumber}</p>
+        <p>Jakarta, {formatDateLong(letter.letterDate)}</p>
+      </div>
+      <div className="mb-5">
         <p>Kepada Yth</p>
-        <p className="font-semibold">Bapak/Ibu {clientPic}</p>
-        <p className="mt-2 font-semibold">{clientName}</p>
+        <p>Bapak/Ibu {clientPic}</p>
+        <p className="mt-3 font-bold">{clientName}</p>
         <p>{clientAddress}</p>
       </div>
-      <div className="text-sm">
-        <p>Dengan hormat,</p>
-        <div className="mt-2 grid grid-cols-[80px_12px_1fr]">
-          <p>Perihal</p>
-          <p>:</p>
-          <p className="font-semibold">{subjectText}</p>
-        </div>
+      <div className="mb-5 grid grid-cols-[120px_16px_minmax(0,1fr)]">
+        <p>Perihal</p>
+        <p>:</p>
+        <p className="font-bold">{subjectText}</p>
       </div>
-      <div className="text-sm space-y-3">
-        <p className="whitespace-pre-line">{introText}</p>
-      </div>
-      <div className="text-sm">
+      <p className="mb-4 whitespace-pre-line">{introText}</p>
+      <div className="mb-4">
         <table className="w-full border-collapse">
           <tbody>
             {members.map((member, index) => (
               <tr key={`${member.id}-${index}`}>
-                <td className="w-[220px] align-top">{member.role || '-'}</td>
-                <td className="w-5 align-top">:</td>
-                <td className="align-top">{member.name || '-'}</td>
+                <td className="w-[220px] pb-1 align-top">{member.role || '-'}</td>
+                <td className="w-5 pb-1 align-top">:</td>
+                <td className="pb-1 align-top">{member.name || '-'}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      <div className="text-sm space-y-3">
-        <p className="whitespace-pre-line">{closingText}</p>
-      </div>
-      <div className="text-sm">
+      {executionPeriodText && <p className="mb-4">{executionPeriodText}</p>}
+      <p className="mb-4 whitespace-pre-line">{closingText}</p>
+      <div>
         <p>Hormat kami,</p>
-        <p>{companyName}</p>
+        <p className="font-bold">{companyName}</p>
         <div className="h-32" />
-        <p className="inline-block border-b border-black font-semibold leading-tight">{signerName}</p>
+        <p className="font-bold">{signerName}</p>
         <p>Rekan</p>
       </div>
     </div>

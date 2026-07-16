@@ -72,6 +72,8 @@ const parseLetterAssignmentMember = (
 
 const parseLetterAssignment = (data: LetterAssignment): LetterAssignment => ({
   ...data,
+  executionStartDate: data.executionStartDate ? toDate(data.executionStartDate) : null,
+  executionEndDate: data.executionEndDate ? toDate(data.executionEndDate) : null,
   createdAt: toDate(data.createdAt),
   updatedAt: toDate(data.updatedAt),
   members: data.members ? data.members.map(parseLetterAssignmentMember) : undefined,

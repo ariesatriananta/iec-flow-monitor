@@ -27,6 +27,8 @@ export async function createLetter(payload: {
   assignment?: {
     title: string;
     auditPeriodText: string;
+    executionStartDate: Date;
+    executionEndDate: Date;
     members: Array<{ name: string; role: string }>;
   };
 }): Promise<Letter> {
@@ -56,6 +58,8 @@ export async function updateLetter(
     assignment?: {
       title: string;
       auditPeriodText: string;
+      executionStartDate: Date;
+      executionEndDate: Date;
       members: Array<{ name: string; role: string }>;
     };
   }

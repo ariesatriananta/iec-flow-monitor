@@ -53,9 +53,22 @@ export async function POST(request: Request) {
   }
   if (body.letterType === "SURAT_TUGAS") {
     const assignment = body.assignment;
-    if (!assignment?.title || !assignment?.auditPeriodText) {
+    const executionStartDate = new Date(assignment?.executionStartDate);
+    const executionEndDate = new Date(assignment?.executionEndDate);
+    if (
+      !assignment?.title ||
+      !assignment?.auditPeriodText ||
+      Number.isNaN(executionStartDate.getTime()) ||
+      Number.isNaN(executionEndDate.getTime())
+    ) {
       return NextResponse.json(
         { error: "Data surat tugas belum lengkap" },
+        { status: 400 }
+      );
+    }
+    if (executionEndDate < executionStartDate) {
+      return NextResponse.json(
+        { error: "Tanggal selesai pelaksanaan tidak boleh sebelum tanggal mulai" },
         { status: 400 }
       );
     }
@@ -145,6 +158,8 @@ export async function POST(request: Request) {
           letterId: created.id,
           title: assignment.title,
           auditPeriodText: assignment.auditPeriodText,
+          executionStartDate: new Date(assignment.executionStartDate),
+          executionEndDate: new Date(assignment.executionEndDate),
           createdAt: now,
           updatedAt: now,
         })

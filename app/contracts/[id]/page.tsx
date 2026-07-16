@@ -6,6 +6,7 @@ import { AdminLayout } from '@/components/layout/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -647,7 +648,9 @@ export default function ContractDetail() {
 
                         return (
                         <TableRow key={termin.id}>
-                          <TableCell className="font-medium">{termin.terminName}</TableCell>
+                          <TableCell className="font-medium whitespace-pre-line">
+                            {termin.terminName}
+                          </TableCell>
                           <TableCell className="text-right">
                             {formatCurrency(termin.terminAmount)}
                           </TableCell>
@@ -777,7 +780,7 @@ export default function ContractDetail() {
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <p className="text-xs text-muted-foreground">Nama Termin</p>
-                            <p className="font-medium">{termin.terminName}</p>
+                            <p className="font-medium whitespace-pre-line">{termin.terminName}</p>
                             <p className="text-xs text-muted-foreground mt-2">Nominal</p>
                             <p className="text-sm">{formatCurrency(termin.terminAmount)}</p>
                           </div>
@@ -985,13 +988,14 @@ export default function ContractDetail() {
             <div className="grid gap-4 py-4">
               <div className="space-y-2">
                 <Label htmlFor="terminName">Nama Termin *</Label>
-                <Input
+                <Textarea
                   id="terminName"
                   value={terminFormData.terminName}
                   onChange={(e) =>
                     setTerminFormData({ ...terminFormData, terminName: e.target.value })
                   }
-                  placeholder="DP 30%, Termin 2, Pelunasan, etc."
+                  placeholder={"DP 30%\nTermin 2\nPelunasan"}
+                  rows={4}
                   required
                 />
               </div>

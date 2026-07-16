@@ -139,6 +139,8 @@ export const letterAssignments = pgTable(
       .references(() => letters.id),
     title: text("title").notNull(),
     auditPeriodText: text("audit_period_text").notNull(),
+    executionStartDate: timestamp("execution_start_date", { mode: "date" }),
+    executionEndDate: timestamp("execution_end_date", { mode: "date" }),
     createdAt: timestamp("created_at", { mode: "date" }).notNull(),
     updatedAt: timestamp("updated_at", { mode: "date" }).notNull(),
   },

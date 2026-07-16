@@ -111,6 +111,8 @@ export interface LetterAssignment {
   letterId: string;
   title: string;
   auditPeriodText: string;
+  executionStartDate?: Date | null;
+  executionEndDate?: Date | null;
   createdAt: Date;
   updatedAt: Date;
   members?: LetterAssignmentMember[];

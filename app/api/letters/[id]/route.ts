@@ -26,6 +26,8 @@ export async function GET(
     letterId: string;
     title: string;
     auditPeriodText: string;
+    executionStartDate: Date | null;
+    executionEndDate: Date | null;
     createdAt: Date;
     updatedAt: Date;
     members: Array<{
@@ -135,9 +137,22 @@ export async function PUT(
   }
   if (body.assignment && nextLetterType === "SURAT_TUGAS") {
     const assignment = body.assignment;
-    if (!assignment?.title || !assignment?.auditPeriodText) {
+    const executionStartDate = new Date(assignment?.executionStartDate);
+    const executionEndDate = new Date(assignment?.executionEndDate);
+    if (
+      !assignment?.title ||
+      !assignment?.auditPeriodText ||
+      Number.isNaN(executionStartDate.getTime()) ||
+      Number.isNaN(executionEndDate.getTime())
+    ) {
       return NextResponse.json(
         { error: "Data surat tugas belum lengkap" },
+        { status: 400 }
+      );
+    }
+    if (executionEndDate < executionStartDate) {
+      return NextResponse.json(
+        { error: "Tanggal selesai pelaksanaan tidak boleh sebelum tanggal mulai" },
         { status: 400 }
       );
     }
@@ -263,9 +278,11 @@ export async function PUT(
         await tx
           .update(letterAssignments)
           .set({
-            title: assignmentPayload.title,
-            auditPeriodText: assignmentPayload.auditPeriodText,
-            updatedAt: now,
+          title: assignmentPayload.title,
+          auditPeriodText: assignmentPayload.auditPeriodText,
+          executionStartDate: new Date(assignmentPayload.executionStartDate),
+          executionEndDate: new Date(assignmentPayload.executionEndDate),
+          updatedAt: now,
           })
           .where(eq(letterAssignments.id, assignmentId));
       } else {
@@ -274,6 +291,8 @@ export async function PUT(
           letterId: params.id,
           title: assignmentPayload.title,
           auditPeriodText: assignmentPayload.auditPeriodText,
+          executionStartDate: new Date(assignmentPayload.executionStartDate),
+          executionEndDate: new Date(assignmentPayload.executionEndDate),
           createdAt: now,
           updatedAt: now,
         });
