@@ -6,6 +6,26 @@ import { getDb } from "@/lib/db";
 import { contracts, termins } from "@/lib/db/schema";
 import { requireAdmin } from "@/lib/auth/server";
 
+type InvoiceItem = {
+  description: string;
+  amount: number;
+};
+
+const parseInvoiceItems = (value: unknown): InvoiceItem[] | null => {
+  if (!Array.isArray(value) || value.length === 0) return null;
+
+  const items: InvoiceItem[] = [];
+  for (const item of value) {
+    const description = typeof item?.description === "string" ? item.description.trim() : "";
+    const amount = Number(item?.amount);
+    if (!description || !Number.isSafeInteger(amount) || amount <= 0) {
+      return null;
+    }
+    items.push({ description, amount });
+  }
+  return items;
+};
+
 async function updateContractPaymentStatus(db: ReturnType<typeof getDb>, contractId: string) {
   const [contract] = await db
     .select({ contractValue: contracts.contractValue })
@@ -63,9 +83,19 @@ export async function POST(request: Request) {
 
   const body = await request.json();
 
-  if (!body?.contractId || !body?.terminName || body?.terminAmount === undefined) {
+  const invoiceItems = parseInvoiceItems(body?.invoiceItems);
+  if (!body?.contractId || !body?.terminName || !invoiceItems) {
     return NextResponse.json(
       { error: "Data termin belum lengkap" },
+      { status: 400 }
+    );
+  }
+
+  const itemTotal = invoiceItems.reduce((sum, item) => sum + item.amount, 0);
+  const requestedAmount = Number(body.terminAmount);
+  if (!Number.isSafeInteger(requestedAmount) || requestedAmount !== itemTotal) {
+    return NextResponse.json(
+      { error: "Nominal termin harus sama dengan total nominal item invoice" },
       { status: 400 }
     );
   }
@@ -94,7 +124,6 @@ export async function POST(request: Request) {
 
   const contractValue = Number(contractRow.contractValue ?? 0);
   const existingTotal = Number(terminSum?.total ?? 0);
-  const requestedAmount = Number(body.terminAmount ?? 0);
   const remaining = contractValue - existingTotal;
 
   if (contractValue > 0 && existingTotal >= contractValue) {
@@ -117,7 +146,8 @@ export async function POST(request: Request) {
       id: crypto.randomUUID(),
       contractId: body.contractId,
       terminName: body.terminName,
-      terminAmount: body.terminAmount.toString(),
+      terminAmount: itemTotal.toString(),
+      invoiceItems,
       dueDate: body.dueDate ? new Date(body.dueDate) : null,
       invoiceId: body.invoiceId ?? null,
       paymentReceivedDate: body.paymentReceivedDate

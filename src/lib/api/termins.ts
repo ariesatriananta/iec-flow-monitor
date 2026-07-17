@@ -1,4 +1,4 @@
-import type { Termin } from "@/types";
+import type { Termin, TerminInvoiceItem } from "@/types";
 import { requestJson } from "./request";
 import { parseTermin } from "./parse";
 
@@ -14,6 +14,7 @@ export async function createTermin(payload: {
   contractId: string;
   terminName: string;
   terminAmount: number;
+  invoiceItems: TerminInvoiceItem[];
   dueDate?: Date;
   status?: string;
   invoiceId?: string;

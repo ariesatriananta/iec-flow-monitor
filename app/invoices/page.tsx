@@ -48,7 +48,7 @@ import {
   Filter,
   Receipt,
 } from 'lucide-react';
-import type { Contract, Invoice, InvoiceStatus } from '@/types';
+import type { Contract, Invoice, InvoiceStatus, Termin, TerminInvoiceItem } from '@/types';
 import { formatCurrency, formatDate } from '@/lib/numbering';
 import { useToast } from '@/hooks/use-toast';
 import { fetchInvoices } from '@/lib/api/invoices';
@@ -67,7 +67,7 @@ export default function Invoices() {
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [visibleCount, setVisibleCount] = useState(20);
-  const [terminNameById, setTerminNameById] = useState<Record<string, string>>({});
+  const [terminById, setTerminById] = useState<Record<string, Termin>>({});
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [headerDataUrl, setHeaderDataUrl] = useState<string>('');
@@ -114,12 +114,12 @@ export default function Invoices() {
             contractIds.map((id) => fetchTermins(id).catch(() => []))
           )
         ).flat();
-        const nextTerminMap: Record<string, string> = {};
+        const nextTerminMap: Record<string, Termin> = {};
         for (const termin of terminsList) {
-          nextTerminMap[termin.id] = termin.terminName;
+          nextTerminMap[termin.id] = termin;
         }
         if (active) {
-          setTerminNameById(nextTerminMap);
+          setTerminById(nextTerminMap);
         }
       } catch (error) {
         console.error(error);
@@ -226,7 +226,7 @@ export default function Invoices() {
         'No. Invoice': invoice.invoiceNumber,
         'Tgl Invoice': formatDate(new Date(invoice.invoiceDate)),
         'No. Proposal': contractInfo.number,
-        Termin: terminNameById[invoice.terminId] ?? '',
+        Termin: terminById[invoice.terminId]?.terminName ?? '',
         Nominal: Number(invoice.amount),
         Status: invoice.status,
         created_at: formatDateTime(invoice.createdAt),
@@ -272,7 +272,12 @@ export default function Invoices() {
   const getInvoicePreviewData = (invoice: Invoice) => {
     const contract = getContractById(invoice.contractId);
     const client = contract?.client;
-    const terminName = terminNameById[invoice.terminId] ?? '';
+    const termin = terminById[invoice.terminId];
+    const terminName = termin?.terminName ?? '';
+    const invoiceItems = (termin?.invoiceItems ?? []).filter(
+      (item): item is TerminInvoiceItem =>
+        Boolean(item?.description?.trim()) && Number.isFinite(Number(item?.amount))
+    );
     const descriptionParts = [contract?.contractTitle, terminName].filter(Boolean);
     const description = descriptionParts.join('\n');
     const dpp = Number(invoice.amount);
@@ -286,6 +291,9 @@ export default function Invoices() {
       clientName: client?.name ?? '-',
       clientAddress: client?.address ?? '-',
       clientPic: client?.picName ?? '-',
+      clientNpwp: client?.npwp?.trim() || '-',
+      contractTitle: contract?.contractTitle ?? '-',
+      invoiceItems,
       description: description || '-',
       dpp,
       ppn,
@@ -311,6 +319,44 @@ export default function Invoices() {
     const headerUrl = headerDataUrl || `${window.location.origin}/invoice-header.png`;
     const logoUrl = data.companyLogoUrl || `${window.location.origin}/logo-1.png`;
     const descriptionHtml = data.description.replace(/\n/g, '<br/>');
+    const escapeHtml = (value: string) =>
+      value.replace(/[&<>"']/g, (character) =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[
+          character as '&' | '<' | '>' | '"' | "'"
+        ] ?? character
+      );
+    const invoiceItemsHtml = data.invoiceItems
+      .map(
+        (item) => `
+          <tr>
+            <td></td>
+            <td class="description">${escapeHtml(item.description)}</td>
+            <td class="right">${formatCurrency(item.amount)}</td>
+          </tr>
+        `
+      )
+      .join('');
+    const invoiceDetailHtml = data.invoiceItems.length
+      ? `
+          <tr>
+            <td>1</td>
+            <td class="description"><strong>${escapeHtml(data.contractTitle)}</strong></td>
+            <td></td>
+          </tr>
+          ${invoiceItemsHtml}
+        `
+      : `
+          <tr>
+            <td>1</td>
+            <td class="description">${descriptionHtml}</td>
+            <td class="right">${formatCurrency(data.dpp)}</td>
+          </tr>
+        `;
+    const paymentDescriptionHtml = data.invoiceItems.length
+      ? [data.contractTitle, ...data.invoiceItems.map((item) => item.description)]
+          .map(escapeHtml)
+          .join('<br/>')
+      : descriptionHtml;
     const html = `
       <!doctype html>
       <html>
@@ -410,6 +456,9 @@ export default function Invoices() {
               <div class="row">
                 <div>Reff</div><div>:</div><div>${data.contractNumber}</div>
               </div>
+              <div class="row">
+                <div>NPWP</div><div>:</div><div>${data.clientNpwp}</div>
+              </div>
             </div>
 
             <div class="box" style="margin-top:14px;">
@@ -422,11 +471,7 @@ export default function Invoices() {
                 </tr>
               </thead>
               <tbody>
-                <tr>
-                  <td>1</td>
-                  <td class="description">${descriptionHtml}</td>
-                  <td class="right">${formatCurrency(data.dpp)}</td>
-                </tr>
+                ${invoiceDetailHtml}
                 <tr>
                   <td colspan="2" class="right">TOTAL</td>
                   <td class="right">${formatCurrency(data.dpp)}</td>
@@ -486,7 +531,7 @@ export default function Invoices() {
               </tr>
               <tr>
                 <td class="kw-label">UNTUK PEMBAYARAN:</td>
-                <td class="description">${descriptionHtml}</td>
+                <td class="description">${paymentDescriptionHtml}</td>
               </tr>
               <tr>
                 <td class="kw-label">JUMLAH:</td>
@@ -788,6 +833,9 @@ interface InvoicePreviewData {
   clientName: string;
   clientAddress: string;
   clientPic: string;
+  clientNpwp: string;
+  contractTitle: string;
+  invoiceItems: TerminInvoiceItem[];
   description: string;
   dpp: number;
   ppn: number;
@@ -840,6 +888,9 @@ function InvoicePreview({
               <span>Reff</span>
               <span>:</span>
               <span>{data.contractNumber}</span>
+              <span>NPWP</span>
+              <span>:</span>
+              <span>{data.clientNpwp}</span>
             </div>
           </div>
         <div className="overflow-auto rounded-md border border-slate-300">
@@ -852,7 +903,27 @@ function InvoicePreview({
               </tr>
             </thead>
             <tbody className="[&>tr:nth-child(even)]:bg-slate-50">
-              <tr>
+              {data.invoiceItems.length > 0 ? (
+                <>
+                  <tr>
+                    <td className="border-b border-slate-200 p-2">1</td>
+                    <td className="border-b border-slate-200 p-2 font-semibold">
+                      {data.contractTitle}
+                    </td>
+                    <td className="border-b border-slate-200 p-2" />
+                  </tr>
+                  {data.invoiceItems.map((item, index) => (
+                    <tr key={`${item.description}-${index}`}>
+                      <td className="border-b border-slate-200 p-2" />
+                      <td className="border-b border-slate-200 p-2">{item.description}</td>
+                      <td className="border-b border-slate-200 p-2 text-right">
+                        {formatCurrency(item.amount)}
+                      </td>
+                    </tr>
+                  ))}
+                </>
+              ) : (
+                <tr>
                   <td className="border-b border-slate-200 p-2">1</td>
                   <td className="border-b border-slate-200 p-2 whitespace-pre-wrap">
                     {data.description}
@@ -860,7 +931,8 @@ function InvoicePreview({
                   <td className="border-b border-slate-200 p-2 text-right">
                     {formatCurrency(data.dpp)}
                   </td>
-              </tr>
+                </tr>
+              )}
               <tr>
                 <td className="border-b border-slate-300 p-2 text-right" colSpan={2}>TOTAL</td>
                 <td className="border-b border-slate-300 p-2 text-right">{formatCurrency(data.dpp)}</td>
@@ -932,7 +1004,9 @@ function InvoicePreview({
                 <tr>
                   <td className="border-b border-slate-300 p-2">UNTUK PEMBAYARAN:</td>
                   <td className="border-b border-slate-300 p-2 whitespace-pre-wrap">
-                    {data.description}
+                    {data.invoiceItems.length > 0
+                      ? [data.contractTitle, ...data.invoiceItems.map((item) => item.description)].join('\n')
+                      : data.description}
                   </td>
                 </tr>
                 <tr>

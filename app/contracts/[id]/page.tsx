@@ -6,7 +6,6 @@ import { AdminLayout } from '@/components/layout/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -86,8 +85,8 @@ export default function ContractDetail() {
   const [isTerminDialogOpen, setIsTerminDialogOpen] = useState(false);
   const [terminFormData, setTerminFormData] = useState({
     terminName: '',
-    terminAmount: '',
     dueDate: undefined as Date | undefined,
+    invoiceItems: [{ description: '', amount: '' }],
   });
 
   useEffect(() => {
@@ -182,7 +181,22 @@ export default function ContractDetail() {
     setIsSubmitting(true);
 
     try {
-      const amount = parseFloat(terminFormData.terminAmount.replace(/[^0-9]/g, ''));
+      const invoiceItems = terminFormData.invoiceItems.map((item) => ({
+        description: item.description.trim(),
+        amount: Number(item.amount.replace(/[^0-9]/g, '')),
+      }));
+      const hasInvalidItem = invoiceItems.some(
+        (item) => !item.description || !Number.isSafeInteger(item.amount) || item.amount <= 0
+      );
+      if (hasInvalidItem) {
+        toast({
+          title: 'Error',
+          description: 'Lengkapi deskripsi dan nominal setiap item invoice',
+          variant: 'destructive',
+        });
+        return;
+      }
+      const amount = invoiceItems.reduce((sum, item) => sum + item.amount, 0);
       const remaining = contract.contractValue - totalTerminAmount;
       if (isNaN(amount) || amount <= 0) {
         toast({
@@ -213,12 +227,17 @@ export default function ContractDetail() {
         contractId: contract.id,
         terminName: terminFormData.terminName,
         terminAmount: amount,
+        invoiceItems,
         dueDate: terminFormData.dueDate,
         status: 'PENDING',
       });
       setTermins([...termins, created]);
       setIsTerminDialogOpen(false);
-      setTerminFormData({ terminName: '', terminAmount: '', dueDate: undefined });
+      setTerminFormData({
+        terminName: '',
+        dueDate: undefined,
+        invoiceItems: [{ description: '', amount: '' }],
+      });
       toast({
         title: 'Termin Ditambahkan',
         description: `${terminFormData.terminName} berhasil ditambahkan`,
@@ -988,29 +1007,104 @@ export default function ContractDetail() {
             <div className="grid gap-4 py-4">
               <div className="space-y-2">
                 <Label htmlFor="terminName">Nama Termin *</Label>
-                <Textarea
+                <Input
                   id="terminName"
                   value={terminFormData.terminName}
                   onChange={(e) =>
                     setTerminFormData({ ...terminFormData, terminName: e.target.value })
                   }
-                  placeholder={"DP 30%\nTermin 2\nPelunasan"}
-                  rows={4}
+                  placeholder="DP 30%, Termin 2, Pelunasan, etc."
                   required
                 />
               </div>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <Label>Rincian Invoice *</Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      setTerminFormData((prev) => ({
+                        ...prev,
+                        invoiceItems: [...prev.invoiceItems, { description: '', amount: '' }],
+                      }))
+                    }
+                  >
+                    <Plus className="mr-1 h-3.5 w-3.5" />
+                    Tambah Item
+                  </Button>
+                </div>
+                <div className="space-y-2">
+                  {terminFormData.invoiceItems.map((item, index) => (
+                    <div key={index} className="grid grid-cols-[minmax(0,1fr)_150px_auto] gap-2">
+                      <Input
+                        value={item.description}
+                        onChange={(e) =>
+                          setTerminFormData((prev) => ({
+                            ...prev,
+                            invoiceItems: prev.invoiceItems.map((current, currentIndex) =>
+                              currentIndex === index
+                                ? { ...current, description: e.target.value }
+                                : current
+                            ),
+                          }))
+                        }
+                        placeholder="Deskripsi item"
+                        required
+                      />
+                      <Input
+                        value={item.amount}
+                        inputMode="numeric"
+                        onChange={(e) => {
+                          const amount = e.target.value.replace(/[^0-9]/g, '');
+                          setTerminFormData((prev) => ({
+                            ...prev,
+                            invoiceItems: prev.invoiceItems.map((current, currentIndex) =>
+                              currentIndex === index ? { ...current, amount } : current
+                            ),
+                          }));
+                        }}
+                        placeholder="Nominal"
+                        required
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        disabled={terminFormData.invoiceItems.length === 1}
+                        onClick={() =>
+                          setTerminFormData((prev) => ({
+                            ...prev,
+                            invoiceItems: prev.invoiceItems.filter(
+                              (_, currentIndex) => currentIndex !== index
+                            ),
+                          }))
+                        }
+                        aria-label="Hapus item invoice"
+                      >
+                        <Trash2 className="h-4 w-4 text-muted-foreground" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
               <div className="space-y-2">
-                <Label htmlFor="terminAmount">Nominal *</Label>
+                <Label htmlFor="terminAmount">Nominal Termin</Label>
                 <Input
                   id="terminAmount"
-                  value={terminFormData.terminAmount}
-                  onChange={(e) => {
-                    const value = e.target.value.replace(/[^0-9]/g, '');
-                    setTerminFormData({ ...terminFormData, terminAmount: value });
-                  }}
-                  placeholder="45000000"
-                  required
+                  value={formatCurrency(
+                    terminFormData.invoiceItems.reduce(
+                      (sum, item) => sum + Number(item.amount.replace(/[^0-9]/g, '') || 0),
+                      0
+                    )
+                  )}
+                  readOnly
+                  className="bg-muted"
                 />
+                <p className="text-xs text-muted-foreground">
+                  Nominal termin dihitung otomatis dari total rincian invoice.
+                </p>
               </div>
               <div className="space-y-2">
                 <Label>Due Date (optional)</Label>

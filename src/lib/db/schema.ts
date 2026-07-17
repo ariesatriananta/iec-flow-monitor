@@ -8,6 +8,7 @@ import {
   index,
   uniqueIndex,
   pgEnum,
+  jsonb,
 } from "drizzle-orm/pg-core";
 
 export const clients = pgTable(
@@ -67,6 +68,7 @@ export const termins = pgTable(
       .references(() => contracts.id),
     terminName: text("termin_name").notNull(),
     terminAmount: numeric("termin_amount", { precision: 15, scale: 0 }).notNull(),
+    invoiceItems: jsonb("invoice_items"),
     dueDate: timestamp("due_date", { mode: "date" }),
     invoiceId: text("invoice_id"),
     paymentReceivedDate: timestamp("payment_received_date", { mode: "date" }),

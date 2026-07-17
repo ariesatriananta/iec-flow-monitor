@@ -1,0 +1,1 @@
+ALTER TABLE "termins" ADD COLUMN "invoice_items" jsonb;

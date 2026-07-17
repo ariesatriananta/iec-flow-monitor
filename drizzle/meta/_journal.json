@@ -204,6 +204,13 @@
       "when": 1784220145583,
       "tag": "0028_illegal_argent",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1784302999108,
+      "tag": "0029_public_jane_foster",
+      "breakpoints": true
     }
   ]
 }

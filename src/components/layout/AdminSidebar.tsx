@@ -220,7 +220,7 @@ export function AdminSidebar({ variant = 'default', onNavigate }: AdminSidebarPr
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 py-4 overflow-y-auto">
+      <nav className="sidebar-scrollbar flex-1 overflow-y-auto py-4">
         <div className="space-y-4 px-2">
           {visibleSections.map((section) => (
             <div key={section.title}>
@@ -324,4 +324,3 @@ export function AdminSidebar({ variant = 'default', onNavigate }: AdminSidebarPr
     </aside>
   );
 }
-

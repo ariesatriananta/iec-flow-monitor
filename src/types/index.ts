@@ -45,6 +45,11 @@ export interface Contract {
 // Termin Status
 export type TerminStatus = 'PENDING' | 'INVOICED' | 'PAID' | 'VOID';
 
+export interface TerminInvoiceItem {
+  description: string;
+  amount: number;
+}
+
 // Payment Termin Types
 export interface Termin {
   id: string;
@@ -52,6 +57,7 @@ export interface Termin {
   contract?: Contract;
   terminName: string;
   terminAmount: number;
+  invoiceItems?: TerminInvoiceItem[] | null;
   dueDate?: Date;
   invoiceId?: string;
   invoice?: Invoice;

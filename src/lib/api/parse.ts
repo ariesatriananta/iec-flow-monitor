@@ -37,6 +37,12 @@ export const parseClient = (data: Client): Client => ({
 export const parseTermin = (data: Termin): Termin => ({
   ...data,
   terminAmount: toNumber(data.terminAmount),
+  invoiceItems: Array.isArray(data.invoiceItems)
+    ? data.invoiceItems.map((item) => ({
+        description: String(item.description ?? ""),
+        amount: toNumber(item.amount),
+      }))
+    : null,
   dueDate: data.dueDate ? toDate(data.dueDate) : undefined,
   paymentReceivedDate: data.paymentReceivedDate
     ? toDate(data.paymentReceivedDate)
