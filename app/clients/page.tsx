@@ -73,10 +73,17 @@ export default function Clients() {
     return result;
   };
 
+  const formatNpwp2 = (value: string) =>
+    value
+      .replace(/\D/g, '')
+      .slice(0, 16)
+      .replace(/(\d{4})(?=\d)/g, '$1 ');
+
   // Form state
   const [formData, setFormData] = useState({
     name: '',
     npwp: '',
+    npwp2: '',
     address: '',
     picName: '',
     email: '',
@@ -119,6 +126,7 @@ export default function Clients() {
     setFormData({
       name: '',
       npwp: '',
+      npwp2: '',
       address: '',
       picName: '',
       email: '',
@@ -133,6 +141,7 @@ export default function Clients() {
       setFormData({
         name: client.name,
         npwp: client.npwp || '',
+        npwp2: formatNpwp2(client.npwp2 || ''),
         address: client.address || '',
         picName: client.picName || '',
         email: client.email || '',
@@ -150,6 +159,14 @@ export default function Clients() {
       toast({
         title: 'Format NPWP tidak valid',
         description: 'Gunakan format 12.345.678.9-012.345',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (formData.npwp2 && formData.npwp2.replace(/\D/g, '').length !== 16) {
+      toast({
+        title: 'Format NPWP-2 tidak valid',
+        description: 'NPWP-2 harus terdiri dari 16 digit',
         variant: 'destructive',
       });
       return;
@@ -200,6 +217,7 @@ export default function Clients() {
       const updated = await updateClient(client.id, {
         name: client.name,
         npwp: client.npwp,
+        npwp2: client.npwp2,
         address: client.address,
         picName: client.picName,
         email: client.email,
@@ -311,6 +329,24 @@ export default function Clients() {
                     </p>
                   </div>
                   <div className="space-y-2">
+                    <Label htmlFor="npwp2">NPWP-2</Label>
+                    <Input
+                      id="npwp2"
+                      value={formData.npwp2}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          npwp2: formatNpwp2(e.target.value),
+                        })
+                      }
+                      placeholder="1234 5678 9012 3456"
+                      inputMode="numeric"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Format: 1234 5678 9012 3456
+                    </p>
+                  </div>
+                  <div className="space-y-2">
                     <Label htmlFor="address">Alamat</Label>
                     <Input
                       id="address"
@@ -400,6 +436,7 @@ export default function Clients() {
                   <TableRow>
                     <TableHead>Nama Perusahaan</TableHead>
                     <TableHead>NPWP</TableHead>
+                    <TableHead>NPWP-2</TableHead>
                     <TableHead>PIC</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Status</TableHead>
@@ -409,7 +446,7 @@ export default function Clients() {
                 <TableBody>
                   {filteredClients.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8">
+                      <TableCell colSpan={7} className="text-center py-8">
                         <div className="flex flex-col items-center gap-2 text-muted-foreground">
                           <Building2 className="w-8 h-8" />
                           <p>Tidak ada client ditemukan</p>
@@ -421,6 +458,7 @@ export default function Clients() {
                     <TableRow key={client.id}>
                         <TableCell>{client.name}</TableCell>
                         <TableCell>{client.npwp || '-'}</TableCell>
+                        <TableCell>{formatNpwp2(client.npwp2 || '') || '-'}</TableCell>
                         <TableCell>{client.picName || '-'}</TableCell>
                         <TableCell>{client.email || '-'}</TableCell>
                         <TableCell>
@@ -498,6 +536,8 @@ export default function Clients() {
                         <p className="font-medium">{client.name}</p>
                         <p className="text-xs text-muted-foreground mt-2">NPWP</p>
                         <p className="text-sm">{client.npwp || '-'}</p>
+                        <p className="text-xs text-muted-foreground mt-2">NPWP-2</p>
+                        <p className="text-sm">{formatNpwp2(client.npwp2 || '') || '-'}</p>
                         <p className="text-xs text-muted-foreground mt-2">PIC</p>
                         <p className="text-sm">{client.picName || '-'}</p>
                         <p className="text-xs text-muted-foreground mt-2">Email</p>

@@ -21,6 +21,8 @@ export async function POST(request: Request) {
 
   const body = await request.json();
   const npwp = typeof body?.npwp === "string" ? body.npwp.trim() : "";
+  const npwp2 =
+    typeof body?.npwp2 === "string" ? body.npwp2.replace(/\D/g, "") : "";
 
   if (!body?.name) {
     return NextResponse.json(
@@ -32,6 +34,12 @@ export async function POST(request: Request) {
   if (npwp && !/^\d{2}\.\d{3}\.\d{3}\.\d-\d{3}\.\d{3}$/.test(npwp)) {
     return NextResponse.json(
       { error: "Format NPWP tidak valid" },
+      { status: 400 }
+    );
+  }
+  if (npwp2 && !/^\d{16}$/.test(npwp2)) {
+    return NextResponse.json(
+      { error: "NPWP-2 harus terdiri dari 16 digit" },
       { status: 400 }
     );
   }
@@ -50,6 +58,7 @@ export async function POST(request: Request) {
       name: body.name,
       code: nextCode,
       npwp: npwp || null,
+      npwp2: npwp2 || null,
       address: body.address ?? null,
       picName: body.picName ?? null,
       email: body.email ?? null,

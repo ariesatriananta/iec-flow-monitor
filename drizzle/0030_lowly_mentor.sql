@@ -1,0 +1,1 @@
+ALTER TABLE "clients" ADD COLUMN "npwp_2" text;

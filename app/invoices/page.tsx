@@ -272,6 +272,10 @@ export default function Invoices() {
   const getInvoicePreviewData = (invoice: Invoice) => {
     const contract = getContractById(invoice.contractId);
     const client = contract?.client;
+    const formattedNpwp2 = (client?.npwp2 ?? '')
+      .replace(/\D/g, '')
+      .slice(0, 16)
+      .replace(/(\d{4})(?=\d)/g, '$1 ');
     const termin = terminById[invoice.terminId];
     const terminName = termin?.terminName ?? '';
     const invoiceItems = (termin?.invoiceItems ?? []).filter(
@@ -291,7 +295,7 @@ export default function Invoices() {
       clientName: client?.name ?? '-',
       clientAddress: client?.address ?? '-',
       clientPic: client?.picName ?? '-',
-      clientNpwp: client?.npwp?.trim() || '-',
+      clientNpwp: formattedNpwp2 || client?.npwp?.trim() || '-',
       contractTitle: contract?.contractTitle ?? '-',
       invoiceItems,
       description: description || '-',

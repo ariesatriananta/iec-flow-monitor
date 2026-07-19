@@ -4,6 +4,7 @@ export interface Client {
   name: string;
   code: string;
   npwp?: string;
+  npwp2?: string;
   address?: string;
   picName?: string;
   email?: string;

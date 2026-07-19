@@ -19,6 +19,7 @@ export async function fetchClient(id: string): Promise<Client> {
 export async function createClient(payload: {
   name: string;
   npwp?: string;
+  npwp2?: string;
   address?: string;
   picName?: string;
   email?: string;
@@ -37,6 +38,7 @@ export async function updateClient(
   payload: {
     name: string;
     npwp?: string;
+    npwp2?: string;
     address?: string;
     picName?: string;
     email?: string;
