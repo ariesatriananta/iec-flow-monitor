@@ -486,14 +486,14 @@ export default function Invoices() {
                 </tr>
                 <tr>
                   <td colspan="2" class="right">PPN (11%)</td>
-                  <td class="right">${formatCurrency(data.ppn)}</td>
+                  <td class="right">(${formatCurrency(data.ppn)})</td>
                 </tr>
                 ${
                   data.pph23Rate == null
                     ? ''
                     : `<tr>
                   <td colspan="2" class="right">PPh 23 (${data.pph23Rate}%)</td>
-                  <td class="right">-${formatCurrency(data.pph23)}</td>
+                  <td class="right">(${formatCurrency(data.pph23)})</td>
                 </tr>`
                 }
                 <tr>
@@ -957,7 +957,9 @@ function InvoicePreview({
               </tr>
               <tr>
                 <td className="border-b border-slate-300 p-2 text-right" colSpan={2}>PPN (11%)</td>
-                <td className="border-b border-slate-300 p-2 text-right">{formatCurrency(data.ppn)}</td>
+                <td className="border-b border-slate-300 p-2 text-right">
+                  ({formatCurrency(data.ppn)})
+                </td>
               </tr>
               {data.pph23Rate != null && (
                 <tr>
@@ -965,7 +967,7 @@ function InvoicePreview({
                     PPh 23 ({data.pph23Rate}%)
                   </td>
                   <td className="border-b border-slate-300 p-2 text-right">
-                    -{formatCurrency(data.pph23)}
+                    ({formatCurrency(data.pph23)})
                   </td>
                 </tr>
               )}
