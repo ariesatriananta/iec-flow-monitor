@@ -120,6 +120,7 @@ export async function PUT(
           seqNo,
           invoiceNumber,
           amount: updated.terminAmount.toString(),
+          pph23Rate: "2.00",
           status: "ISSUED",
           createdAt: new Date(),
           updatedAt: new Date(),

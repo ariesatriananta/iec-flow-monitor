@@ -1,0 +1,1 @@
+ALTER TABLE "invoices" ADD COLUMN "pph23_rate" numeric(5, 2);

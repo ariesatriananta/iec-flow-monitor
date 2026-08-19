@@ -82,6 +82,7 @@ export interface Invoice {
   seqNo: number;
   invoiceNumber: string;
   amount: number;
+  pph23Rate: number | null;
   status: InvoiceStatus;
   createdAt: Date;
   updatedAt: Date;

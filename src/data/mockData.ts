@@ -239,6 +239,7 @@ export const mockInvoices: Invoice[] = [
     seqNo: 2,
     invoiceNumber: 'I.002/AP.2137/XII/2024',
     amount: 60000000,
+    pph23Rate: null,
     status: 'ISSUED',
     createdAt: new Date('2024-12-20'),
     updatedAt: new Date('2024-12-20')
@@ -251,6 +252,7 @@ export const mockInvoices: Invoice[] = [
     seqNo: 1,
     invoiceNumber: 'I.001/AP.2137/XII/2024',
     amount: 45000000,
+    pph23Rate: null,
     status: 'PAID',
     createdAt: new Date('2024-12-14'),
     updatedAt: new Date('2024-12-14')

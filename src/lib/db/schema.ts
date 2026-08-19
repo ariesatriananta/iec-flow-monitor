@@ -96,6 +96,7 @@ export const invoices = pgTable(
     seqNo: integer("seq_no").notNull(),
     invoiceNumber: text("invoice_number").notNull(),
     amount: numeric("amount", { precision: 15, scale: 0 }).notNull(),
+    pph23Rate: numeric("pph23_rate", { precision: 5, scale: 2 }),
     status: text("status").notNull(),
     createdAt: timestamp("created_at", { mode: "date" }).notNull(),
     updatedAt: timestamp("updated_at", { mode: "date" }).notNull(),

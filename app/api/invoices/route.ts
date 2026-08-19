@@ -60,6 +60,7 @@ export async function POST(request: Request) {
       seqNo: Number(body.seqNo),
       invoiceNumber: body.invoiceNumber,
       amount: body.amount.toString(),
+      pph23Rate: "2.00",
       status: body.status,
       createdAt: now,
       updatedAt: now,

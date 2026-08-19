@@ -287,7 +287,9 @@ export default function Invoices() {
     const dpp = Number(invoice.amount);
     const ppnRate = 11;
     const ppn = Math.round(dpp * (ppnRate / 100));
-    const total = dpp + ppn;
+    const pph23Rate = invoice.pph23Rate == null ? null : Number(invoice.pph23Rate);
+    const pph23 = pph23Rate == null ? 0 : Math.round(dpp * (pph23Rate / 100));
+    const total = dpp + ppn - pph23;
     return {
       contractNumber: contract?.proposalNumber ?? '-',
       invoiceNumber: invoice.invoiceNumber,
@@ -302,6 +304,8 @@ export default function Invoices() {
       dpp,
       ppn,
       ppnRate,
+      pph23,
+      pph23Rate,
       total,
       terbilang: `${terbilang(total).toUpperCase()} RUPIAH`,
       signerName: settings?.defaultSignerName || 'Anita Rahman, CPA',
@@ -484,6 +488,14 @@ export default function Invoices() {
                   <td colspan="2" class="right">PPN (11%)</td>
                   <td class="right">${formatCurrency(data.ppn)}</td>
                 </tr>
+                ${
+                  data.pph23Rate == null
+                    ? ''
+                    : `<tr>
+                  <td colspan="2" class="right">PPh 23 (${data.pph23Rate}%)</td>
+                  <td class="right">-${formatCurrency(data.pph23)}</td>
+                </tr>`
+                }
                 <tr>
                   <td colspan="2" class="right"><strong>TOTAL TAGIHAN</strong></td>
                   <td class="right"><strong>${formatCurrency(data.total)}</strong></td>
@@ -844,6 +856,8 @@ interface InvoicePreviewData {
   dpp: number;
   ppn: number;
   ppnRate: number;
+  pph23: number;
+  pph23Rate: number | null;
   total: number;
   terbilang: string;
   signerName: string;
@@ -945,6 +959,16 @@ function InvoicePreview({
                 <td className="border-b border-slate-300 p-2 text-right" colSpan={2}>PPN (11%)</td>
                 <td className="border-b border-slate-300 p-2 text-right">{formatCurrency(data.ppn)}</td>
               </tr>
+              {data.pph23Rate != null && (
+                <tr>
+                  <td className="border-b border-slate-300 p-2 text-right" colSpan={2}>
+                    PPh 23 ({data.pph23Rate}%)
+                  </td>
+                  <td className="border-b border-slate-300 p-2 text-right">
+                    -{formatCurrency(data.pph23)}
+                  </td>
+                </tr>
+              )}
               <tr>
                 <td className="border-b border-slate-300 p-2 text-right font-semibold" colSpan={2}>
                   TOTAL TAGIHAN

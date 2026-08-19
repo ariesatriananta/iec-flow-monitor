@@ -54,6 +54,9 @@ export const parseTermin = (data: Termin): Termin => ({
 export const parseInvoice = (data: Invoice): Invoice => ({
   ...data,
   amount: toNumber(data.amount),
+  pph23Rate: data.pph23Rate === null || data.pph23Rate === undefined
+    ? null
+    : toNumber(data.pph23Rate),
   invoiceDate: toDate(data.invoiceDate),
   createdAt: toDate(data.createdAt),
   updatedAt: toDate(data.updatedAt),
