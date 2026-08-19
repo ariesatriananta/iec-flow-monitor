@@ -112,7 +112,7 @@ const buildSuratTugasSubject = (clientName: string, auditPeriodText: string) =>
   `Surat Tugas Pelaksanaan Audit Laporan Keuangan ${clientName} untuk tahun yang berakhir pada ${auditPeriodText}`;
 
 const buildSuratTugasIntro = (clientName: string, auditPeriodText: string) =>
-  `Sehubungan dengan pelaksanaan perikatan audit atas laporan keuangan konsolidasian ${clientName} untuk tahun yang berakhir pada ${auditPeriodText}, maka dengan ini kami menugaskan tim audit dengan susunan sebagai berikut:`;
+  `Sehubungan dengan pelaksanaan perikatan audit atas laporan keuangan ${clientName} untuk tahun yang berakhir pada ${auditPeriodText}, maka dengan ini kami menugaskan tim audit dengan susunan sebagai berikut:`;
 
 const suratTugasClosingText =
   'Demi kelancaran pelaksanaan pekerjaan, kami yakin manajemen akan mendukung dan bekerjasama dengan Tim tersebut di atas.';
