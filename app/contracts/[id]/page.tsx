@@ -85,6 +85,7 @@ export default function ContractDetail() {
   const [isTerminDialogOpen, setIsTerminDialogOpen] = useState(false);
   const [terminFormData, setTerminFormData] = useState({
     terminName: '',
+    poNumber: '',
     dueDate: undefined as Date | undefined,
     invoiceItems: [{ description: '', amount: '' }],
   });
@@ -226,6 +227,7 @@ export default function ContractDetail() {
       const created = await createTermin({
         contractId: contract.id,
         terminName: terminFormData.terminName,
+        poNumber: terminFormData.poNumber,
         terminAmount: amount,
         invoiceItems,
         dueDate: terminFormData.dueDate,
@@ -235,6 +237,7 @@ export default function ContractDetail() {
       setIsTerminDialogOpen(false);
       setTerminFormData({
         terminName: '',
+        poNumber: '',
         dueDate: undefined,
         invoiceItems: [{ description: '', amount: '' }],
       });
@@ -1015,6 +1018,17 @@ export default function ContractDetail() {
                   }
                   placeholder="DP 30%, Termin 2, Pelunasan, etc."
                   required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="poNumber">No. PO (opsional)</Label>
+                <Input
+                  id="poNumber"
+                  value={terminFormData.poNumber}
+                  onChange={(e) =>
+                    setTerminFormData({ ...terminFormData, poNumber: e.target.value })
+                  }
+                  placeholder="Masukkan nomor PO jika ada"
                 />
               </div>
               <div className="space-y-3">

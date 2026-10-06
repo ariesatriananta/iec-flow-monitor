@@ -13,6 +13,7 @@ export async function fetchTermins(contractId: string): Promise<Termin[]> {
 export async function createTermin(payload: {
   contractId: string;
   terminName: string;
+  poNumber?: string | null;
   terminAmount: number;
   invoiceItems: TerminInvoiceItem[];
   dueDate?: Date;

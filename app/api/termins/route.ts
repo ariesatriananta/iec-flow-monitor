@@ -83,6 +83,14 @@ export async function POST(request: Request) {
 
   const body = await request.json();
 
+  if (body?.poNumber != null && typeof body.poNumber !== "string") {
+    return NextResponse.json(
+      { error: "No. PO harus berupa teks" },
+      { status: 400 }
+    );
+  }
+  const poNumber = body?.poNumber?.trim() || null;
+
   const invoiceItems = parseInvoiceItems(body?.invoiceItems);
   if (!body?.contractId || !body?.terminName || !invoiceItems) {
     return NextResponse.json(
@@ -146,6 +154,7 @@ export async function POST(request: Request) {
       id: crypto.randomUUID(),
       contractId: body.contractId,
       terminName: body.terminName,
+      poNumber,
       terminAmount: itemTotal.toString(),
       invoiceItems,
       dueDate: body.dueDate ? new Date(body.dueDate) : null,

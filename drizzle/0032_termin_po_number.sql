@@ -1,0 +1,1 @@
+ALTER TABLE "termins" ADD COLUMN "po_number" text;

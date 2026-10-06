@@ -68,6 +68,7 @@ export const termins = pgTable(
       .notNull()
       .references(() => contracts.id),
     terminName: text("termin_name").notNull(),
+    poNumber: text("po_number"),
     terminAmount: numeric("termin_amount", { precision: 15, scale: 0 }).notNull(),
     invoiceItems: jsonb("invoice_items"),
     dueDate: timestamp("due_date", { mode: "date" }),

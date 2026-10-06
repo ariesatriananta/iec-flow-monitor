@@ -57,6 +57,7 @@ export interface Termin {
   contractId: string;
   contract?: Contract;
   terminName: string;
+  poNumber?: string | null;
   terminAmount: number;
   invoiceItems?: TerminInvoiceItem[] | null;
   dueDate?: Date;

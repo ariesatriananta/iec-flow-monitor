@@ -292,6 +292,7 @@ export default function Invoices() {
     const total = dpp + ppn - pph23;
     return {
       contractNumber: contract?.proposalNumber ?? '-',
+      poNumber: termin?.poNumber?.trim() || '',
       invoiceNumber: invoice.invoiceNumber,
       invoiceDate: formatDateLong(invoice.invoiceDate),
       clientName: client?.name ?? '-',
@@ -464,6 +465,7 @@ export default function Invoices() {
               <div class="row">
                 <div>Reff</div><div>:</div><div>${data.contractNumber}</div>
               </div>
+              ${data.poNumber ? `<div class="row"><div>No. PO</div><div>:</div><div style="min-width:0;overflow-wrap:anywhere;">${escapeHtml(data.poNumber)}</div></div>` : ''}
               <div class="row">
                 <div>NPWP</div><div>:</div><div>${data.clientNpwp}</div>
               </div>
@@ -844,6 +846,7 @@ export default function Invoices() {
 
 interface InvoicePreviewData {
   contractNumber: string;
+  poNumber: string;
   invoiceNumber: string;
   invoiceDate: string;
   clientName: string;
@@ -906,6 +909,13 @@ function InvoicePreview({
               <span>Reff</span>
               <span>:</span>
               <span>{data.contractNumber}</span>
+              {data.poNumber && (
+                <>
+                  <span>No. PO</span>
+                  <span>:</span>
+                  <span className="min-w-0 break-words">{data.poNumber}</span>
+                </>
+              )}
               <span>NPWP</span>
               <span>:</span>
               <span>{data.clientNpwp}</span>
