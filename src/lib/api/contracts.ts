@@ -40,6 +40,7 @@ export async function createContract(payload: {
 export async function updateContract(
   id: string,
   payload: {
+    clientId?: string;
     contractTitle?: string;
     contractValue?: number;
     paymentStatus?: string;

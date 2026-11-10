@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic"
 
 import { NextResponse } from "next/server";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { clients, contracts, termins } from "@/lib/db/schema";
 import { requireAdmin } from "@/lib/auth/server";
@@ -54,7 +54,22 @@ export async function PUT(
   }
 
   const db = getDb();
+  const [currentContract] = await db
+    .select({
+      id: contracts.id,
+      clientId: contracts.clientId,
+      status: contracts.status,
+    })
+    .from(contracts)
+    .where(eq(contracts.id, params.id))
+    .limit(1);
+
+  if (!currentContract) {
+    return NextResponse.json({ error: "Contract tidak ditemukan" }, { status: 404 });
+  }
+
   const updateData: {
+    clientId?: string;
     contractTitle?: string | null;
     contractValue?: string;
     paymentStatus?: string;
@@ -64,6 +79,50 @@ export async function PUT(
   } = {
     updatedAt: new Date(),
   };
+
+  const requestedClientId = body.clientId;
+  const isClientChange =
+    requestedClientId !== undefined && requestedClientId !== currentContract.clientId;
+
+  if (requestedClientId !== undefined) {
+    if (typeof requestedClientId !== "string" || requestedClientId.trim() === "") {
+      return NextResponse.json(
+        { error: "Client tujuan tidak valid" },
+        { status: 400 }
+      );
+    }
+
+    if (isClientChange) {
+      if (currentContract.status !== "VOID") {
+        return NextResponse.json(
+          { error: "Client hanya dapat diubah ketika contract berstatus VOID" },
+          { status: 409 }
+        );
+      }
+
+      const [targetClient] = await db
+        .select({ id: clients.id, isActive: clients.isActive })
+        .from(clients)
+        .where(eq(clients.id, requestedClientId))
+        .limit(1);
+
+      if (!targetClient) {
+        return NextResponse.json(
+          { error: "Client tujuan tidak ditemukan" },
+          { status: 400 }
+        );
+      }
+
+      if (!targetClient.isActive) {
+        return NextResponse.json(
+          { error: "Client tujuan sudah tidak aktif" },
+          { status: 409 }
+        );
+      }
+
+      updateData.clientId = requestedClientId;
+    }
+  }
 
   if (body.contractTitle !== undefined) {
     updateData.contractTitle = body.contractTitle ?? null;
@@ -84,10 +143,25 @@ export async function PUT(
   const [updated] = await db
     .update(contracts)
     .set(updateData)
-    .where(eq(contracts.id, params.id))
+    .where(
+      isClientChange
+        ? and(
+            eq(contracts.id, params.id),
+            eq(contracts.status, "VOID"),
+            eq(contracts.clientId, currentContract.clientId)
+          )
+        : eq(contracts.id, params.id)
+    )
     .returning();
 
   if (!updated) {
+    if (isClientChange) {
+      return NextResponse.json(
+        { error: "Contract telah berubah; perubahan client dibatalkan" },
+        { status: 409 }
+      );
+    }
+
     return NextResponse.json({ error: "Contract tidak ditemukan" }, { status: 404 });
   }
 

@@ -209,14 +209,16 @@ export default function Contracts() {
     return Math.max(...clientContracts.map((c) => c.engagementNo)) + 1;
   };
 
-  const previewProposalNumber = formData.clientId
-    ? generateProposalNumber({
-        seqNo: getNextSeqNo(formData.proposalDate),
-        serviceCode: formData.serviceCode,
-        engagementNo: getPreviewEngagementNo(formData.clientId, formData.serviceCode),
-        proposalDate: formData.proposalDate,
-      })
-    : '';
+  const previewProposalNumber = editingContract
+    ? editingContract.proposalNumber
+    : formData.clientId
+      ? generateProposalNumber({
+          seqNo: getNextSeqNo(formData.proposalDate),
+          serviceCode: formData.serviceCode,
+          engagementNo: getPreviewEngagementNo(formData.clientId, formData.serviceCode),
+          proposalDate: formData.proposalDate,
+        })
+      : '';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -246,13 +248,18 @@ export default function Contracts() {
       if (editingContract) {
         // Update existing contract
         const updated = await updateContract(editingContract.id, {
+          clientId:
+            editingContract.status === 'VOID' &&
+            formData.clientId !== editingContract.clientId
+              ? formData.clientId
+              : undefined,
           contractTitle: formData.contractTitle,
           contractValue,
           notes: formData.notes,
         });
         setContracts(
           contracts.map((c) =>
-            c.id === updated.id ? { ...updated, client: c.client } : c
+            c.id === updated.id ? { ...updated, client } : c
           )
         );
         toast({
@@ -567,12 +574,21 @@ export default function Contracts() {
                                 </>
                               )}
                               {contract.status === 'VOID' && (
-                                <DropdownMenuItem
-                                  onClick={() => handleReactivateContract(contract)}
-                                >
-                                  <RotateCcw className="w-4 h-4 mr-2" />
-                                  Reactivate
-                                </DropdownMenuItem>
+                                <>
+                                  <DropdownMenuItem
+                                    onClick={() => handleOpenDialog(contract)}
+                                  >
+                                    <Pencil className="w-4 h-4 mr-2" />
+                                    Edit
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    onClick={() => handleReactivateContract(contract)}
+                                  >
+                                    <RotateCcw className="w-4 h-4 mr-2" />
+                                    Reactivate
+                                  </DropdownMenuItem>
+                                </>
                               )}
                             </DropdownMenuContent>
                           </DropdownMenu>
@@ -660,12 +676,21 @@ export default function Contracts() {
                             </>
                           )}
                           {contract.status === 'VOID' && (
-                            <DropdownMenuItem
-                              onClick={() => handleReactivateContract(contract)}
-                            >
-                              <RotateCcw className="w-4 h-4 mr-2" />
-                              Reactivate
-                            </DropdownMenuItem>
+                            <>
+                              <DropdownMenuItem
+                                onClick={() => handleOpenDialog(contract)}
+                              >
+                                <Pencil className="w-4 h-4 mr-2" />
+                                Edit
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() => handleReactivateContract(contract)}
+                              >
+                                <RotateCcw className="w-4 h-4 mr-2" />
+                                Reactivate
+                              </DropdownMenuItem>
+                            </>
                           )}
                         </DropdownMenuContent>
                       </DropdownMenu>
@@ -719,14 +744,14 @@ export default function Contracts() {
                     onValueChange={(value) =>
                       setFormData({ ...formData, clientId: value })
                     }
-                    disabled={!!editingContract}
+                    disabled={!!editingContract && editingContract.status !== 'VOID'}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Pilih Client" />
                     </SelectTrigger>
                     <SelectContent>
                         {clients
-                          .filter((c) => c.isActive)
+                          .filter((c) => c.isActive || c.id === formData.clientId)
                           .map((client) => (
                             <SelectItem key={client.id} value={client.id}>
                               {client.name}
@@ -734,6 +759,11 @@ export default function Contracts() {
                           ))}
                     </SelectContent>
                   </Select>
+                  {editingContract?.status === 'VOID' && (
+                    <p className="text-xs text-muted-foreground">
+                      Client dapat diganti karena kontrak berstatus VOID.
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label>Tanggal Proposal *</Label>
