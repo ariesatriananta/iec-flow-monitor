@@ -6,6 +6,7 @@ import { getDb } from "@/lib/db";
 import { clients, letters, letterAssignments, letterAssignmentMembers, settings } from "@/lib/db/schema";
 import { generateLetterNumber, getJakartaMonthYear } from "@/lib/numbering";
 import { requireAdmin } from "@/lib/auth/server";
+import { recordAuditLog } from "@/lib/audit-log";
 
 export async function GET() {
   const auth = await requireAdmin();
@@ -185,6 +186,19 @@ export async function POST(request: Request) {
     }
 
     return created;
+  });
+
+  await recordAuditLog({
+    module: "LETTER",
+    entityId: result.id,
+    action: "CREATE",
+    actor: auth.user,
+    details: {
+      letterNumber: result.letterNumber,
+      letterType: result.letterType,
+      subject: result.subject,
+      status: result.status,
+    },
   });
 
   return NextResponse.json(result, { status: 201 });

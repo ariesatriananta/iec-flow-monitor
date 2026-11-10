@@ -5,6 +5,7 @@ import { sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { clients } from "@/lib/db/schema";
 import { requireAdmin } from "@/lib/auth/server";
+import { recordAuditLog } from "@/lib/audit-log";
 
 export async function GET() {
   const auth = await requireAdmin();
@@ -68,6 +69,14 @@ export async function POST(request: Request) {
       updatedAt: now,
     })
     .returning();
+
+  await recordAuditLog({
+    module: "CLIENT",
+    entityId: created.id,
+    action: "CREATE",
+    actor: auth.user,
+    details: { name: created.name, code: created.code },
+  });
 
   return NextResponse.json(created, { status: 201 });
 }

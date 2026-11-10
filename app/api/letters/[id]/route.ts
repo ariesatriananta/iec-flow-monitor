@@ -12,6 +12,7 @@ import {
 } from "@/lib/db/schema";
 import { generateLetterNumber, getJakartaMonthYear } from "@/lib/numbering";
 import { requireAdmin } from "@/lib/auth/server";
+import { recordAuditLog } from "@/lib/audit-log";
 
 export async function GET(
   _request: Request,
@@ -106,6 +107,8 @@ export async function PUT(
       letterType: letters.letterType,
       hrgaCategory: letters.hrgaCategory,
       clientId: letters.clientId,
+      letterNumber: letters.letterNumber,
+      status: letters.status,
     })
     .from(letters)
     .where(eq(letters.id, params.id))
@@ -322,6 +325,24 @@ export async function PUT(
       return saved;
     });
 
+    if (updated) {
+      const statusChanged =
+        body.status !== undefined && body.status !== existing.status;
+      await recordAuditLog({
+        module: "LETTER",
+        entityId: updated.id,
+        action: statusChanged ? "STATUS_CHANGED" : "UPDATE",
+        actor: auth.user,
+        details: {
+          letterNumber: updated.letterNumber,
+          letterType: updated.letterType,
+          ...(statusChanged
+            ? { fromStatus: existing.status, toStatus: updated.status }
+            : {}),
+        },
+      });
+    }
+
     return NextResponse.json(updated);
   }
 
@@ -330,6 +351,24 @@ export async function PUT(
     .set(updateData)
     .where(eq(letters.id, params.id))
     .returning();
+
+  if (updated) {
+    const statusChanged =
+      body.status !== undefined && body.status !== existing.status;
+    await recordAuditLog({
+      module: "LETTER",
+      entityId: updated.id,
+      action: statusChanged ? "STATUS_CHANGED" : "UPDATE",
+      actor: auth.user,
+      details: {
+        letterNumber: updated.letterNumber,
+        letterType: updated.letterType,
+        ...(statusChanged
+          ? { fromStatus: existing.status, toStatus: updated.status }
+          : {}),
+      },
+    });
+  }
 
   return NextResponse.json(updated);
 }
@@ -343,7 +382,12 @@ export async function DELETE(
 
   const db = getDb();
   const [existing] = await db
-    .select({ id: letters.id, letterType: letters.letterType })
+    .select({
+      id: letters.id,
+      letterType: letters.letterType,
+      letterNumber: letters.letterNumber,
+      subject: letters.subject,
+    })
     .from(letters)
     .where(eq(letters.id, params.id))
     .limit(1);
@@ -379,6 +423,18 @@ export async function DELETE(
   if (!deleted) {
     return NextResponse.json({ error: "Letter tidak ditemukan" }, { status: 404 });
   }
+
+  await recordAuditLog({
+    module: "LETTER",
+    entityId: existing.id,
+    action: "DELETE",
+    actor: auth.user,
+    details: {
+      letterNumber: existing.letterNumber,
+      letterType: existing.letterType,
+      subject: existing.subject,
+    },
+  });
 
   return NextResponse.json(deleted);
 }

@@ -21,6 +21,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Building2,
+  History,
   Pause,
   Play
 } from 'lucide-react';
@@ -138,6 +139,12 @@ const navSections: NavSection[] = [
         title: 'Business Trip Compensation',
         href: '/settings/business-trip-allowance',
         icon: HandCoins,
+        roles: ['ADMIN']
+      },
+      {
+        title: 'Audit Logs',
+        href: '/audit-logs',
+        icon: History,
         roles: ['ADMIN']
       },
     ],

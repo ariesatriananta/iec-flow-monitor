@@ -13,6 +13,7 @@ import {
   termins,
 } from "@/lib/db/schema";
 import { requireAdmin } from "@/lib/auth/server";
+import { recordAuditLog } from "@/lib/audit-log";
 
 export async function GET(
   _request: Request,
@@ -68,6 +69,11 @@ export async function PUT(
   }
 
   const db = getDb();
+  const [beforeUpdate] = await db
+    .select({ isActive: clients.isActive })
+    .from(clients)
+    .where(eq(clients.id, params.id))
+    .limit(1);
   const [updated] = await db
     .update(clients)
     .set({
@@ -88,6 +94,23 @@ export async function PUT(
     return NextResponse.json({ error: "Client tidak ditemukan" }, { status: 404 });
   }
 
+  const activeStatusChanged =
+    beforeUpdate !== undefined && beforeUpdate.isActive !== updated.isActive;
+  await recordAuditLog({
+    module: "CLIENT",
+    entityId: updated.id,
+    action: activeStatusChanged ? "STATUS_CHANGED" : "UPDATE",
+    actor: auth.user,
+    details: {
+      name: updated.name,
+      code: updated.code,
+      isActive: updated.isActive,
+      ...(activeStatusChanged
+        ? { fromStatus: beforeUpdate.isActive ? "ACTIVE" : "INACTIVE", toStatus: updated.isActive ? "ACTIVE" : "INACTIVE" }
+        : {}),
+    },
+  });
+
   return NextResponse.json(updated);
 }
 
@@ -101,7 +124,7 @@ export async function DELETE(
   const db = getDb();
 
   const [client] = await db
-    .select({ id: clients.id })
+    .select({ id: clients.id, name: clients.name, code: clients.code })
     .from(clients)
     .where(eq(clients.id, params.id))
     .limit(1);
@@ -163,6 +186,14 @@ export async function DELETE(
   if (!result) {
     return NextResponse.json({ error: "Client tidak ditemukan" }, { status: 404 });
   }
+
+  await recordAuditLog({
+    module: "CLIENT",
+    entityId: client.id,
+    action: "DELETE",
+    actor: auth.user,
+    details: { name: client.name, code: client.code },
+  });
 
   return NextResponse.json(result);
 }

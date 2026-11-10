@@ -6,6 +6,7 @@ import { getDb } from "@/lib/db";
 import { clients, contracts, settings } from "@/lib/db/schema";
 import { generateProposalNumber } from "@/lib/numbering";
 import { requireAdmin } from "@/lib/auth/server";
+import { recordAuditLog } from "@/lib/audit-log";
 
 export async function GET() {
   const auth = await requireAdmin();
@@ -84,6 +85,18 @@ export async function POST(request: Request) {
       updatedAt: now,
     })
     .returning();
+
+  await recordAuditLog({
+    module: "CONTRACT",
+    entityId: created.id,
+    action: "CREATE",
+    actor: auth.user,
+    details: {
+      proposalNumber: created.proposalNumber,
+      clientId: created.clientId,
+      status: created.status,
+    },
+  });
 
   return NextResponse.json(created, { status: 201 });
 }

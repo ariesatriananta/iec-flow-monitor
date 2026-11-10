@@ -17,6 +17,7 @@ const PROTECTED_PREFIXES = [
   "/contracts",
   "/invoices",
   "/letters",
+  "/audit-logs",
   "/users",
   "/settings",
   "/profile",

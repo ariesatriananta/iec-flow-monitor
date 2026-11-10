@@ -5,6 +5,7 @@ import { and, eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { clients, contracts, termins } from "@/lib/db/schema";
 import { requireAdmin } from "@/lib/auth/server";
+import { recordAuditLog } from "@/lib/audit-log";
 
 export async function GET(
   _request: Request,
@@ -164,6 +165,28 @@ export async function PUT(
 
     return NextResponse.json({ error: "Contract tidak ditemukan" }, { status: 404 });
   }
+
+  const statusChanged =
+    body.status !== undefined && body.status !== currentContract.status;
+  await recordAuditLog({
+    module: "CONTRACT",
+    entityId: updated.id,
+    action: statusChanged
+      ? "STATUS_CHANGED"
+      : isClientChange
+        ? "CLIENT_CHANGED"
+        : "UPDATE",
+    actor: auth.user,
+    details: {
+      proposalNumber: updated.proposalNumber,
+      ...(statusChanged
+        ? { fromStatus: currentContract.status, toStatus: updated.status }
+        : {}),
+      ...(isClientChange
+        ? { fromClientId: currentContract.clientId, toClientId: updated.clientId }
+        : {}),
+    },
+  });
 
   return NextResponse.json(updated);
 }

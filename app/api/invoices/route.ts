@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { invoices } from "@/lib/db/schema";
 import { requireAdmin } from "@/lib/auth/server";
+import { recordAuditLog } from "@/lib/audit-log";
 
 export async function GET(request: Request) {
   const auth = await requireAdmin();
@@ -66,6 +67,20 @@ export async function POST(request: Request) {
       updatedAt: now,
     })
     .returning();
+
+  await recordAuditLog({
+    module: "INVOICE",
+    entityId: created.id,
+    action: "CREATE",
+    actor: auth.user,
+    details: {
+      invoiceNumber: created.invoiceNumber,
+      contractId: created.contractId,
+      terminId: created.terminId,
+      status: created.status,
+      pph23Enabled: created.pph23Rate !== null,
+    },
+  });
 
   return NextResponse.json(created, { status: 201 });
 }

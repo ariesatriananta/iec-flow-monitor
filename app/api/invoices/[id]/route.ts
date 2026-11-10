@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { invoices } from "@/lib/db/schema";
 import { requireAdmin } from "@/lib/auth/server";
+import { recordAuditLog } from "@/lib/audit-log";
 
 export async function PUT(
   request: Request,
@@ -23,6 +24,11 @@ export async function PUT(
   }
 
   const db = getDb();
+  const [beforeUpdate] = await db
+    .select({ status: invoices.status })
+    .from(invoices)
+    .where(eq(invoices.id, params.id))
+    .limit(1);
   const [updated] = await db
     .update(invoices)
     .set({
@@ -39,6 +45,21 @@ export async function PUT(
   if (!updated) {
     return NextResponse.json({ error: "Invoice tidak ditemukan" }, { status: 404 });
   }
+
+  const statusChanged =
+    body.status !== undefined && body.status !== beforeUpdate?.status;
+  await recordAuditLog({
+    module: "INVOICE",
+    entityId: updated.id,
+    action: statusChanged ? "STATUS_CHANGED" : "UPDATE",
+    actor: auth.user,
+    details: {
+      invoiceNumber: updated.invoiceNumber,
+      ...(statusChanged
+        ? { fromStatus: beforeUpdate?.status ?? null, toStatus: updated.status }
+        : {}),
+    },
+  });
 
   return NextResponse.json(updated);
 }

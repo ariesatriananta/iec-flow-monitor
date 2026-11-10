@@ -502,6 +502,28 @@ export const workflowEvents = pgTable(
   })
 );
 
+export const auditLogs = pgTable(
+  "audit_logs",
+  {
+    id: text("id").primaryKey(),
+    module: text("module").notNull(),
+    entityId: text("entity_id"),
+    action: text("action").notNull(),
+    // Intentionally no foreign key: audit history must survive user deletion.
+    actorUserId: text("actor_user_id"),
+    actorName: text("actor_name").notNull(),
+    details: jsonb("details").$type<Record<string, unknown>>(),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+  },
+  (table) => ({
+    moduleEntityIdx: index("audit_logs_module_entity_idx").on(
+      table.module,
+      table.entityId
+    ),
+    createdAtIdx: index("audit_logs_created_at_idx").on(table.createdAt),
+  })
+);
+
 export const notifications = pgTable(
   "notifications",
   {

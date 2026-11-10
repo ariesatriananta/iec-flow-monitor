@@ -5,6 +5,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { contracts, termins } from "@/lib/db/schema";
 import { requireAdmin } from "@/lib/auth/server";
+import { recordAuditLog } from "@/lib/audit-log";
 
 type InvoiceItem = {
   description: string;
@@ -169,6 +170,19 @@ export async function POST(request: Request) {
     .returning();
 
   await updateContractPaymentStatus(db, created.contractId);
+
+  await recordAuditLog({
+    module: "TERMIN",
+    entityId: created.id,
+    action: "CREATE",
+    actor: auth.user,
+    details: {
+      contractId: created.contractId,
+      terminName: created.terminName,
+      amount: created.terminAmount,
+      status: created.status,
+    },
+  });
 
   return NextResponse.json(created, { status: 201 });
 }
