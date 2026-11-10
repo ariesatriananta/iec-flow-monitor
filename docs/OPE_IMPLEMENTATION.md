@@ -9,8 +9,8 @@
 3. Dokumen: preview/print dengan kop dan footer Invoice; pengujian integrasi
    penyimpanan, multi-client, historis, dan status.
 
-M1 selesai; migration telah dikonfirmasi berhasil oleh Owner. M2 menambahkan
-menu/form/detail OPE. Preview dan print termasuk M3. Business Trip OPE terpisah dari
+M1 selesai; migration telah dikonfirmasi berhasil oleh Owner. M2 telah diuji
+oleh Owner. M3 menambahkan preview dan print OPE. Business Trip OPE terpisah dari
 pengajuan perjalanan dinas HR. OPE tidak memengaruhi termin, invoice,
 nilai kontrak, atau progres pembayaran kontrak.
 
@@ -162,3 +162,65 @@ Pengujian penyimpanan nyata dan cetak tetap diperlukan pada M3/UAT Owner.
 6. Coba form pada layar mobile, pencarian dropdown, dan tambah/hapus item.
 7. Login STAFF; menu OPE tidak muncul dan akses langsung `/ope` diarahkan
    ke Dashboard. API tetap memerlukan ADMIN.
+
+## M3: preview dan print
+
+Menu aksi setiap dokumen menyediakan **Preview / Print**. Preview mengambil
+detail terbaru dari API dan memakai satu HTML yang sama untuk tampilan serta
+print, di dalam iframe terisolasi tanpa script. Klik **Print / Simpan PDF**
+setelah kop selesai dimuat untuk membuka dialog cetak browser. Pilih **Save
+as PDF** untuk menyimpan PDF. Kegagalan memuat kop menonaktifkan tombol print.
+
+- Business Trip: client/alamat/PIC/NPWP di header dan daftar nama/hari/tarif/jumlah.
+- Meals: tanggal/client/deskripsi/nominal pada setiap baris; tidak ada satu
+  client yang dijadikan penerima seluruh dokumen.
+- Identitas client/karyawan berasal dari snapshot yang disimpan; nominal,
+  subtotal, tarif pajak, dan total berasal dari dokumen, tanpa hitung ulang.
+- NPWP2 16 digit diprioritaskan dan ditampilkan per empat digit; fallback NPWP
+  lama lalu `-`. Meals tidak mencetak satu NPWP di header multi-client.
+- PPN tampil biasa; nominal potongan PPh 23 memakai tanda kurung.
+  Pajak yang off tidak ditampilkan.
+- Draft dan Void memiliki penanda jelas pada dokumen cetak. Preview/print
+  tersedia pada semua status dan tidak mengubah status maupun data dokumen.
+- Header serta footer keanggotaan IECnet memakai bagian atas/bawah aset
+  `public/invoice-header.png`. Aset tersebut berukuran A4 transparan penuh,
+  sehingga perlu ditampilkan dalam dua area terpisah agar tidak mencetak
+  ruang kosong gambar sebagai satu halaman tersendiri.
+- Catatan dokumen mempertahankan enter; blok pembayaran sama dengan Invoice.
+  Nama penandatangan memakai Settings saat preview dibuka, dengan fallback
+  yang sama seperti Invoice. Nama penandatangan belum disnapshot di database.
+- Layout A4 dengan margin 18mm, heading tabel berulang pada halaman lanjutan,
+  dan blok total/tanda tangan diusahakan tetap utuh.
+- Tidak ada perubahan schema, migration, perhitungan, atau endpoint bisnis M3.
+
+### Uji setelah deploy M3
+
+1. Buka OPE Business Trip -> menu aksi -> Preview / Print. Periksa nomor,
+   tanggal, perihal, client/NPWP, nama karyawan, hari, tarif, dan jumlah.
+2. Klik Print / Simpan PDF; gunakan ukuran A4 dan skala default/100%.
+   Pastikan kop dan footer muncul. Browser headers/footers bawaan dapat
+   dimatikan di pengaturan cetak agar URL/jam browser tidak ikut tercetak.
+3. Ulangi untuk Meals dua client dengan kedua pajak aktif; cocokkan subtotal,
+   PPN, PPh dalam tanda kurung, dan total dengan Detail OPE.
+4. Periksa dokumen tanpa pajak, Draft, Void, catatan beberapa baris, serta
+   dokumen panjang yang melampaui satu halaman.
+5. Periksa preview pada mobile. Kertas A4 dapat digeser horizontal di dalam
+   frame; kontrol dan modal tetap mengikuti lebar layar.
+
+Pengujian otomatis renderer/browser memakai fixture dan request API simulasi;
+tidak menulis data uji ke database. Cetak pada printer fisik dan PDF dari
+dokumen produksi tetap perlu pemeriksaan visual Owner.
+
+Hasil verifikasi M3:
+
+- Type-check dan lint file yang berubah lulus, 14 test aturan/render lulus.
+- Browser smoke test lulus: snapshot/NPWP2, Meals multi-client, pajak on/off,
+  signer/catatan, escaping teks, aksi print pada iframe yang sama, modal
+  mobile, penanda Draft/Void, dan tombol print nonaktif saat kop gagal dimuat.
+- PDF Chromium: fixture Business Trip pendek 1 halaman A4; fixture 60 item
+  Meals dengan deskripsi panjang 12 halaman. Item terakhir tetap tersedia.
+- Pemeriksaan read-only pada 3 dokumen yang tersedia (2 Business Trip,
+  1 Meals) tidak menemukan selisih subtotal/detail atau total netto, dan
+  snapshot client Business Trip tersedia. Tidak mengubah data tersebut.
+- Build production tidak diulang saat server dev Owner sedang aktif untuk
+  menghindari dua proses menulis `.next` bersamaan.

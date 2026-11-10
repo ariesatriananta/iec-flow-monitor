@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Eye, MoreHorizontal, Pencil, Plus, RefreshCw } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Eye, FileText, MoreHorizontal, Pencil, Plus, Printer, RefreshCw } from "lucide-react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { OpeForm, OpeTotals } from "@/components/ope/OpeForm";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +17,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { createOpeDocument, fetchOpeClientOptions, fetchOpeDocument, fetchOpeDocuments, updateOpeDocument } from "@/lib/api/ope";
 import { fetchEmployees } from "@/lib/api/employees";
+import { fetchSettings } from "@/lib/api/settings";
+import { buildOpeDocumentHtml } from "@/lib/ope/document";
 import { formatCurrency, formatDate } from "@/lib/numbering";
 import type { Employee } from "@/types";
 import type { OpeClientOption, OpeDocument, OpeInput, OpeStatus, OpeType } from "@/types/ope";
@@ -73,12 +75,19 @@ export default function OpePage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [dialog, setDialog] = useState<"create" | "edit" | "detail" | null>(null);
+  const [dialog, setDialog] = useState<"create" | "edit" | "detail" | "preview" | null>(null);
   const [selected, setSelected] = useState<OpeDocument | null>(null);
   const [clients, setClients] = useState<OpeClientOption[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [saving, setSaving] = useState(false);
   const [confirmation, setConfirmation] = useState<{ document: OpeDocument; status: OpeStatus } | null>(null);
+  const [signerName, setSignerName] = useState("");
+  const [previewReady, setPreviewReady] = useState(false);
+  const [previewError, setPreviewError] = useState("");
+  const previewFrame = useRef<HTMLIFrameElement>(null);
+  const previewHtml = useMemo(() => dialog === "preview" && selected
+    ? buildOpeDocumentHtml(selected, { headerUrl: "/invoice-header.png", signerName })
+    : "", [dialog, selected, signerName]);
 
   useEffect(() => {
     if (user?.role !== "ADMIN") return;
@@ -131,7 +140,7 @@ export default function OpePage() {
     finally { setBusyId(null); }
   };
 
-  const openDocument = async (row: OpeDocument, mode: "edit" | "detail") => {
+  const openDocument = async (row: OpeDocument, mode: "edit" | "detail" | "preview") => {
     if (busyId) return;
     setBusyId(row.id);
     try {
@@ -140,10 +149,40 @@ export default function OpePage() {
         if (document.status !== "DRAFT") throw new Error("Dokumen sudah bukan Draft. Muat ulang daftar untuk melihat status terbaru.");
         await loadOptions(document.type);
       }
+      if (mode === "preview") {
+        const settings = await fetchSettings();
+        setSignerName(settings?.defaultSignerName || "Anita Rahman, CPA");
+        setPreviewReady(false);
+        setPreviewError("");
+      }
       setSelected(document);
       setDialog(mode);
     } catch (error) { toast({ title: "Gagal membuka dokumen", description: errorMessage(error), variant: "destructive" }); }
     finally { setBusyId(null); }
+  };
+
+  const checkPreviewReady = () => {
+    const frameDocument = previewFrame.current?.contentDocument;
+    if (!frameDocument) return;
+    const images = Array.from(frameDocument.images);
+    if (!images.length) return;
+    if (images.some((image) => !image.complete || image.naturalWidth === 0)) {
+      setPreviewError("Kop dokumen gagal dimuat. Tutup dan buka kembali preview sebelum mencetak.");
+      setPreviewReady(false);
+      return;
+    }
+    setPreviewReady(true);
+  };
+
+  const printDocument = () => {
+    const printWindow = previewFrame.current?.contentWindow;
+    if (!previewReady || !printWindow) return;
+    try {
+      printWindow.focus();
+      printWindow.print();
+    } catch {
+      toast({ title: "Gagal membuka dialog cetak", description: "Silakan buka kembali preview dan coba lagi.", variant: "destructive" });
+    }
   };
 
   const save = async (payload: OpeInput) => {
@@ -176,6 +215,7 @@ export default function OpePage() {
       <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" disabled={!!busyId || saving} aria-label={`Aksi ${row.documentNumber}`}><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuItem onClick={() => void openDocument(row, "detail")}><Eye className="mr-2 h-4 w-4" />Lihat detail</DropdownMenuItem>
+        <DropdownMenuItem onClick={() => void openDocument(row, "preview")}><FileText className="mr-2 h-4 w-4" />Preview / Print</DropdownMenuItem>
         {row.status === "DRAFT" && <><DropdownMenuItem onClick={() => void openDocument(row, "edit")}><Pencil className="mr-2 h-4 w-4" />Edit Draft</DropdownMenuItem><DropdownMenuItem onClick={() => setConfirmation({ document: row, status: "ISSUED" })}>Terbitkan</DropdownMenuItem></>}
         {row.status === "ISSUED" && <DropdownMenuItem onClick={() => setConfirmation({ document: row, status: "PAID" })}>Tandai Paid</DropdownMenuItem>}
         {(row.status === "DRAFT" || row.status === "ISSUED") && <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => setConfirmation({ document: row, status: "VOID" })}>Void</DropdownMenuItem>}
@@ -209,9 +249,18 @@ export default function OpePage() {
       </div>}
 
       <Dialog open={dialog !== null} onOpenChange={(open) => { if (!open && !saving) { setDialog(null); setSelected(null); } }}>
-        <DialogContent className="max-w-5xl" onEscapeKeyDown={(event) => { if (saving) event.preventDefault(); }} onPointerDownOutside={(event) => { if (dialog !== "detail") event.preventDefault(); }}>
-          <DialogHeader><DialogTitle>{dialog === "detail" ? "Detail" : dialog === "edit" ? "Edit" : "Buat"} OPE {TYPE_LABELS[selected?.type ?? type]}</DialogTitle><DialogDescription>{dialog === "detail" ? "Rincian dokumen yang tersimpan." : "Lengkapi data header dan detail item. Dokumen disimpan sebagai Draft."}</DialogDescription></DialogHeader>
-          {dialog === "detail" && selected ? <OpeDetail document={selected} /> : dialog && <OpeForm key={selected?.id ?? `new-${type}`} type={selected?.type ?? type} document={selected} clients={clients} employees={employees} saving={saving} onSave={save} onCancel={() => { setDialog(null); setSelected(null); }} />}
+        <DialogContent className={dialog === "preview" ? "max-w-6xl" : "max-w-5xl"} onEscapeKeyDown={(event) => { if (saving) event.preventDefault(); }} onPointerDownOutside={(event) => { if (dialog === "create" || dialog === "edit") event.preventDefault(); }}>
+          <DialogHeader><DialogTitle>{dialog === "preview" ? "Preview" : dialog === "detail" ? "Detail" : dialog === "edit" ? "Edit" : "Buat"} OPE {TYPE_LABELS[selected?.type ?? type]}</DialogTitle><DialogDescription>{dialog === "preview" ? "Periksa dokumen sebelum mencetak atau menyimpan sebagai PDF." : dialog === "detail" ? "Rincian dokumen yang tersimpan." : "Lengkapi data header dan detail item. Dokumen disimpan sebagai Draft."}</DialogDescription></DialogHeader>
+          {dialog === "preview" && selected ? <>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <span className="text-sm text-muted-foreground">{selected.documentNumber} · {STATUS_LABELS[selected.status]}</span>
+              <Button disabled={!previewReady} onClick={printDocument}><Printer className="mr-2 h-4 w-4" />{previewError ? "Print tidak tersedia" : previewReady ? "Print / Simpan PDF" : "Memuat dokumen..."}</Button>
+            </div>
+            {previewError && <p role="alert" className="text-sm text-destructive">{previewError}</p>}
+            <iframe ref={previewFrame} title={`Preview ${selected.documentNumber}`} srcDoc={previewHtml}
+              sandbox="allow-same-origin allow-modals" onLoad={checkPreviewReady}
+              className="h-[65dvh] min-h-80 w-full rounded-md border bg-white" />
+          </> : dialog === "detail" && selected ? <OpeDetail document={selected} /> : dialog && <OpeForm key={selected?.id ?? `new-${type}`} type={selected?.type ?? type} document={selected} clients={clients} employees={employees} saving={saving} onSave={save} onCancel={() => { setDialog(null); setSelected(null); }} />}
         </DialogContent>
       </Dialog>
 
