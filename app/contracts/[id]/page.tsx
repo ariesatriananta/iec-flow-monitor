@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -81,6 +82,7 @@ export default function ContractDetail() {
     type: 'invoice' | 'paid' | 'delete' | 'revert' | 'pending';
     termin: Termin;
   } | null>(null);
+  const [usePph23, setUsePph23] = useState(true);
 
   const [isTerminDialogOpen, setIsTerminDialogOpen] = useState(false);
   const [terminFormData, setTerminFormData] = useState({
@@ -281,11 +283,12 @@ export default function ContractDetail() {
     }
   };
 
-  const handleCreateInvoice = async (termin: Termin) => {
+  const handleCreateInvoice = async (termin: Termin, applyPph23: boolean) => {
     setActionLoading({ id: termin.id, type: 'invoice' });
     try {
       const updated = await updateTermin(termin.id, {
         status: 'INVOICED',
+        usePph23: applyPph23,
       });
       setTermins(termins.map((t) => (t.id === updated.id ? updated : t)));
       const refreshedInvoices = await fetchInvoices(contract.id);
@@ -380,7 +383,7 @@ export default function ContractDetail() {
     const { type, termin } = confirmAction;
     setConfirmAction(null);
     if (type === 'invoice') {
-      await handleCreateInvoice(termin);
+      await handleCreateInvoice(termin, usePph23);
     } else if (type === 'paid') {
       await handleMarkAsPaid(termin);
     } else if (type === 'revert') {
@@ -390,6 +393,11 @@ export default function ContractDetail() {
     } else {
       await handleDeleteTermin(termin);
     }
+  };
+
+  const openInvoiceConfirmation = (termin: Termin) => {
+    setUsePph23(true);
+    setConfirmAction({ type: 'invoice', termin });
   };
 
   const confirmCopy =
@@ -694,9 +702,7 @@ export default function ContractDetail() {
                                   <Button
                                     size="sm"
                                     variant="default"
-                                    onClick={() =>
-                                      setConfirmAction({ type: 'invoice', termin })
-                                    }
+                                    onClick={() => openInvoiceConfirmation(termin)}
                                     disabled={isRowLoading}
                                   >
                                     {isInvoiceLoading ? (
@@ -824,7 +830,7 @@ export default function ContractDetail() {
                               <Button
                                 size="sm"
                                 variant="default"
-                                onClick={() => setConfirmAction({ type: 'invoice', termin })}
+                                onClick={() => openInvoiceConfirmation(termin)}
                                 disabled={isRowLoading}
                               >
                                 {isInvoiceLoading ? (
@@ -1177,6 +1183,24 @@ export default function ContractDetail() {
             <AlertDialogTitle>{confirmCopy?.title}</AlertDialogTitle>
             <AlertDialogDescription>{confirmCopy?.description}</AlertDialogDescription>
           </AlertDialogHeader>
+          {confirmAction?.type === 'invoice' && (
+            <div className="flex items-center justify-between gap-4 rounded-lg border bg-muted/40 p-4">
+              <div className="space-y-1">
+                <Label htmlFor="use-pph23" className="cursor-pointer font-medium">
+                  Terapkan PPh 23 (2%)
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Potongan dihitung sebesar 2% dari DPP.
+                </p>
+              </div>
+              <Switch
+                id="use-pph23"
+                checked={usePph23}
+                onCheckedChange={setUsePph23}
+                aria-label="Terapkan PPh 23 sebesar 2 persen"
+              />
+            </div>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel>Batal</AlertDialogCancel>
             <AlertDialogAction onClick={handleConfirmAction}>

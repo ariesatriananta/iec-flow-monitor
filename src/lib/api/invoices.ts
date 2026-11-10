@@ -18,6 +18,7 @@ export async function createInvoice(payload: {
   invoiceNumber: string;
   amount: number;
   status: string;
+  usePph23?: boolean;
 }): Promise<Invoice> {
   const data = await requestJson<Invoice>("/api/invoices", {
     method: "POST",

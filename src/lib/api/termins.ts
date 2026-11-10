@@ -43,6 +43,7 @@ export async function updateTermin(
     invoiceId?: string | null;
     paymentReceivedDate?: Date | null;
     status?: string;
+    usePph23?: boolean;
   }
 ): Promise<Termin> {
   const data = await requestJson<Termin>(`/api/termins/${id}`, {
