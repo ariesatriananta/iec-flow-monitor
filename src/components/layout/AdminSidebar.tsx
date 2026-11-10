@@ -72,6 +72,12 @@ const navSections: NavSection[] = [
         roles: ['ADMIN']
       },
       {
+        title: 'OPE',
+        href: '/ope',
+        icon: Wallet,
+        roles: ['ADMIN']
+      },
+      {
         title: 'Letters',
         href: '/letters',
         icon: Mail,

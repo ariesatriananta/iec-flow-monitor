@@ -9,7 +9,8 @@
 3. Dokumen: preview/print dengan kop dan footer Invoice; pengujian integrasi
    penyimpanan, multi-client, historis, dan status.
 
-M1 belum menambahkan menu/form/print OPE. Business Trip OPE terpisah dari
+M1 selesai; migration telah dikonfirmasi berhasil oleh Owner. M2 menambahkan
+menu/form/detail OPE. Preview dan print termasuk M3. Business Trip OPE terpisah dari
 pengajuan perjalanan dinas HR. OPE tidak memengaruhi termin, invoice,
 nilai kontrak, atau progres pembayaran kontrak.
 
@@ -115,3 +116,49 @@ Gunakan data client/karyawan yang sudah tersedia pada database uji.
 
 Pengujian integrasi menulis database ini dilakukan setelah migration oleh Owner;
 unit test dan pemeriksaan statis tidak membuktikan perilaku live database.
+
+## M2: halaman operasional
+
+Menu **OPE** berada tepat di bawah Invoice, khusus ADMIN. Halaman `/ope`
+memiliki tab Business Trip dan Meals, filter status, pagination, serta tombol
+muat ulang. Tampilan daftar memakai tabel desktop dan kartu mobile.
+
+- Buat: pilih tab, klik **Buat Business Trip** / **Buat Meals**.
+- Pilih client/karyawan dengan dropdown pencarian. Pilihan client mengikuti
+  urutan dari API; master karyawan dimuat dengan seluruh halaman pagination.
+- Item dapat ditambah/dihapus; minimal satu item. Nominal ditampilkan dengan
+  pemisah ribuan Indonesia; jumlah Business Trip dan total dokumen otomatis.
+- Kedua pajak default off pada dokumen baru, dan termuat ulang saat edit.
+- Menu aksi: **Lihat detail**, **Edit Draft**, **Terbitkan**, **Tandai Paid**,
+  atau **Void**, sesuai status dokumen. Perubahan status memerlukan konfirmasi.
+- Detail menggunakan snapshot identitas dan angka yang tersimpan di dokumen.
+- Saat edit, pilihan historis yang tidak ada di dropdown aktif tetap tersedia
+  untuk referensi lama yang belum dihapus. Jika master sudah dihapus dan FK
+  kosong, pilih referensi baru sebelum menyimpan ulang Draft.
+- Kegagalan simpan mempertahankan input form agar dapat diperbaiki/dicoba ulang.
+- M2 tidak menambahkan schema atau migration baru.
+
+Verifikasi M2: type-check, lint file yang berubah, dan `pnpm build` lulus.
+Build hanya memunculkan warning lama `<img>` di halaman Letter.
+Browser smoke test
+dengan API simulasi lulus untuk payload/perhitungan Business Trip, Meals dua
+client dan kedua pajak, kegagalan simpan yang mempertahankan input, muat ulang
+Draft, penerbitan yang menghilangkan Edit Draft, detail snapshot, dan ukuran
+modal mobile. Tidak ada error runtime browser pada skenario tersebut. Seluruh
+request API selama browser test di-intercept; tidak menulis data ke database.
+Pengujian penyimpanan nyata dan cetak tetap diperlukan pada M3/UAT Owner.
+
+### Uji UI setelah deploy M2
+
+1. Login sebagai ADMIN, buka OPE; pastikan menu berada tepat di bawah Invoice.
+2. Buat Business Trip, pilih client dan karyawan, isi 2 hari x Rp15.000.000.
+   Pastikan jumlah Rp30.000.000; simpan Draft dan buka lagi lewat Edit Draft.
+3. Pada tab Meals, buat dua item untuk client berbeda: Rp600.000 + Rp400.000.
+   Aktifkan kedua pajak; pastikan total Rp1.090.000.
+4. Simpan, buka detail dan edit; pastikan tanggal, dua client, nominal, catatan,
+   serta posisi toggle termuat ulang.
+5. Terbitkan melalui menu aksi. Pastikan Edit Draft hilang; lanjutkan Paid
+   atau gunakan dokumen uji lain untuk Void. Periksa filter status.
+6. Coba form pada layar mobile, pencarian dropdown, dan tambah/hapus item.
+7. Login STAFF; menu OPE tidak muncul dan akses langsung `/ope` diarahkan
+   ke Dashboard. API tetap memerlukan ADMIN.
