@@ -7,7 +7,8 @@ export type AuditModule =
   | "CONTRACT"
   | "TERMIN"
   | "INVOICE"
-  | "LETTER";
+  | "LETTER"
+  | "OPE";
 
 type RecordAuditLogInput = {
   module: AuditModule;

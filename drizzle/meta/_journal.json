@@ -239,6 +239,13 @@
       "when": 1794288870102,
       "tag": "0033_melted_odin",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1794291438011,
+      "tag": "0034_real_baron_strucker",
+      "breakpoints": true
     }
   ]
 }

@@ -309,6 +309,69 @@ export const employees = pgTable(
   })
 );
 
+export type OpeClientSnapshot = {
+  name: string;
+  code: string;
+  address: string | null;
+  picName: string | null;
+  npwp: string | null;
+  npwp2: string | null;
+};
+
+export const opeDocuments = pgTable(
+  "ope_documents",
+  {
+    id: text("id").primaryKey(),
+    type: text("type").notNull(),
+    documentDate: timestamp("document_date", { mode: "date" }).notNull(),
+    documentNumber: text("document_number").notNull(),
+    seqNo: integer("seq_no").notNull(),
+    numberYear: integer("number_year").notNull(),
+    status: text("status").notNull().default("DRAFT"),
+    clientId: text("client_id").references(() => clients.id, { onDelete: "set null" }),
+    clientSnapshot: jsonb("client_snapshot").$type<OpeClientSnapshot>(),
+    subject: text("subject").notNull(),
+    notes: text("notes"),
+    ppnRate: numeric("ppn_rate", { precision: 5, scale: 2 }).notNull().default("0"),
+    pph23Rate: numeric("pph23_rate", { precision: 5, scale: 2 }).notNull().default("0"),
+    subtotal: numeric("subtotal", { precision: 15, scale: 0 }).notNull(),
+    ppnAmount: numeric("ppn_amount", { precision: 15, scale: 0 }).notNull(),
+    pph23Amount: numeric("pph23_amount", { precision: 15, scale: 0 }).notNull(),
+    total: numeric("total", { precision: 15, scale: 0 }).notNull(),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date" }).notNull(),
+  },
+  (table) => ({
+    numberUnique: uniqueIndex("ope_documents_number_unique").on(table.documentNumber),
+    sequenceUnique: uniqueIndex("ope_documents_sequence_unique").on(table.type, table.numberYear, table.seqNo),
+    typeCreatedIdx: index("ope_documents_type_created_idx").on(table.type, table.createdAt),
+    clientIdx: index("ope_documents_client_idx").on(table.clientId),
+  })
+);
+
+export const opeItems = pgTable(
+  "ope_items",
+  {
+    id: text("id").primaryKey(),
+    documentId: text("document_id").notNull().references(() => opeDocuments.id, { onDelete: "cascade" }),
+    position: integer("position").notNull(),
+    employeeId: text("employee_id").references(() => employees.id, { onDelete: "set null" }),
+    employeeName: text("employee_name"),
+    days: integer("days"),
+    rate: numeric("rate", { precision: 15, scale: 0 }),
+    expenseDate: timestamp("expense_date", { mode: "date" }),
+    clientId: text("client_id").references(() => clients.id, { onDelete: "set null" }),
+    clientSnapshot: jsonb("client_snapshot").$type<OpeClientSnapshot>(),
+    description: text("description").notNull(),
+    amount: numeric("amount", { precision: 15, scale: 0 }).notNull(),
+  },
+  (table) => ({
+    positionUnique: uniqueIndex("ope_items_document_position_unique").on(table.documentId, table.position),
+    clientIdx: index("ope_items_client_idx").on(table.clientId),
+    employeeIdx: index("ope_items_employee_idx").on(table.employeeId),
+  })
+);
+
 export const attendanceRecords = pgTable(
   "attendance_records",
   {
