@@ -35,3 +35,21 @@ export async function fetchOvertimeClientOptions(): Promise<OvertimeClientOption
   const rows = await requestJson<(Omit<OvertimeClientOption, "latestContractCreatedAt"> & { latestContractCreatedAt: string })[]>("/api/overtime/client-options", { cache: "no-store" });
   return rows.map((row) => ({ ...row, latestContractCreatedAt: new Date(row.latestContractCreatedAt) }));
 }
+
+export async function downloadOvertimeExport(params: Omit<OvertimeQuery, "limit" | "offset">) {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) if (value !== undefined) search.set(key, String(value));
+  const response = await fetch(`/api/overtime/export?${search}`, { cache: "no-store" });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error || "Gagal mengekspor pengajuan lembur");
+  }
+  const blob = await response.blob();
+  const filename = response.headers.get("Content-Disposition")?.match(/filename="([^"]+)"/)?.[1] ?? "Lembur.xlsx";
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url; link.download = filename;
+  document.body.appendChild(link); link.click(); link.remove();
+  // Defer revocation so browsers have time to start the download.
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}

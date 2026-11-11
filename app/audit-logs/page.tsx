@@ -26,7 +26,7 @@ import { useToast } from "@/hooks/use-toast";
 import { fetchAuditLogs, type AuditLog } from "@/lib/api/audit-logs";
 
 const PAGE_SIZE = 25;
-const MODULES = ["CLIENT", "CONTRACT", "TERMIN", "INVOICE", "LETTER", "OPE"];
+const MODULES = ["CLIENT", "CONTRACT", "TERMIN", "INVOICE", "LETTER", "OPE", "OVERTIME"];
 
 const formatDateTime = (value: string) =>
   new Intl.DateTimeFormat("id-ID", {

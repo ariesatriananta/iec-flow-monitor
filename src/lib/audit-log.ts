@@ -8,7 +8,8 @@ export type AuditModule =
   | "TERMIN"
   | "INVOICE"
   | "LETTER"
-  | "OPE";
+  | "OPE"
+  | "OVERTIME";
 
 type RecordAuditLogInput = {
   module: AuditModule;

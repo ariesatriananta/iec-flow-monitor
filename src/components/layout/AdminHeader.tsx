@@ -15,6 +15,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { fetchNotifications, markAllNotificationsRead, markNotificationRead } from '@/lib/api/notifications';
 import type { InAppNotification } from '@/types';
+import { notificationPath } from '@/lib/notification-routing';
 import { Search, Sun, Moon, User, LogOut, UserCircle, Menu, Settings, Bell, CheckCheck, Download } from 'lucide-react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
@@ -63,26 +64,6 @@ export function AdminHeader({ title, onOpenSidebar }: AdminHeaderProps) {
     window.location.replace('/login');
   };
 
-  const resolveNotificationPath = (item: InAppNotification) => {
-    const query = new URLSearchParams();
-    if (item.entityId) query.set('entityId', item.entityId);
-    query.set('notif', item.id);
-
-    if (item.entityType === 'LEAVE') {
-      const suffix = query.toString();
-      return suffix ? `/leave-management?${suffix}` : '/leave-management';
-    }
-    if (item.entityType === 'BUSINESS_TRIP') {
-      const suffix = query.toString();
-      return suffix ? `/business-trip?${suffix}` : '/business-trip';
-    }
-    if (item.entityType === 'REIMBURSEMENT') {
-      const suffix = query.toString();
-      return suffix ? `/reimbursement?${suffix}` : '/reimbursement';
-    }
-    return '/dashboard';
-  };
-
   const handleNotificationClick = async (item: InAppNotification) => {
     if (!item.isRead) {
       try {
@@ -103,7 +84,7 @@ export function AdminHeader({ title, onOpenSidebar }: AdminHeaderProps) {
         // no-op; fallback to navigation
       }
     }
-    const target = resolveNotificationPath(item);
+    const target = notificationPath(item);
     router.push(target);
     router.refresh();
   };

@@ -1,10 +1,13 @@
-import { and, asc, desc, eq, gt, gte, inArray, lt, lte, max, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, lt, max, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { clients, contracts, employees, overtimeRequests, settingsApprovalFlow, users, workflowEvents } from "@/lib/db/schema";
+import { clients, contracts, employees, notifications, overtimeRequests, settingsApprovalFlow, users, workflowEvents } from "@/lib/db/schema";
 import type { SessionUser } from "@/lib/auth/server";
+import { recordAuditLog } from "@/lib/audit-log";
+import { planOvertimeNotifications, resolveOvertimeNotificationRecipients } from "./notification-policy";
 import { calculateOvertimePeriod, canReadOvertimeRequest, OvertimeError, resolveOvertimeDecision, type CreateOvertimeInput } from "./validation";
 import type { z } from "zod";
 import type { listOvertimeSchema, decisionSchema } from "./validation";
+import { overtimeWhere } from "./query";
 
 type Row = typeof overtimeRequests.$inferSelect;
 type Db = ReturnType<typeof getDb>;
@@ -29,21 +32,8 @@ export async function listClientOptions() {
 }
 
 export async function listOvertime(user: SessionUser, query: z.infer<typeof listOvertimeSchema>) {
-  const conditions: SQL[] = [];
-  const employeeId = user.employeeId;
-  if (query.scope === "all") {
-    if (user.role !== "ADMIN") throw new OvertimeError("Hanya Admin yang dapat melihat semua pengajuan", 403);
-  } else if (!employeeId) conditions.push(sql`false`);
-  else if (query.scope === "mine") conditions.push(eq(overtimeRequests.employeeId, employeeId));
-  else if (query.scope === "related") conditions.push(or(eq(overtimeRequests.approverLevel1EmployeeId, employeeId), eq(overtimeRequests.approverLevel2EmployeeId, employeeId))!);
-  else conditions.push(or(and(eq(overtimeRequests.status, "SUBMITTED"), eq(overtimeRequests.approverLevel1EmployeeId, employeeId)), and(eq(overtimeRequests.status, "WAITING_LEVEL_2"), eq(overtimeRequests.approverLevel2EmployeeId, employeeId)))!);
-  if (query.status) conditions.push(eq(overtimeRequests.status, query.status));
-  if (query.fromDate) conditions.push(gte(overtimeRequests.overtimeDate, query.fromDate));
-  if (query.toDate) conditions.push(lte(overtimeRequests.overtimeDate, query.toDate));
-  if (query.clientId) conditions.push(eq(overtimeRequests.clientId, query.clientId));
-  if (query.employeeId) conditions.push(eq(overtimeRequests.employeeId, query.employeeId));
   const db = getDb();
-  const where = and(...conditions);
+  const where = overtimeWhere(user, query);
   const [items, [count]] = await Promise.all([
     db.select().from(overtimeRequests).where(where).orderBy(desc(overtimeRequests.createdAt), desc(overtimeRequests.id)).limit(query.limit).offset(query.offset),
     db.select({ total: sql<number>`count(*)::int` }).from(overtimeRequests).where(where),
@@ -65,10 +55,31 @@ async function addEvent(tx: Tx, user: SessionUser, id: string, action: string, f
   await tx.insert(workflowEvents).values({ id: crypto.randomUUID(), module: "OVERTIME", entityId: id, level, action, fromStatus, toStatus, note: note ?? null, actorUserId: user.id, actorEmployeeId: user.employeeId, createdAt: new Date() });
 }
 
+async function addNotifications(tx: Tx, row: Row, fromStatus: string | null) {
+  const plans = planOvertimeNotifications(row, fromStatus);
+  if (!plans.length) return;
+  const accounts = await tx.select({ id: users.id, employeeId: users.employeeId, isActive: users.isActive }).from(users)
+    .where(and(inArray(users.employeeId, [...new Set(plans.map(plan => plan.employeeId))]), eq(users.isActive, true)));
+  const recipients = resolveOvertimeNotificationRecipients(plans, accounts);
+  if (!recipients.length) return;
+  const now = new Date();
+  await tx.insert(notifications).values(recipients.map(({ userId, type, title, message }) => ({
+    id: crypto.randomUUID(), userId, type, title, message,
+    entityType: "OVERTIME", entityId: row.id, isRead: false, createdAt: now, readAt: null,
+  })));
+}
+
+function auditDetails(row: Row, fromStatus: string | null, level: number | null) {
+  // No description, rejection note, or complete request payload in the generic audit log.
+  return { employeeId: row.employeeId, clientId: row.clientId, clientName: row.clientName,
+    overtimeDate: row.overtimeDate, durationMinutes: row.durationMinutes,
+    fromStatus, toStatus: row.status, level };
+}
+
 export async function createOvertime(user: SessionUser, input: CreateOvertimeInput) {
   if (!user.employeeId) throw new OvertimeError("Akun belum terhubung ke karyawan", 403);
   const employeeId = user.employeeId;
-  return getDb().transaction(async tx => {
+  const result = await getDb().transaction(async tx => {
     // One employee row lock serializes concurrent submissions, including different dates/clients.
     const [employee] = await tx.select().from(employees).where(eq(employees.id, employeeId)).for("update");
     if (!employee?.isActive) throw new OvertimeError("Karyawan tidak aktif atau tidak ditemukan", 403);
@@ -89,12 +100,15 @@ export async function createOvertime(user: SessionUser, input: CreateOvertimeInp
     const values: typeof overtimeRequests.$inferInsert = { id: crypto.randomUUID(), employeeId, employeeName: employee.fullName || employee.employeeCode, employeeCode: employee.employeeCode, clientId: client.id, clientName: client.name, overtimeDate: input.overtimeDate, startTime: input.startTime, endTime: input.endTime, ...period, description: input.description, status: "SUBMITTED", approverLevel1EmployeeId: level1.id, approverLevel1Name: level1.fullName || level1.employeeCode, approverLevel2EmployeeId: level2.id, approverLevel2Name: level2.fullName || level2.employeeCode, createdAt: now, updatedAt: now };
     const [row] = await tx.insert(overtimeRequests).values(values).returning();
     await addEvent(tx, user, row.id, "SUBMIT", null, "SUBMITTED", null);
+    await addNotifications(tx, row, null);
     return { ...row, permissions: overtimePermissions(row, user) };
   });
+  await recordAuditLog({ module: "OVERTIME", entityId: result.id, action: "CREATE", actor: user, details: auditDetails(result, null, null) });
+  return result;
 }
 
 export async function decideOvertime(user: SessionUser, id: string, input: z.infer<typeof decisionSchema>) {
-  return getDb().transaction(async tx => {
+  const result = await getDb().transaction(async tx => {
     const [row] = await tx.select().from(overtimeRequests).where(eq(overtimeRequests.id, id)).for("update");
     if (!row || !canReadOvertime(row, user)) throw new OvertimeError("Pengajuan lembur tidak ditemukan", 404);
     if (input.action !== "CANCEL") {
@@ -106,6 +120,10 @@ export async function decideOvertime(user: SessionUser, id: string, input: z.inf
     const [updated] = await tx.update(overtimeRequests).set({ status: decision.status, updatedAt: new Date() }).where(and(eq(overtimeRequests.id, id), eq(overtimeRequests.status, row.status))).returning();
     if (!updated) throw new OvertimeError("Pengajuan sudah diproses. Muat ulang halaman", 409);
     await addEvent(tx, user, id, input.action, row.status, updated.status, decision.level, input.note);
-    return { ...updated, permissions: overtimePermissions(updated, user) };
+    await addNotifications(tx, updated, row.status);
+    return { row: { ...updated, permissions: overtimePermissions(updated, user) }, fromStatus: row.status, level: decision.level };
   });
+  const action = input.action === "APPROVE" ? `APPROVE_L${result.level}` : input.action;
+  await recordAuditLog({ module: "OVERTIME", entityId: id, action, actor: user, details: auditDetails(result.row, result.fromStatus, result.level) });
+  return result.row;
 }

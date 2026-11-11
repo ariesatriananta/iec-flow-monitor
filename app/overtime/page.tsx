@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { ClipboardList, Eye, MoreHorizontal, Plus, RefreshCw } from "lucide-react";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { ClipboardList, Download, Eye, MoreHorizontal, Plus, RefreshCw } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { Button } from "@/components/ui/button";
@@ -12,7 +13,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { fetchOvertimeRequests } from "@/lib/api/overtime";
+import { downloadOvertimeExport, fetchOvertimeRequests } from "@/lib/api/overtime";
+import OvertimeLoading from "./loading";
 import { OvertimeForm } from "@/components/overtime/OvertimeForm";
 import { OvertimeDetail } from "@/components/overtime/OvertimeDetail";
 import { DateField, StatusBadge, dateLabel, durationLabel, overtimeError, statusLabels } from "@/components/overtime/shared";
@@ -27,7 +29,12 @@ const scopeDescriptions: Record<OvertimeScope, string> = {
 };
 
 export default function OvertimePage() {
+  return <Suspense fallback={<AdminLayout title="Lembur"><OvertimeLoading /></AdminLayout>}><OvertimeContent /></Suspense>;
+}
+
+function OvertimeContent() {
   const { user, isLoading: authLoading } = useAuth();
+  const searchParams = useSearchParams();
   const { toast } = useToast();
   const [scope, setScope] = useState<OvertimeScope>("mine");
   const [status, setStatus] = useState<OvertimeStatus | "ALL">("ALL");
@@ -41,15 +48,14 @@ export default function OvertimePage() {
   const [reload, setReload] = useState(0);
   const [createOpen, setCreateOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
-  const deepLinkHandled = useRef(false);
+  const [exporting, setExporting] = useState(false);
+  const exportingRef = useRef(false);
+  const entityId = searchParams.get("entityId");
   const invalidDates = !!(fromDate && toDate && fromDate > toDate);
 
   useEffect(() => {
-    if (!user || deepLinkHandled.current) return;
-    deepLinkHandled.current = true;
-    const entityId = new URLSearchParams(window.location.search).get("entityId");
-    if (entityId) setDetailId(entityId);
-  }, [user]);
+    if (user && entityId) setDetailId(entityId);
+  }, [user, entityId]);
 
   useEffect(() => {
     if (!user || invalidDates) { setLoading(false); return; }
@@ -68,6 +74,16 @@ export default function OvertimePage() {
 
   function changeScope(value: string) { setScope(value as OvertimeScope); setStatus("ALL"); setOffset(0); }
   function refresh() { setReload(value => value + 1); }
+  async function exportExcel() {
+    if (exportingRef.current || user?.role !== "ADMIN" || invalidDates) return;
+    exportingRef.current = true; setExporting(true);
+    try {
+      await downloadOvertimeExport({ scope, ...(status === "ALL" ? {} : { status }), ...(fromDate ? { fromDate } : {}), ...(toDate ? { toDate } : {}) });
+      toast({ title: "Export berhasil", description: "Seluruh pengajuan sesuai filter sudah disiapkan dalam file Excel." });
+    } catch (reason) {
+      toast({ title: "Export gagal", description: overtimeError(reason), variant: "destructive" });
+    } finally { exportingRef.current = false; setExporting(false); }
+  }
   function closeDetail() {
     setDetailId(null);
     const url = new URL(window.location.href);
@@ -96,6 +112,7 @@ export default function OvertimePage() {
         <CardTitle>Daftar Pengajuan</CardTitle>
         <div className="flex w-full flex-col gap-2 md:w-auto md:max-w-full md:flex-row md:flex-wrap">
           <Button className="md:order-2" disabled={!canSubmit || authLoading} onClick={() => setCreateOpen(true)}><Plus className="mr-2 h-4 w-4" />Ajukan Lembur</Button>
+          {user?.role === "ADMIN" && <Button variant="outline" className="md:order-1" disabled={exporting || loading || invalidDates || !!error || total === 0} onClick={() => void exportExcel()} title="Export seluruh hasil sesuai filter, bukan hanya halaman aktif"><Download className="mr-2 h-4 w-4" />{exporting ? "Mengekspor..." : "Export Excel"}</Button>}
           <Select value={scope} onValueChange={changeScope}>
             <SelectTrigger className="w-full md:w-[220px]" aria-label="Daftar pengajuan"><SelectValue /></SelectTrigger>
             <SelectContent>

@@ -9,7 +9,7 @@
 4. M4: pengujian integrasi seluruh alur, regresi modul HR dan UAT Owner.
 
 M1 menyediakan fondasi/API; M2 menambahkan halaman pengajuan dan approval.
-Notifikasi, audit log dan export masih menunggu M3. Pengaturan
+M3 menambahkan notifikasi, audit log ringkas dan export Excel khusus Admin. Pengaturan
 Approval Lembur tersedia di Settings -> Approval Flow. Fitur ini tidak
 menghitung uang lembur dan tidak mengubah payroll, absensi, atau workflow HR lama.
 
@@ -187,3 +187,88 @@ Select (bukan tab), menu aksi titik tiga, kartu pada mobile dan pagination Prev/
 Tidak ada hero terpisah atau pembatas lebar halaman khusus. Badge memakai token
 warna aplikasi. Dialog form 640px dan detail 680px mengikuti pola modul cuti.
 Perubahan ini hanya presentasi; API, validasi, scope akses dan workflow tetap sama.
+
+## M3 - Notifikasi, audit dan export Excel
+
+Tidak ada migration baru. Memakai tabel `notifications`, `workflow_events` dan
+`audit_logs` yang sudah tersedia. Data/pengajuan lama tidak dibackfill notifikasi
+atau audit; integrasi berlaku pada aksi setelah kode M3 aktif.
+
+### Notifikasi
+
+- Submit: approver Level 1 dari snapshot pengajuan (termasuk self-approval).
+- Approve L1: approver Level 2 dan informasi progres untuk pengaju. Jika pengaju
+  juga L2, hanya satu notifikasi yang meminta keputusan L2.
+- Approve final/reject: pengaju. Alasan keputusan tetap dibaca dari detail.
+- Batal saat menunggu L1: L1. Batal saat menunggu L2: L1 dan L2.
+  Pengaju tidak mendapat notifikasi atas pembatalannya sendiri.
+- Hanya akun aktif yang terkait employee tujuan, deduplikasi per user,
+  tidak broadcast ke Admin atau approver di luar snapshot.
+- Insert notifikasi berada dalam transaksi request + workflow event. Kegagalan
+  insert membatalkan transaksi, bukan meninggalkan status tanpa notifikasi.
+- Klik lonceng membuka `/overtime?entityId=...&notif=...`, termasuk pergantian
+  detail ketika sudah berada pada halaman Lembur. Otorisasi detail tetap di API.
+- Tidak menambah polling, email atau push notification; mengikuti lonceng repo.
+
+### Audit ringkas
+
+Module `OVERTIME` tersedia pada filter Audit Logs (Admin saja). Action:
+`CREATE`, `APPROVE_L1`, `APPROVE_L2`, `REJECT`, `CANCEL`, `EXPORT`.
+Mutasi dicatat setelah commit. Mengikuti helper best-effort: kegagalan audit
+tidak menggagalkan aksi yang sudah sukses. Detail generik hanya metadata
+pengajuan/perubahan status, bukan seluruh payload, keterangan atau alasan reject.
+Histori keputusan dan catatan lengkap tetap berada pada workflow events.
+
+### Export Excel
+
+- Tombol Export Excel di toolbar yang sama, khusus Admin. Endpoint
+  `GET /api/overtime/export` juga memeriksa Admin, bukan hanya menyembunyikan UI.
+- Scope dan filter sama dengan daftar: `mine`, `approval`, `related`, `all`,
+  status, fromDate/toDate, clientId/employeeId. Default scope tetap `mine`.
+  Pilih Semua Pengajuan bila ingin laporan seluruh karyawan.
+- Menggunakan predicate scope/filter yang sama dengan list; pagination
+  `limit`/`offset` diabaikan. Tidak diam-diam memotong data.
+- Mengambil request dan histori dalam satu snapshot transaksi read-only agar
+  keputusan tidak tercampur dengan perubahan status di tengah pembacaan.
+- Sheet Lembur: identitas, tanggal, client snapshot, waktu WIB, lintas hari,
+  durasi menit dan Jam:Menit, status, keterangan, dua approver snapshot,
+  keputusan/waktu/catatan masing-masing level, pembatalan dan waktu pengajuan.
+- Sheet Filter: scope, filter, waktu export WIB dan jumlah pengajuan.
+- Teks dari user disimpan sebagai cell string, bukan formula. Durasi menit
+  bertipe angka. Bukan perhitungan payroll atau upah.
+- Data kosong menampilkan pesan. Lebih dari 50.000 hasil ditolak dengan permintaan
+  mempersempit filter untuk membatasi penggunaan memori; bukan export parsial.
+- Export sukses dicatat sebagai audit `EXPORT` dengan filter dan jumlah hasil.
+
+### Verifikasi M3
+
+- TypeScript dan focused Next lint lulus.
+- 24 unit test lulus (validasi M1, rencana/penerima notifikasi, scope query,
+  pembatasan Staff export sebelum akses DB, workbook 41 baris, tipe cell,
+  snapshot/keputusan/WIB serta routing notifikasi HR lama dan lembur).
+- Chrome dengan API mock: Admin mengunduh 41 baris saat berada di halaman kedua,
+  scope/status ikut terkirim tanpa pagination; nama file dan isi XLSX valid,
+  error export tampil; Staff tidak melihat tombol export.
+- Klik notifikasi dua pengajuan dari halaman yang sama berhasil membuka detail
+  yang sesuai untuk Admin dan Staff. Mark-read dan filter audit OVERTIME diuji
+  dengan API mock. Endpoint export tanpa sesi mengembalikan 401.
+- Tidak menjalankan migration, membuat fixture atau mutasi pada database nyata.
+  Pengiriman notifikasi dan pencatatan audit aktual menunggu UAT Owner/M4.
+- Build produksi tidak dijalankan bersamaan dengan dev server yang aktif.
+
+### UAT Owner M3
+
+1. Staff mengajukan sesi; login L1 lalu buka lonceng: notifikasi mengarah ke
+   detail pengajuan. L2 tidak mendapat permintaan keputusan sebelum L1 menyetujui.
+2. L1 menyetujui; cek notifikasi L2 dan progres pengaju. L2 menyetujui/reject;
+   cek notifikasi final ke pengaju. Ulangi dengan self-approval sesuai setting.
+3. Batalkan sesi pending L1/L2, cek approver terkait menerima informasi batal.
+4. Ganti Settings sesudah submit: target notifikasi tetap approver snapshot lama.
+5. Admin buka Audit Logs, filter OVERTIME. Cocokkan actor/action/entity/status;
+   alasan reject lengkap hanya pada detail pengajuan, bukan audit generik.
+6. Admin pilih Semua Pengajuan dan filter tanggal/status, pindah halaman kedua,
+   Export Excel. Jumlah semua hasil filter (bukan 20 baris) harus cocok. Cek
+   keputusan/catatan tiap level, durasi, tanggal WIB dan sheet Filter.
+7. Staff tidak melihat export; akses langsung `/api/overtime/export` ditolak 403
+   untuk akun Staff aktif. Tanpa sesi harus 401.
+8. Pastikan navigasi notifikasi cuti/perjalanan/reimbursement tetap bekerja.
