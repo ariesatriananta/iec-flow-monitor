@@ -161,17 +161,27 @@ export default function OpePage() {
     finally { setBusyId(null); }
   };
 
-  const checkPreviewReady = () => {
-    const frameDocument = previewFrame.current?.contentDocument;
+  const checkPreviewReady = async () => {
+    const frame = previewFrame.current;
+    const frameDocument = frame?.contentDocument;
     if (!frameDocument) return;
-    const images = Array.from(frameDocument.images);
-    if (!images.length) return;
-    if (images.some((image) => !image.complete || image.naturalWidth === 0)) {
+    const sources = Array.from(frameDocument.querySelectorAll('svg image'))
+      .map((image) => image.getAttribute('href')).filter((source): source is string => !!source);
+    if (!sources.length) return;
+    try {
+      await Promise.all(sources.map((source) => new Promise<void>((resolve, reject) => {
+        const image = new window.Image();
+        image.onload = () => resolve();
+        image.onerror = () => reject(new Error('Kop gagal dimuat'));
+        image.src = source;
+      })));
+      if (previewFrame.current !== frame || frame.contentDocument !== frameDocument) return;
+      setPreviewReady(true);
+    } catch {
+      if (previewFrame.current !== frame || frame.contentDocument !== frameDocument) return;
       setPreviewError("Kop dokumen gagal dimuat. Tutup dan buka kembali preview sebelum mencetak.");
       setPreviewReady(false);
-      return;
     }
-    setPreviewReady(true);
   };
 
   const printDocument = () => {

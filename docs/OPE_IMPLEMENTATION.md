@@ -182,15 +182,18 @@ as PDF** untuk menyimpan PDF. Kegagalan memuat kop menonaktifkan tombol print.
   Pajak yang off tidak ditampilkan.
 - Draft dan Void memiliki penanda jelas pada dokumen cetak. Preview/print
   tersedia pada semua status dan tidak mengubah status maupun data dokumen.
-- Header serta footer keanggotaan IECnet memakai bagian atas/bawah aset
-  `public/invoice-header.png`. Aset tersebut berukuran A4 transparan penuh,
-  sehingga perlu ditampilkan dalam dua area terpisah agar tidak mencetak
-  ruang kosong gambar sebagai satu halaman tersendiri.
+- Header memakai potongan atas `public/invoice-header.png` yang sudah ada.
+  Potongan memakai koordinat SVG dengan rasio tetap, bukan tinggi kotak piksel
+  atau background cover, agar kop tidak terpotong saat skala cetak berubah.
+  Footer keanggotaan IECnet memakai teks HTML tersendiri, dengan nama firma
+  dicetak tebal. Tidak perlu aset gambar baru atau mengubah kop dokumen lain.
+  Footer berada di bawah bidang A4 pada preview dan di area bawah setiap
+  halaman print, terpisah dari blok pembayaran/tanda tangan.
 - Catatan dokumen mempertahankan enter; blok pembayaran sama dengan Invoice.
   Nama penandatangan memakai Settings saat preview dibuka, dengan fallback
   yang sama seperti Invoice. Nama penandatangan belum disnapshot di database.
-- Layout A4 dengan margin 18mm, heading tabel berulang pada halaman lanjutan,
-  dan blok total/tanda tangan diusahakan tetap utuh.
+- Layout A4 dengan ruang khusus footer pada margin bawah print, heading tabel
+  berulang pada halaman lanjutan, dan blok total/tanda tangan diusahakan tetap utuh.
 - Tidak ada perubahan schema, migration, perhitungan, atau endpoint bisnis M3.
 
 ### Uji setelah deploy M3
@@ -224,3 +227,37 @@ Hasil verifikasi M3:
   snapshot client Business Trip tersedia. Tidak mengubah data tersebut.
 - Build production tidak diulang saat server dev Owner sedang aktif untuk
   menghindari dua proses menulis `.next` bersamaan.
+
+### Revisi posisi footer OPE / Meals (12 November 2026)
+
+Footer IECnet diganti dari potongan gambar menjadi teks HTML. Preview
+menempatkannya di bawah bidang A4; print mengulang footer pada setiap halaman,
+sekitar 10mm dari tepi bawah kertas. Area kosong 18mm disediakan pada setiap
+halaman agar footer tidak menimpa isi tabel. Blok pembayaran/tanda tangan
+tetap mengikuti alur isi dokumen.
+
+Verifikasi PDF Chromium dan pengukuran koordinat teks: Business Trip pendek
+dan Meals pendek masing-masing satu halaman, Meals 45 item/deskripsi panjang
+enam halaman. Footer ditemukan pada setiap halaman dengan jarak sekitar
+10,5mm dari tepi bawah; tidak bertumpuk dengan teks isi dan item terakhir tetap
+tercetak. Aset gambar, invoice biasa, schema, dan data database tidak diubah.
+
+Type-check, lint, dan 15 test aturan/render lulus. Browser smoke preview/print
+dengan API simulasi juga lulus; fixture tambahan 60 item panjang menghasilkan
+13 halaman, footer hadir pada semuanya tanpa overlap, dan item terakhir utuh.
+
+### Revisi kop saat memilih printer fisik
+
+Kop OPE/Meals, Invoice, dan Kwitansi memakai rasio potongan yang sama melalui
+`src/lib/print-letterhead.ts`. Preview Invoice menggunakan komponen
+`PrintLetterhead`. Kop tidak lagi bergantung pada background graphics dan
+tinggi tetap 180px yang bisa memotong isi saat skala cetak berubah.
+Invoice menunggu gambar selesai dimuat sebelum membuka dialog cetak.
+
+Verifikasi browser/PDF pada skala 67%, 100%, dan 125% lulus: kop tetap utuh;
+Invoice + Kwitansi tetap dua halaman dan OPE pendek tetap satu halaman.
+Browser smoke OPE, type-check, lint, dan 15 test aturan/render lulus.
+Driver/printer Epson fisik tidak tersedia pada pengujian otomatis. Saat UAT,
+samakan pengaturan cetak: kertas A4, portrait, satu halaman per lembar,
+margin default, dan scale100% agar ukuran teks sesuai hasil PDF. Periksa
+preview Epson sebelum mencetak. Tidak mengubah nilai, status, atau database.

@@ -14,6 +14,15 @@ const document: OpeDocument = {
 };
 const options = { headerUrl: "/invoice-header.png", signerName: "Anita Rahman, CPA" };
 
+test("both OPE formats render one letterhead and a separate readable legal footer", () => {
+  for (const type of ["BUSINESS_TRIP", "MEALS"] as const) {
+    const html = buildOpeDocumentHtml({ ...document, type }, options);
+    assert.equal((html.match(/<image\b/g) ?? []).length, 1);
+    assert.match(html, /<footer[^>]*aria-label="Keterangan keanggotaan IECnet"><strong>Krisnawan, Nugroho &amp; Fahmy<\/strong> is an independent member of IECnet Network\./);
+    assert.match(html, /Each member of IECnet Network is legally separate and independent entity which practices in its own jurisdiction and in its own rights\. IECnet Network is full member of Forum of Firm\./);
+  }
+});
+
 test("OPE renderer uses saved snapshots and amounts, with formatted new NPWP and tax display", () => {
   const html = buildOpeDocumentHtml(document, options);
   assert.match(html, /1234 5678 9012 3456/);
@@ -31,7 +40,7 @@ test("OPE renderer escapes hostile text and attribute values without creating ex
   const html = buildOpeDocumentHtml({ ...document, documentNumber: payload, subject: payload, notes: payload, clientSnapshot: { ...document.clientSnapshot!, name: payload }, items: [{ ...document.items![0], employeeName: payload, description: payload }] }, { headerUrl: 'x" onerror="alert(1)', signerName: payload });
   assert.doesNotMatch(html, /<script>/);
   assert.match(html, /&lt;script&gt;/);
-  assert.match(html, /src="x&quot; onerror=&quot;alert\(1\)"/);
+  assert.match(html, /href="x&quot; onerror=&quot;alert\(1\)"/);
 });
 
 test("Meals renders each client without a header client and hides disabled taxes", () => {

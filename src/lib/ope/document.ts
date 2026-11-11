@@ -1,4 +1,5 @@
 import type { OpeDocument } from "../../types/ope";
+import { LETTERHEAD_CSS, renderPrintLetterhead } from "../print-letterhead";
 
 const escapeHtml = (value: unknown) => String(value ?? "").replace(/[&<>"']/g, (character) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;",
@@ -35,15 +36,18 @@ export function buildOpeDocumentHtml(
 <html lang="id"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(title)} ${escapeHtml(document.documentNumber)}</title>
 <style>
-@page { size: A4; margin: 18mm; }
+@page { size: A4; margin: 18mm 18mm 10mm; }
 * { box-sizing: border-box; }
 html { color-scheme: light; }
 body { margin: 0; background: #e5e7eb; color: #111827; font: 12px/1.45 "Segoe UI", Arial, sans-serif; }
-.paper { width: 210mm; min-height: 297mm; margin: 0 auto; padding: 18mm; background: #fff; }
-/* The existing letterhead is a full transparent A4 canvas: show its top and bottom separately. */
-.header { display: block; width: 100%; height: 180px; object-fit: cover; object-position: top center; margin-bottom: 24px; }
+.paper { display: flex; flex-direction: column; width: 210mm; min-height: 297mm; margin: 0 auto; padding: 18mm 18mm 10mm; background: #fff; }
+.document-layout { order: 0; }
+.document-layout, .document-layout > tbody, .document-layout > tbody > tr, .document-content { display: block; }
+.footer-space { display: none; }
+${LETTERHEAD_CSS}
+.header { margin-bottom: 24px; }
 .closing { break-inside: avoid; page-break-inside: avoid; }
-.letterhead-footer { display: block; width: 100%; height: 100px; object-fit: cover; object-position: bottom center; margin-top: 10px; }
+.legal-footer { order: 1; width: 112mm; max-width: 100%; margin-top: auto; padding-top: 12mm; font: 9px/1.25 Arial, sans-serif; text-align: justify; color: #111; }
 .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; margin-bottom: 24px; }
 .client { flex: 1; min-width: 0; }
 .text { white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -75,10 +79,20 @@ tr { break-inside: avoid; page-break-inside: avoid; }
 .signer { margin-top: 100px; white-space: pre-wrap; overflow-wrap: anywhere; font-weight: 700; }
 @media print {
   body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .paper { width: auto; min-height: 0; margin: 0; padding: 0; }
+  .paper { display: block; width: auto; min-height: 0; margin: 0; padding: 0; }
+  .document-layout { display: table; width: 100%; border-collapse: collapse; }
+  .document-layout > tbody { display: table-row-group; }
+  .document-layout > tbody > tr { display: table-row; break-inside: auto; page-break-inside: auto; }
+  .document-content { display: table-cell; padding: 0; }
+  /* Reserve room on every page for the fixed footer, including long item tables. */
+  .footer-space { display: table-footer-group; }
+  .footer-space td { height: 18mm; padding: 0; }
+  .legal-footer { position: fixed; left: 0; bottom: 0; margin: 0; padding: 0; }
 }
 </style></head><body><main class="paper">
-<img class="header" src="${escapeHtml(options.headerUrl)}" alt="Kop KAP Krisnawan, Nugroho &amp; Fahmy">
+<footer class="legal-footer" aria-label="Keterangan keanggotaan IECnet"><strong>Krisnawan, Nugroho &amp; Fahmy</strong> is an independent member of IECnet Network. Each member of IECnet Network is legally separate and independent entity which practices in its own jurisdiction and in its own rights. IECnet Network is full member of Forum of Firm.</footer>
+<table class="document-layout" role="presentation"><tbody><tr><td class="document-content">
+<div class="header">${renderPrintLetterhead(options.headerUrl)}</div>
 <div class="top">
 ${businessTrip ? `<div class="client"><strong class="text">${escapeHtml(client?.name || "-")}</strong><div class="text">${escapeHtml(client?.address || "-")}</div><div class="pic text">Up : ${escapeHtml(client?.picName || "-")}</div></div>` : ""}
 <div><h1>${title}</h1>${status}</div>
@@ -102,6 +116,6 @@ ${document.pph23Rate > 0 ? `<tr><td>PPh 23 (${escapeHtml(document.pph23Rate)}%)<
 </tbody></table>
 ${document.notes ? `<section class="document-notes"><strong>Catatan Dokumen:</strong><p class="text">${escapeHtml(document.notes)}</p></section>` : ""}
 <div class="closing"><footer class="payment"><div class="bank"><strong>Catatan:</strong><div>Pembayaran dapat dilakukan dengan cara transfer kepada:</div><div>KAP KRISNAWAN, NUGROHO &amp; FAHMY</div><div>BANK MANDIRI</div><div>KCP JAKARTA LEBAK BULUS</div><div>No. Rekening 101-00-1469009-1</div><div>Bukti transfer email ke office.rasunasaid@knfdts.id</div></div><div class="signature"><div>Jakarta, ${escapeHtml(date(document.documentDate))}</div><div class="signer">${escapeHtml(options.signerName)}</div></div></footer>
-<img class="letterhead-footer" src="${escapeHtml(options.headerUrl)}" alt="Keterangan keanggotaan IECnet"></div>
+</div></td></tr></tbody><tfoot class="footer-space" aria-hidden="true"><tr><td></td></tr></tfoot></table>
 </main></body></html>`;
 }

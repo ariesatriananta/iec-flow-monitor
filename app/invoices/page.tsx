@@ -57,6 +57,8 @@ import { fetchTermins } from '@/lib/api/termins';
 import { fetchSettings, type SettingsPayload } from '@/lib/api/settings';
 import * as XLSX from 'xlsx';
 import { terbilang } from '@/lib/terbilang';
+import { PrintLetterhead } from '@/components/documents/PrintLetterhead';
+import { LETTERHEAD_CSS, renderPrintLetterhead } from '@/lib/print-letterhead';
 
 export default function Invoices() {
   const { toast } = useToast();
@@ -320,7 +322,7 @@ export default function Invoices() {
     };
   };
 
-  const handlePrintInvoice = () => {
+  const handlePrintInvoice = async () => {
     if (!selectedInvoice) return;
     const data = getInvoicePreviewData(selectedInvoice);
     const printWindow = window.open('', '_blank', 'width=1000,height=800');
@@ -377,9 +379,9 @@ export default function Invoices() {
               :root { --primary: #1e4e8c; --primary-soft: #e7eef8; --border: #94a3b8; --muted: #6b7280; }
             body { font-family: "Segoe UI", Arial, sans-serif; color: #111; background: #fff; }
             .page { page-break-after: always; }
-            .header { position: relative; height: 180px; margin-bottom: 18px; }
-            .header-bg { position: absolute; inset: 0; background-image: url('${headerUrl}'); background-size: cover; background-position: top center; }
-            .header-content { position: relative; text-align: center; padding-top: 175px; }
+            ${LETTERHEAD_CSS}
+            .header { margin-bottom: 18px; }
+            .header-content { text-align: center; padding-top: 8px; }
             .page:last-child { page-break-after: auto; }
             @media print {
               body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -446,7 +448,7 @@ export default function Invoices() {
         <body>
           <div class="page">
             <div class="header">
-              <div class="header-bg"></div>
+              ${renderPrintLetterhead(headerUrl)}
               <div class="header-content"></div>
             </div>
             <div class="faktur-top">
@@ -528,7 +530,7 @@ export default function Invoices() {
           </div>
           <div class="page">
             <div class="header">
-              <div class="header-bg"></div>
+              ${renderPrintLetterhead(headerUrl)}
               <div class="header-content">
                 <div class="title">KWITANSI</div>
               </div>
@@ -572,8 +574,21 @@ export default function Invoices() {
     printWindow.document.open();
     printWindow.document.write(html);
     printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
+    try {
+      // SVG image resources must be decoded before opening the printer dialog.
+      await new Promise<void>((resolve, reject) => {
+        const image = new window.Image();
+        image.onload = () => resolve();
+        image.onerror = () => reject(new Error('Kop dokumen gagal dimuat'));
+        image.src = headerUrl;
+      });
+      await printWindow.document.fonts.ready;
+      if (printWindow.closed) return;
+      printWindow.focus();
+      printWindow.print();
+    } catch {
+      toast({ title: 'Gagal memuat kop untuk print', description: 'Tutup jendela cetak lalu coba lagi.', variant: 'destructive' });
+    }
   };
 
   const getInvoiceStatusColor = (status: InvoiceStatus) => {
@@ -885,12 +900,7 @@ function InvoicePreview({
   return (
     <div className="space-y-8 rounded-md bg-white p-6 text-black">
       <div className="space-y-4">
-        <div className="relative h-44">
-          <div
-            className="absolute inset-0 bg-cover bg-top"
-            style={{ backgroundImage: `url(${headerSrc})` }}
-          />
-        </div>
+        <PrintLetterhead src={headerSrc} />
           <div className="mt-4 flex items-start justify-between gap-5 text-sm">
             <div className="space-y-1">
               <p className="font-semibold">{data.clientName}</p>
@@ -1015,12 +1025,7 @@ function InvoicePreview({
       </div>
 
       <div className="space-y-4">
-        <div className="relative h-44">
-          <div
-            className="absolute inset-0 bg-cover bg-top"
-            style={{ backgroundImage: `url(${headerSrc})` }}
-          />
-        </div>
+        <PrintLetterhead src={headerSrc} />
           <h3 className="mt-4 text-center text-lg font-bold tracking-wide text-primary">KWITANSI</h3>
         <div className="mt-4 overflow-auto rounded-md border border-slate-300">
           <table className="w-full text-sm">
