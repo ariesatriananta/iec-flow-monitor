@@ -8,7 +8,8 @@
 3. M3: notifikasi, routing notifikasi, audit log ringkas dan export Excel Admin.
 4. M4: pengujian integrasi seluruh alur, regresi modul HR dan UAT Owner.
 
-M1 belum menyediakan halaman pengajuan atau notifikasi/export. Pengaturan
+M1 menyediakan fondasi/API; M2 menambahkan halaman pengajuan dan approval.
+Notifikasi, audit log dan export masih menunggu M3. Pengaturan
 Approval Lembur tersedia di Settings -> Approval Flow. Fitur ini tidak
 menghitung uang lembur dan tidak mengubah payroll, absensi, atau workflow HR lama.
 
@@ -123,3 +124,66 @@ smoke tanpa sesi tidak membuktikan transaksi atau approval pada database live.
 - Build production belum dijalankan karena dev server memakai direktori `.next`
   yang sama; hindari build bersamaan dengan dev server.
 - Migration dan pengujian transaksi/approval pada database belum dijalankan.
+
+## M2 - UI pengajuan dan persetujuan
+
+Halaman `/overtime` tersedia dari menu Human Resources -> Lembur untuk Admin
+dan Staff. Pengaturan dua approver tetap di Settings -> Approval Flow.
+
+UI tidak menyediakan edit, Draft, nominal uang lembur, atau bypass approval Admin.
+Identitas pemohon berasal dari akun yang login. Keputusan dan durasi final tetap
+divalidasi oleh API M1, bukan bergantung pada tampilan/tombol frontend.
+
+### UAT Owner M2
+
+1. Login sebagai Staff yang terhubung employee aktif, buka menu Lembur.
+2. Ajukan lembur: pilih client, tanggal, jam mulai/selesai, keterangan; periksa
+   durasi otomatis sebelum konfirmasi. Contoh 18:00-21:30 = 3 jam 30 menit.
+3. Coba lintas hari 22:00-02:00 dengan pilihan hari berikutnya: 4 jam.
+   Coba 23:00-24:00: 1 jam. Pastikan tidak menjadi dua hari.
+4. Pastikan tanggal kosong, keterangan kosong, jam terbalik tanpa hari berikutnya,
+   durasi nol/lebih dari 24 jam dan sesi bertumpuk ditolak dengan pesan jelas.
+5. Buka detail: tanggal, client, waktu WIB, durasi, approver dan histori harus cocok.
+6. Login L1, buka Perlu Persetujuan Saya lalu setujui. Pengajuan lanjut ke L2,
+   tidak langsung final. L2 menyetujui untuk menyelesaikan alur.
+7. Coba Tolak tanpa alasan (harus gagal), kemudian dengan alasan.
+   Riwayat harus menunjukkan alasan dan aktor yang memproses.
+8. Batalkan pengajuan pending dari akun pengaju, lalu ajukan ulang jika perlu.
+   Pengajuan final tidak menawarkan tombol approve/tolak/batal lagi.
+9. Staff biasa tidak melihat pilihan Semua Pengajuan; Admin melihat pilihan tersebut
+   tetapi tidak otomatis mendapat tombol persetujuan jika bukan approver.
+10. Coba filter status/tanggal, halaman berikut/sebelum dan refresh.
+11. Uji di HP: pilihan daftar bisa diakses, form/detail bisa discroll, tombol aksi
+    tetap terjangkau dan daftar tampil sebagai kartu seperti halaman HR lain.
+
+Migration 0036 telah dijalankan oleh Owner sesuai konfirmasi percakapan M2.
+Agent tidak menjalankan migration atau menulis pengajuan pada database.
+
+### Hasil verifikasi M2
+
+- TypeScript dan focused Next lint file UI/layout yang diubah: lulus.
+- Unit test aturan lembur M1: 13 test tetap lulus.
+- Browser Chrome dengan seluruh API diintersep/mock: lulus untuk Staff dan Admin.
+  Cakupan: pencarian client, preview WIB dari browser zona waktu berbeda,
+  lintas hari, 24:00, konfirmasi kirim, konflik submit tanpa kehilangan isi form,
+  retry, deep-link detail, reject wajib alasan, approval L1 lalu L2,
+  konflik keputusan, guard klik ganda, batal pending, timeline dan status final.
+- Filter status/tanggal terbalik, pagination, pergantian scope serta error/retry
+  daftar diuji melalui API mock. Scope `all` hanya ditampilkan untuk Admin.
+- Tampilan diperiksa pada desktop dan HP; lebar 320/390/768/1440 tidak menyebabkan
+  overflow halaman. Desktop memakai tabel; HP memakai kartu daftar.
+- Header bersama mendapat penyesuaian CSS responsif saja: judul/nama ditruncate,
+  search ditampilkan mulai layar XL, dan jarak ikon dirapatkan pada layar kecil.
+  Handler autentikasi, notifikasi, navigasi dan logic bisnis tidak diubah.
+- Tidak ada migration tambahan M2, data fixture database atau mutasi database
+  selama pengujian. Alur transaksi database sungguhan tetap menunggu UAT Owner.
+- Build production tidak dijalankan bersamaan dengan dev server.
+
+### Penyesuaian standar UI repo
+
+Mengikuti Leave Management dan Business Trip: wrapper `grid gap-6`, satu Card
+Daftar Pengajuan dengan toolbar pada CardHeader, pilihan scope/status melalui
+Select (bukan tab), menu aksi titik tiga, kartu pada mobile dan pagination Prev/Next.
+Tidak ada hero terpisah atau pembatas lebar halaman khusus. Badge memakai token
+warna aplikasi. Dialog form 640px dan detail 680px mengikuti pola modul cuti.
+Perubahan ini hanya presentasi; API, validasi, scope akses dan workflow tetap sama.

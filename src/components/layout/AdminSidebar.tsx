@@ -12,6 +12,7 @@ import {
   Mail,
   UserCog,
   Calendar,
+  Clock3,
   FileCheck,
   Plane,
   Wallet,
@@ -104,6 +105,12 @@ const navSections: NavSection[] = [
         title: 'Leave Management',
         href: '/leave-management',
         icon: FileCheck,
+        roles: ['ADMIN', 'STAFF']
+      },
+      {
+        title: 'Lembur',
+        href: '/overtime',
+        icon: Clock3,
         roles: ['ADMIN', 'STAFF']
       },
       {
