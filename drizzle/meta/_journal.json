@@ -253,6 +253,13 @@
       "when": 1794418607971,
       "tag": "0035_ambiguous_hedge_knight",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1794420070953,
+      "tag": "0036_crazy_nuke",
+      "breakpoints": true
     }
   ]
 }

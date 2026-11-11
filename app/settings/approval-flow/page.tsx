@@ -25,6 +25,9 @@ const initialState: ApprovalFlowPayload = {
   businessTripApprovalLevels: 2,
   businessTripApproverLevel1EmployeeId: null,
   businessTripApproverLevel2EmployeeId: null,
+  overtimeApprovalLevels: 2,
+  overtimeApproverLevel1EmployeeId: null,
+  overtimeApproverLevel2EmployeeId: null,
 };
 
 type LevelKey =
@@ -37,7 +40,9 @@ type ApproverKey =
   | "reimbursementApproverLevel1EmployeeId"
   | "reimbursementApproverLevel2EmployeeId"
   | "businessTripApproverLevel1EmployeeId"
-  | "businessTripApproverLevel2EmployeeId";
+  | "businessTripApproverLevel2EmployeeId"
+  | "overtimeApproverLevel1EmployeeId"
+  | "overtimeApproverLevel2EmployeeId";
 
 const EMPTY_VALUE = "__none__";
 
@@ -58,7 +63,7 @@ export default function ApprovalFlowPage() {
         ]);
         if (!active) return;
 
-        setForm(approvalFlow);
+        setForm({ ...initialState, ...approvalFlow });
         setEmployeeOptions(employeesData.items.filter((item) => item.isActive));
       } catch (error) {
         console.error(error);
@@ -127,6 +132,16 @@ export default function ApprovalFlowPage() {
   };
 
   const validateBeforeSave = () => {
+    const first = form.overtimeApproverLevel1EmployeeId;
+    const second = form.overtimeApproverLevel2EmployeeId;
+    if (Boolean(first) !== Boolean(second) || (first && first === second)) {
+      toast({
+        title: "Error",
+        description: "Pilih dua approver lembur yang berbeda, atau kosongkan keduanya.",
+        variant: "destructive",
+      });
+      return false;
+    }
     const required = [
       form.leaveApproverLevel1EmployeeId,
       form.reimbursementApproverLevel1EmployeeId,
@@ -165,7 +180,7 @@ export default function ApprovalFlowPage() {
       console.error(error);
       toast({
         title: "Error",
-        description: "Gagal menyimpan approval flow.",
+        description: error instanceof Error ? error.message : "Gagal menyimpan approval flow.",
         variant: "destructive",
       });
     } finally {
@@ -239,10 +254,10 @@ export default function ApprovalFlowPage() {
             </SelectContent>
           </Select>
         </div>
-        {renderEmployeeSelect("Approver Level 1", form[approver1Key], approver1Key)}
+        {renderEmployeeSelect("Approver Level 1", form[approver1Key] ?? null, approver1Key)}
         {renderEmployeeSelect(
           "Approver Level 2",
-          form[approver2Key],
+          form[approver2Key] ?? null,
           approver2Key,
           form[levelKey] === 1,
           "Pilih employee approver level 2"
@@ -276,6 +291,24 @@ export default function ApprovalFlowPage() {
           "businessTripApproverLevel1EmployeeId",
           "businessTripApproverLevel2EmployeeId"
         )}
+
+        <Card className="border border-border/70">
+          <CardHeader>
+            <CardTitle>Approval Lembur</CardTitle>
+            <CardDescription>
+              Dua level persetujuan dengan approver berbeda. Pilih karyawan aktif yang memiliki akun login aktif.
+              Keduanya boleh dikosongkan jika pengajuan lembur belum digunakan.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 md:grid-cols-3">
+            <div className="space-y-2">
+              <Label>Jumlah Approval Level</Label>
+              <p className="flex h-10 items-center rounded-md border px-3 text-sm">2 Level</p>
+            </div>
+            {renderEmployeeSelect("Approver Level 1", form.overtimeApproverLevel1EmployeeId ?? null, "overtimeApproverLevel1EmployeeId")}
+            {renderEmployeeSelect("Approver Level 2", form.overtimeApproverLevel2EmployeeId ?? null, "overtimeApproverLevel2EmployeeId")}
+          </CardContent>
+        </Card>
 
         <div className="flex justify-end">
           <Button onClick={handleSave} disabled={isSaving}>

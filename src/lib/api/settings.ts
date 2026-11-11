@@ -13,6 +13,19 @@ export interface SettingsPayload {
 }
 
 export interface ApprovalFlowPayload {
+  overtimeApprovalLevels?: 2;
+  overtimeApproverLevel1EmployeeId?: string | null;
+  overtimeApproverLevel2EmployeeId?: string | null;
+  overtimeApproverLevel1Employee?: {
+    id: string;
+    fullName: string | null;
+    title: string | null;
+  } | null;
+  overtimeApproverLevel2Employee?: {
+    id: string;
+    fullName: string | null;
+    title: string | null;
+  } | null;
   leaveApprovalLevels: 1 | 2;
   leaveApproverLevel1EmployeeId: string | null;
   leaveApproverLevel2EmployeeId: string | null;

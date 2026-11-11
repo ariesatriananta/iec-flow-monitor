@@ -2,6 +2,7 @@ import {
   pgTable,
   text,
   boolean,
+  date,
   integer,
   numeric,
   timestamp,
@@ -241,6 +242,8 @@ export const settingsApprovalFlow = pgTable("settings_approval_flow", {
   businessTripApproverLevel2EmployeeId: text("business_trip_approver_level2_employee_id").references(
     () => employees.id
   ),
+  overtimeApproverLevel1EmployeeId: text("overtime_approver_level1_employee_id").references(() => employees.id),
+  overtimeApproverLevel2EmployeeId: text("overtime_approver_level2_employee_id").references(() => employees.id),
   createdAt: timestamp("created_at", { mode: "date" }).notNull(),
   updatedAt: timestamp("updated_at", { mode: "date" }).notNull(),
 });
@@ -425,6 +428,40 @@ export const leaveRequests = pgTable(
   (table) => ({
     employeeIdIdx: index("leave_requests_employee_id_idx").on(table.employeeId),
     statusIdx: index("leave_requests_status_idx").on(table.status),
+  })
+);
+
+export const overtimeRequests = pgTable(
+  "overtime_requests",
+  {
+    id: text("id").primaryKey(),
+    employeeId: text("employee_id").notNull().references(() => employees.id),
+    employeeName: text("employee_name").notNull(),
+    employeeCode: text("employee_code").notNull(),
+    clientId: text("client_id").references(() => clients.id, { onDelete: "set null" }),
+    clientName: text("client_name").notNull(),
+    overtimeDate: date("overtime_date", { mode: "string" }).notNull(),
+    startTime: text("start_time").notNull(),
+    endTime: text("end_time").notNull(),
+    endsNextDay: boolean("ends_next_day").notNull().default(false),
+    startsAt: timestamp("starts_at", { mode: "date" }).notNull(),
+    endsAt: timestamp("ends_at", { mode: "date" }).notNull(),
+    durationMinutes: integer("duration_minutes").notNull(),
+    description: text("description").notNull(),
+    status: text("status").notNull().default("SUBMITTED"),
+    approverLevel1EmployeeId: text("approver_level1_employee_id").notNull().references(() => employees.id),
+    approverLevel1Name: text("approver_level1_name").notNull(),
+    approverLevel2EmployeeId: text("approver_level2_employee_id").notNull().references(() => employees.id),
+    approverLevel2Name: text("approver_level2_name").notNull(),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull(),
+    updatedAt: timestamp("updated_at", { mode: "date" }).notNull(),
+  },
+  (table) => ({
+    employeeTimeIdx: index("overtime_requests_employee_time_idx").on(table.employeeId, table.startsAt, table.endsAt),
+    statusDateIdx: index("overtime_requests_status_date_idx").on(table.status, table.overtimeDate),
+    approver1Idx: index("overtime_requests_approver1_idx").on(table.approverLevel1EmployeeId, table.status),
+    approver2Idx: index("overtime_requests_approver2_idx").on(table.approverLevel2EmployeeId, table.status),
+    clientIdx: index("overtime_requests_client_idx").on(table.clientId),
   })
 );
 

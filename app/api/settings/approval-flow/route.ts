@@ -5,7 +5,7 @@ import { z } from "zod";
 import { getDb } from "@/lib/db";
 import { employees, settingsApprovalFlow, users } from "@/lib/db/schema";
 import { requireAdmin, requireSessionUser } from "@/lib/auth/server";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 
 const defaultPayload = {
   leaveApprovalLevels: 2,
@@ -17,6 +17,9 @@ const defaultPayload = {
   businessTripApprovalLevels: 2,
   businessTripApproverLevel1EmployeeId: null,
   businessTripApproverLevel2EmployeeId: null,
+  overtimeApprovalLevels: 2,
+  overtimeApproverLevel1EmployeeId: null,
+  overtimeApproverLevel2EmployeeId: null,
 } as const;
 
 const employeeIdSchema = z
@@ -35,7 +38,27 @@ const payloadSchema = z.object({
   businessTripApprovalLevels: z.union([z.literal(1), z.literal(2)]),
   businessTripApproverLevel1EmployeeId: employeeIdSchema,
   businessTripApproverLevel2EmployeeId: employeeIdSchema.nullable(),
+  overtimeApprovalLevels: z.literal(2).optional(),
+  overtimeApproverLevel1EmployeeId: employeeIdSchema.nullable().optional(),
+  overtimeApproverLevel2EmployeeId: employeeIdSchema.nullable().optional(),
 }).superRefine((value, ctx) => {
+  const first = value.overtimeApproverLevel1EmployeeId;
+  const second = value.overtimeApproverLevel2EmployeeId;
+  if ((first !== undefined || second !== undefined) &&
+      ((first === undefined || second === undefined) || Boolean(first) !== Boolean(second))) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["overtimeApproverLevel2EmployeeId"],
+      message: "Approval lembur harus berisi dua approver atau keduanya dikosongkan",
+    });
+  }
+  if (first && first === second) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["overtimeApproverLevel2EmployeeId"],
+      message: "Approver level 1 dan level 2 lembur harus berbeda",
+    });
+  }
   if (value.leaveApprovalLevels === 2 && !value.leaveApproverLevel2EmployeeId) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
@@ -108,9 +131,18 @@ export async function GET() {
     row.reimbursementApproverLevel2EmployeeId,
     row.businessTripApproverLevel1EmployeeId,
     row.businessTripApproverLevel2EmployeeId,
+    row.overtimeApproverLevel1EmployeeId,
+    row.overtimeApproverLevel2EmployeeId,
   ]);
 
   return NextResponse.json({
+    overtimeApprovalLevels: 2,
+    overtimeApproverLevel1EmployeeId: row.overtimeApproverLevel1EmployeeId,
+    overtimeApproverLevel2EmployeeId: row.overtimeApproverLevel2EmployeeId,
+    overtimeApproverLevel1Employee: row.overtimeApproverLevel1EmployeeId
+      ? approverProfiles.get(row.overtimeApproverLevel1EmployeeId) ?? null : null,
+    overtimeApproverLevel2Employee: row.overtimeApproverLevel2EmployeeId
+      ? approverProfiles.get(row.overtimeApproverLevel2EmployeeId) ?? null : null,
     leaveApprovalLevels: row.leaveApprovalLevels,
     leaveApproverLevel1EmployeeId: row.leaveApproverLevel1EmployeeId,
     leaveApproverLevel2EmployeeId: row.leaveApproverLevel2EmployeeId,
@@ -163,6 +195,8 @@ export async function PUT(request: Request) {
     payload.reimbursementApproverLevel2EmployeeId,
     payload.businessTripApproverLevel1EmployeeId,
     payload.businessTripApproverLevel2EmployeeId,
+    payload.overtimeApproverLevel1EmployeeId,
+    payload.overtimeApproverLevel2EmployeeId,
   ].filter((id): id is string => Boolean(id));
   const uniqueCandidateIds = Array.from(new Set(candidateIds));
 
@@ -182,11 +216,32 @@ export async function PUT(request: Request) {
     }
   }
 
+  for (const employeeId of [payload.overtimeApproverLevel1EmployeeId, payload.overtimeApproverLevel2EmployeeId]) {
+    if (!employeeId) continue;
+    const [activeApprover] = await db
+      .select({ id: employees.id })
+      .from(employees)
+      .innerJoin(users, eq(users.employeeId, employees.id))
+      .where(and(eq(employees.id, employeeId), eq(employees.isActive, true), eq(users.isActive, true)))
+      .limit(1);
+    if (!activeApprover) {
+      return NextResponse.json({ error: "Approver lembur harus karyawan aktif dengan akun login aktif" }, { status: 400 });
+    }
+  }
+
+  // Older clients omit these keys: preserve the existing overtime configuration.
+  const overtimeUpdate = payload.overtimeApproverLevel1EmployeeId !== undefined
+    ? {
+        overtimeApproverLevel1EmployeeId: payload.overtimeApproverLevel1EmployeeId,
+        overtimeApproverLevel2EmployeeId: payload.overtimeApproverLevel2EmployeeId ?? null,
+      }
+    : {};
   const now = new Date();
   const [updated] = await db
     .insert(settingsApprovalFlow)
     .values({
       id: "default",
+      ...overtimeUpdate,
       leaveApprovalLevels: payload.leaveApprovalLevels,
       leaveApproverLevel1Role: "PERSON_BASED",
       leaveApproverLevel2Role: "PERSON_BASED",
@@ -215,6 +270,7 @@ export async function PUT(request: Request) {
     .onConflictDoUpdate({
       target: settingsApprovalFlow.id,
       set: {
+        ...overtimeUpdate,
         leaveApprovalLevels: payload.leaveApprovalLevels,
         leaveApproverLevel1Role: "PERSON_BASED",
         leaveApproverLevel2Role: "PERSON_BASED",
@@ -250,9 +306,18 @@ export async function PUT(request: Request) {
     updated.reimbursementApproverLevel2EmployeeId,
     updated.businessTripApproverLevel1EmployeeId,
     updated.businessTripApproverLevel2EmployeeId,
+    updated.overtimeApproverLevel1EmployeeId,
+    updated.overtimeApproverLevel2EmployeeId,
   ]);
 
   return NextResponse.json({
+    overtimeApprovalLevels: 2,
+    overtimeApproverLevel1EmployeeId: updated.overtimeApproverLevel1EmployeeId,
+    overtimeApproverLevel2EmployeeId: updated.overtimeApproverLevel2EmployeeId,
+    overtimeApproverLevel1Employee: updated.overtimeApproverLevel1EmployeeId
+      ? approverProfiles.get(updated.overtimeApproverLevel1EmployeeId) ?? null : null,
+    overtimeApproverLevel2Employee: updated.overtimeApproverLevel2EmployeeId
+      ? approverProfiles.get(updated.overtimeApproverLevel2EmployeeId) ?? null : null,
     leaveApprovalLevels: updated.leaveApprovalLevels,
     leaveApproverLevel1EmployeeId: updated.leaveApproverLevel1EmployeeId,
     leaveApproverLevel2EmployeeId: updated.leaveApproverLevel2EmployeeId,

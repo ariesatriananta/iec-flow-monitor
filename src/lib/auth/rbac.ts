@@ -3,6 +3,7 @@ import type { User } from "@/types";
 export type UserRole = User["role"];
 
 const STAFF_ALLOWED_PREFIXES = [
+  "/overtime",
   "/dashboard",
   "/profile",
   "/attendance",
@@ -12,6 +13,7 @@ const STAFF_ALLOWED_PREFIXES = [
 ];
 
 const PROTECTED_PREFIXES = [
+  "/overtime",
   "/dashboard",
   "/clients",
   "/contracts",

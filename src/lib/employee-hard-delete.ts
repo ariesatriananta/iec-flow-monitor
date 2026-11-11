@@ -1,10 +1,11 @@
-import { and, inArray, isNotNull, sql } from "drizzle-orm";
+import { and, inArray, isNotNull, or, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import {
   attendanceRecords,
   businessTrips,
   leaveRequests,
   reimbursements,
+  overtimeRequests,
   settingsApprovalFlow,
   workflowEvents,
 } from "@/lib/db/schema";
@@ -47,6 +48,7 @@ export async function buildEmployeeHardDeleteEligibilityMap(
     reimbursementRows,
     workflowEventRows,
     approvalFlowRows,
+    overtimeRows,
   ] = await Promise.all([
     db
       .select({
@@ -105,8 +107,19 @@ export async function buildEmployeeHardDeleteEligibilityMap(
           settingsApprovalFlow.businessTripApproverLevel1EmployeeId,
         businessTripApproverLevel2EmployeeId:
           settingsApprovalFlow.businessTripApproverLevel2EmployeeId,
+        overtimeApproverLevel1EmployeeId: settingsApprovalFlow.overtimeApproverLevel1EmployeeId,
+        overtimeApproverLevel2EmployeeId: settingsApprovalFlow.overtimeApproverLevel2EmployeeId,
       })
       .from(settingsApprovalFlow),
+    db.select({
+      employeeId: overtimeRequests.employeeId,
+      approverLevel1EmployeeId: overtimeRequests.approverLevel1EmployeeId,
+      approverLevel2EmployeeId: overtimeRequests.approverLevel2EmployeeId,
+    }).from(overtimeRequests).where(or(
+      inArray(overtimeRequests.employeeId, employeeIds),
+      inArray(overtimeRequests.approverLevel1EmployeeId, employeeIds),
+      inArray(overtimeRequests.approverLevel2EmployeeId, employeeIds),
+    )),
   ]);
 
   const attendanceCountByEmployeeId = toCountMap(attendanceRows);
@@ -116,7 +129,10 @@ export async function buildEmployeeHardDeleteEligibilityMap(
   const workflowEventCountByEmployeeId = toCountMap(workflowEventRows);
 
   const approverEmployeeIds = new Set<string>();
+  const overtimeEmployeeIds = new Set(overtimeRows.flatMap((row) => [row.employeeId, row.approverLevel1EmployeeId, row.approverLevel2EmployeeId]));
   for (const row of approvalFlowRows) {
+    if (row.overtimeApproverLevel1EmployeeId) approverEmployeeIds.add(row.overtimeApproverLevel1EmployeeId);
+    if (row.overtimeApproverLevel2EmployeeId) approverEmployeeIds.add(row.overtimeApproverLevel2EmployeeId);
     if (row.leaveApproverLevel1EmployeeId) {
       approverEmployeeIds.add(row.leaveApproverLevel1EmployeeId);
     }
@@ -156,6 +172,9 @@ export async function buildEmployeeHardDeleteEligibilityMap(
     }
     if ((workflowEventCountByEmployeeId.get(employee.id) ?? 0) > 0) {
       reasons.push("Sudah tercatat pada riwayat aksi workflow.");
+    }
+    if (overtimeEmployeeIds.has(employee.id)) {
+      reasons.push("Tercatat sebagai pengaju atau approver pada riwayat lembur.");
     }
     if (approverEmployeeIds.has(employee.id)) {
       reasons.push("Masih ditetapkan sebagai approver di Approval Flow.");

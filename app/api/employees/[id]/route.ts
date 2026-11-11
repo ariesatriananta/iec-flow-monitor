@@ -10,6 +10,7 @@ import {
   employees,
   leaveRequests,
   notifications,
+  overtimeRequests,
   reimbursementAttachments,
   reimbursementItems,
   reimbursements,
@@ -160,6 +161,15 @@ export async function DELETE(
     return NextResponse.json({ error: "Employee tidak ditemukan" }, { status: 404 });
   }
 
+  const [overtimeReference] = await db.select({ id: overtimeRequests.id }).from(overtimeRequests).where(or(
+    eq(overtimeRequests.employeeId, params.id),
+    eq(overtimeRequests.approverLevel1EmployeeId, params.id),
+    eq(overtimeRequests.approverLevel2EmployeeId, params.id),
+  )).limit(1);
+  if (overtimeReference) {
+    return NextResponse.json({ error: "Employee memiliki riwayat pengajuan/approval lembur. Nonaktifkan employee untuk mempertahankan histori." }, { status: 409 });
+  }
+
   const linkedUsers = await db
     .select({
       id: users.id,
@@ -233,6 +243,10 @@ export async function DELETE(
       .set({ businessTripApproverLevel2EmployeeId: null, updatedAt: new Date() })
       .where(eq(settingsApprovalFlow.businessTripApproverLevel2EmployeeId, params.id));
 
+    // Clear both overtime levels to avoid leaving a partially configured pair.
+    await tx.update(settingsApprovalFlow)
+      .set({ overtimeApproverLevel1EmployeeId: null, overtimeApproverLevel2EmployeeId: null, updatedAt: new Date() })
+      .where(or(eq(settingsApprovalFlow.overtimeApproverLevel1EmployeeId, params.id), eq(settingsApprovalFlow.overtimeApproverLevel2EmployeeId, params.id)));
     // Delete notifications linked to workflow entities owned by this employee.
     if (leaveIds.length > 0) {
       await tx.delete(notifications).where(entityMatch(notifications.entityType, notifications.entityId, "LEAVE", leaveIds));

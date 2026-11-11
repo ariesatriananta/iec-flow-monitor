@@ -4,7 +4,7 @@ import { employees, users, workflowEvents } from "@/lib/db/schema";
 
 type DbClient = ReturnType<typeof getDb>;
 
-export type WorkflowModule = "LEAVE" | "BUSINESS_TRIP" | "REIMBURSEMENT";
+export type WorkflowModule = "LEAVE" | "BUSINESS_TRIP" | "REIMBURSEMENT" | "OVERTIME";
 
 export type CreateWorkflowEventInput = {
   module: WorkflowModule;
