@@ -318,6 +318,12 @@ export type OpeClientSnapshot = {
   npwp2: string | null;
 };
 
+export const documentNumberCounters = pgTable("document_number_counters", {
+  year: integer("year").primaryKey(),
+  lastSeq: integer("last_seq").notNull().default(0),
+  updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
+});
+
 export const opeDocuments = pgTable(
   "ope_documents",
   {
@@ -343,7 +349,6 @@ export const opeDocuments = pgTable(
   },
   (table) => ({
     numberUnique: uniqueIndex("ope_documents_number_unique").on(table.documentNumber),
-    sequenceUnique: uniqueIndex("ope_documents_sequence_unique").on(table.type, table.numberYear, table.seqNo),
     typeCreatedIdx: index("ope_documents_type_created_idx").on(table.type, table.createdAt),
     clientIdx: index("ope_documents_client_idx").on(table.clientId),
   })

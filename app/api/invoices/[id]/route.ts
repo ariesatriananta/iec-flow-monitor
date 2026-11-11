@@ -25,16 +25,21 @@ export async function PUT(
 
   const db = getDb();
   const [beforeUpdate] = await db
-    .select({ status: invoices.status })
+    .select({ status: invoices.status, invoiceNumber: invoices.invoiceNumber, seqNo: invoices.seqNo })
     .from(invoices)
     .where(eq(invoices.id, params.id))
     .limit(1);
+  if (!beforeUpdate) {
+    return NextResponse.json({ error: "Invoice tidak ditemukan" }, { status: 404 });
+  }
+  if ((body.invoiceNumber !== undefined && body.invoiceNumber !== beforeUpdate.invoiceNumber) ||
+      (body.seqNo !== undefined && Number(body.seqNo) !== beforeUpdate.seqNo)) {
+    return NextResponse.json({ error: "Nomor invoice ditetapkan otomatis dan tidak dapat diubah" }, { status: 400 });
+  }
   const [updated] = await db
     .update(invoices)
     .set({
       invoiceDate: body.invoiceDate ? new Date(body.invoiceDate) : undefined,
-      seqNo: body.seqNo !== undefined ? Number(body.seqNo) : undefined,
-      invoiceNumber: body.invoiceNumber ?? undefined,
       amount: body.amount !== undefined ? body.amount.toString() : undefined,
       status: body.status ?? undefined,
       updatedAt: new Date(),

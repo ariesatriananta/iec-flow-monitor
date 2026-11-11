@@ -78,10 +78,6 @@ export function calculateOpeTotals(amounts: number[], usePpn: boolean, usePph23:
   };
 }
 
-export function generateOpeNumber(type: OpeInput["type"], year: number, seqNo: number) {
-  return `OPE/${type === "BUSINESS_TRIP" ? "BT" : "ML"}/${year}/${String(seqNo).padStart(4, "0")}`;
-}
-
 export function canTransitionOpe(from: string, to: string) {
   return (from === "DRAFT" && (to === "ISSUED" || to === "VOID")) ||
     (from === "ISSUED" && (to === "PAID" || to === "VOID"));

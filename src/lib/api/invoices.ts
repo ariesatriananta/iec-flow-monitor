@@ -14,8 +14,8 @@ export async function createInvoice(payload: {
   contractId: string;
   terminId: string;
   invoiceDate: Date;
-  seqNo: number;
-  invoiceNumber: string;
+  seqNo?: number;
+  invoiceNumber?: string;
   amount: number;
   status: string;
   usePph23?: boolean;

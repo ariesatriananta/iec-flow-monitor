@@ -246,6 +246,13 @@
       "when": 1794291438011,
       "tag": "0034_real_baron_strucker",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1794418607971,
+      "tag": "0035_ambiguous_hedge_knight",
+      "breakpoints": true
     }
   ]
 }

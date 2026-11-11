@@ -180,7 +180,7 @@ export function OpeForm({ type, document, clients, employees, saving, onSave, on
     <form onSubmit={submit} className="space-y-5">
       <fieldset disabled={saving} className="min-w-0 space-y-5">
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2"><Label>Nomor dokumen</Label><Input value={document?.documentNumber ?? "Otomatis saat disimpan"} readOnly /></div>
+          <div className="space-y-2"><Label>Nomor dokumen</Label><Input value={document?.documentNumber ?? "Otomatis saat disimpan"} readOnly />{!document && <p className="text-xs text-muted-foreground">Format I.042/ARM/XI/2026, satu urutan bersama Invoice, Business Trip, dan Meals.</p>}</div>
           <div className="space-y-2"><Label>Tanggal dokumen *</Label><DatePicker label="Tanggal dokumen" value={documentDate} onChange={setDocumentDate} /></div>
           {type === "BUSINESS_TRIP" && <div className="space-y-2 sm:col-span-2"><Label>Client *</Label><SearchSelect label="Client" value={clientId} options={clientOptions} onChange={setClientId} /></div>}
           <div className="space-y-2 sm:col-span-2"><Label htmlFor="ope-subject">Perihal *</Label><Input id="ope-subject" value={subject} onChange={(event) => setSubject(event.target.value)} maxLength={1000} required /></div>

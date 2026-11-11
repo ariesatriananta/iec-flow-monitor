@@ -1,7 +1,8 @@
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { clients, contracts, employees, opeDocuments, opeItems, type OpeClientSnapshot } from "@/lib/db/schema";
-import { calculateOpeTotals, canTransitionOpe, generateOpeNumber, OpeError, type OpeInput } from "./validation";
+import { calculateOpeTotals, canTransitionOpe, OpeError, type OpeInput } from "./validation";
+import { allocateDocumentNumber } from "../document-numbering";
 
 type Transaction = Parameters<Parameters<ReturnType<typeof getDb>["transaction"]>[0]>[0];
 type Document = typeof opeDocuments.$inferSelect;
@@ -86,17 +87,11 @@ async function prepareDocument(tx: Transaction, input: OpeInput, old?: Document,
 export async function createOpe(input: OpeInput) {
   return getDb().transaction(async (tx) => {
     const { header, rows } = await prepareDocument(tx, input);
-    const numberYear = input.documentDate.getUTCFullYear();
-    // A transaction-scoped lock serializes number allocation for this type/year.
-    await tx.execute(sql`select pg_advisory_xact_lock(hashtext('ope-numbering'), hashtext(${`${input.type}:${numberYear}`}))`);
-    const [sequence] = await tx.select({ max: sql<number>`coalesce(max(${opeDocuments.seqNo}), 0)` })
-      .from(opeDocuments).where(and(eq(opeDocuments.type, input.type), eq(opeDocuments.numberYear, numberYear)));
-    const seqNo = Number(sequence.max) + 1;
-    if (seqNo > 2_147_483_647) throw new OpeError("Urutan nomor OPE sudah mencapai batas");
+    const numbering = await allocateDocumentNumber(tx, input.documentDate);
     const now = new Date();
     const [document] = await tx.insert(opeDocuments).values({
-      ...header, id: crypto.randomUUID(), type: input.type, status: "DRAFT", numberYear, seqNo,
-      documentNumber: generateOpeNumber(input.type, numberYear, seqNo), createdAt: now, updatedAt: now,
+      ...header, id: crypto.randomUUID(), type: input.type, status: "DRAFT", ...numbering,
+      createdAt: now, updatedAt: now,
     }).returning();
     const items = await tx.insert(opeItems).values(rows.map((row) => ({ ...row, documentId: document.id }))).returning();
     return { ...document, items };

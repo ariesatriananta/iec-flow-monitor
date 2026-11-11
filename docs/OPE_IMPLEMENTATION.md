@@ -11,7 +11,7 @@
 
 M1 selesai; migration telah dikonfirmasi berhasil oleh Owner. M2 telah diuji
 oleh Owner. M3 menambahkan preview dan print OPE. Business Trip OPE terpisah dari
-pengajuan perjalanan dinas HR. OPE tidak memengaruhi termin, invoice,
+pengajuan perjalanan dinas HR. OPE tidak memengaruhi nominal termin/invoice,
 nilai kontrak, atau progres pembayaran kontrak.
 
 ## Database
@@ -27,6 +27,50 @@ yang sudah ada tetap dapat berjalan. Item dokumen memakai `ON DELETE CASCADE`.
 Jalankan migration pada database tujuan sebelum menguji API OPE dengan sesi
 Admin. Jangan menjalankan migration lama lagi apabila sudah diterapkan.
 
+### Penomoran bersama Invoice / OPE / Meals
+
+Migration `drizzle/0035_ambiguous_hedge_knight.sql` menambahkan tabel
+`document_number_counters` (`year`, `last_seq`, `updated_at`) untuk menjaga
+satu urutan per tahun. Nilai awal mengambil nomor terbesar berformat
+`I.xxx/ARM/BULAN-ROMAWI/tahun` dari tabel Invoice dan OPE. Nomor OPE lama
+berawalan `OPE/BT` atau `OPE/ML` tidak ikut menaikkan counter.
+
+Migration juga menghapus index gabungan lama `ope_documents_sequence_unique`,
+karena urutan OPE lama dapat sama dengan urutan baru pada tahun/jenis yang
+sama. Nomor dokumen lama tidak diubah. Migration ini belum dijalankan saat
+implementasi; Owner menerapkannya sebelum deploy kode penomoran baru.
+
+Pemeriksaan read-only saat implementasi menemukan nomor maksimum tahun 2026
+sebesar 42 dari 41 dokumen berformat bersama. Nomor berikutnya diperkirakan
+43 jika tidak ada dokumen tambahan sebelum migration. Ini hasil pemeriksaan
+saat itu, bukan nomor yang dikunci dalam kode atau migration.
+
+Allocator server digunakan bersama oleh pembuatan Invoice melalui Termin,
+API Invoice, dan OPE/Meals. Counter disimpan dalam transaksi yang sama dengan
+dokumen sehingga request bersamaan tidak memperoleh nomor sama dan transaksi
+gagal tidak meninggalkan alokasi terpisah. Counter mempertahankan urutan
+setelah dokumen dihapus. Perubahan tanggal dokumen tidak mengganti nomor
+atau `numberYear` OPE yang sudah tersimpan. API edit Invoice juga menolak
+permintaan untuk mengganti `seqNo` atau `invoiceNumber`.
+
+UAT setelah migration dan deploy:
+
+1. Catat nomor bersama terbesar pada tahun uji, lalu buat Invoice, Business
+   Trip OPE, dan Meals secara bergantian. Ketiganya harus memperoleh urutan
+   berlanjut dengan format `I.xxx/ARM/BULAN-ROMAWI/tahun`.
+2. Buka dan edit Draft OPE/Meals lama; nomor `OPE/BT/...` atau `OPE/ML/...`
+   tetap seperti sebelumnya. Periksa pula nomor pada detail, preview, dan print.
+3. Buat dokumen dengan bulan berbeda pada tahun yang sama: urutan tetap
+   berlanjut dan bulan Romawi mengikuti tanggal saat dibuat. Tahun berbeda
+   memakai counter tahun tersebut. Edit tanggal sesudah simpan mempertahankan
+   nomor serta tahun penomoran awal dokumen.
+4. Jalankan dua pembuatan secara bersamaan pada database uji; nomor harus
+   berbeda. Uji kegagalan transaksi setelah alokasi pada lingkungan uji untuk
+   memastikan counter dan dokumen rollback bersama. Verifikasi konkurensi
+   dan rollback langsung ke database masih menunggu UAT Owner.
+5. Pastikan nominal, pajak, status, dan dokumen historis tetap sesuai data
+   sebelumnya. Penggantian nomor Invoice yang sudah ada melalui API ditolak.
+
 ## Aturan
 
 - Client baru harus aktif dan memiliki kontrak ACTIVE.
@@ -38,9 +82,14 @@ Admin. Jangan menjalankan migration lama lagi apabila sudah diterapkan.
 - Subtotal = sum item; PPN = 11% subtotal jika on; PPh 23 = 2% subtotal jika on.
 - Pajak dibulatkan sekali pada subtotal ke rupiah terdekat (half up).
 - Total = subtotal + PPN - PPh 23. API menghitung ulang seluruh angka.
-- Nomor: `OPE/BT/2026/0001` atau `OPE/ML/2026/0001`.
-  Urutan terpisah per jenis/tahun; tahun ditetapkan saat dibuat dan nomor
-  tetap dipertahankan ketika tanggal dokumen draft diedit.
+- Dokumen baru memakai format Invoice, misalnya `I.042/ARM/XI/2026`.
+  Invoice, Business Trip OPE, dan Meals memakai satu urutan bersama per tahun,
+  berlanjut antarbulan dan antarjenis dokumen. Tahun/bulan mengikuti tanggal
+  dokumen saat pertama disimpan; nomor OPE diterbitkan saat menyimpan Draft
+  dan tetap dipertahankan ketika tanggal Draft diedit.
+- Nomor OPE/Meals lama (`OPE/BT/2026/0001`, `OPE/ML/2026/0001`) tetap utuh
+  dan tidak menjadi dasar urutan Invoice bersama. Nomor yang sudah dialokasikan
+  tidak dipakai ulang setelah dokumennya dihapus.
 - Status awal DRAFT; DRAFT -> ISSUED/VOID; ISSUED -> PAID/VOID.
   Isi dokumen hanya dapat diedit saat DRAFT.
 - Audit ditulis setelah transaksi commit; error audit tidak membatalkan OPE.

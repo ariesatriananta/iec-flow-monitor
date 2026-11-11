@@ -3,9 +3,10 @@ export const dynamic = "force-dynamic"
 import { NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { getDb } from "@/lib/db";
-import { invoices } from "@/lib/db/schema";
+import { contracts, invoices, termins } from "@/lib/db/schema";
 import { requireAdmin } from "@/lib/auth/server";
 import { recordAuditLog } from "@/lib/audit-log";
+import { allocateDocumentNumber } from "@/lib/document-numbering";
 
 export async function GET(request: Request) {
   const auth = await requireAdmin();
@@ -38,8 +39,6 @@ export async function POST(request: Request) {
     !body?.contractId ||
     !body?.terminId ||
     !body?.invoiceDate ||
-    body?.seqNo === undefined ||
-    !body?.invoiceNumber ||
     body?.amount === undefined ||
     !body?.status
   ) {
@@ -50,16 +49,27 @@ export async function POST(request: Request) {
   }
 
   const now = new Date();
+  const invoiceDate = new Date(body.invoiceDate);
+  if (!Number.isFinite(invoiceDate.getTime())) {
+    return NextResponse.json({ error: "Tanggal invoice tidak valid" }, { status: 400 });
+  }
   const db = getDb();
-  const [created] = await db
+  const created = await db.transaction(async (tx) => {
+    // Match the Termin route's lock order before allocating a shared number.
+    await tx.select({ id: termins.id }).from(termins)
+      .where(eq(termins.id, body.terminId)).for("update").limit(1);
+    await tx.select({ id: contracts.id }).from(contracts)
+      .where(eq(contracts.id, body.contractId)).for("update").limit(1);
+    const { seqNo, documentNumber } = await allocateDocumentNumber(tx, invoiceDate);
+    const [row] = await tx
     .insert(invoices)
     .values({
       id: crypto.randomUUID(),
-      invoiceDate: new Date(body.invoiceDate),
+      invoiceDate,
       contractId: body.contractId,
       terminId: body.terminId,
-      seqNo: Number(body.seqNo),
-      invoiceNumber: body.invoiceNumber,
+      seqNo,
+      invoiceNumber: documentNumber,
       amount: body.amount.toString(),
       pph23Rate: body.usePph23 === false ? null : "2.00",
       status: body.status,
@@ -67,6 +77,8 @@ export async function POST(request: Request) {
       updatedAt: now,
     })
     .returning();
+    return row;
+  });
 
   await recordAuditLog({
     module: "INVOICE",

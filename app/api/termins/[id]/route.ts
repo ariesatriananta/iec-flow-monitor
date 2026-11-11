@@ -5,15 +5,16 @@ import { and, eq, sql } from "drizzle-orm";
 import { getDb } from "@/lib/db";
 import { contracts, termins } from "@/lib/db/schema";
 import { invoices } from "@/lib/db/schema";
-import { generateInvoiceNumber, getJakartaMonthYear } from "@/lib/numbering";
+import { allocateDocumentNumber } from "@/lib/document-numbering";
 import { requireAdmin } from "@/lib/auth/server";
 import { recordAuditLog } from "@/lib/audit-log";
 
-async function updateContractPaymentStatus(db: ReturnType<typeof getDb>, contractId: string) {
+async function updateContractPaymentStatus(db: Pick<ReturnType<typeof getDb>, "select" | "update">, contractId: string) {
   const [contract] = await db
     .select({ contractValue: contracts.contractValue })
     .from(contracts)
     .where(eq(contracts.id, contractId))
+    .for("update")
     .limit(1);
 
   if (!contract) return;
@@ -57,15 +58,23 @@ export async function PUT(
     );
   }
 
-  const db = getDb();
+  const result = await getDb().transaction(async (db) => {
   const [beforeUpdate] = await db
     .select({
       status: termins.status,
       invoiceId: termins.invoiceId,
+      contractId: termins.contractId,
     })
     .from(termins)
     .where(eq(termins.id, params.id))
+    .for("update")
     .limit(1);
+  if (!beforeUpdate) {
+    return NextResponse.json({ error: "Termin tidak ditemukan" }, { status: 404 });
+  }
+  // Consistent lock order: termin -> contract -> shared number counter.
+  await db.select({ id: contracts.id }).from(contracts)
+    .where(eq(contracts.id, beforeUpdate.contractId)).for("update").limit(1);
   const [updated] = await db
     .update(termins)
     .set({
@@ -106,24 +115,7 @@ export async function PUT(
 
     if (contractRow) {
       const invoiceDate = updated.dueDate ? new Date(updated.dueDate) : new Date();
-      const { year } = getJakartaMonthYear(invoiceDate);
-      const existingInvoices = await db
-        .select({ invoiceDate: invoices.invoiceDate, seqNo: invoices.seqNo })
-        .from(invoices);
-
-      const sameYearInvoices = existingInvoices.filter((invoice) => {
-        const invoiceMonthYear = getJakartaMonthYear(new Date(invoice.invoiceDate));
-        return invoiceMonthYear.year === year;
-      });
-      const maxSeq = sameYearInvoices.reduce(
-        (acc, invoice) => Math.max(acc, invoice.seqNo ?? 0),
-        0
-      );
-      const seqNo = maxSeq + 1;
-      const invoiceNumber = generateInvoiceNumber({
-        seqNo,
-        invoiceDate,
-      });
+      const { seqNo, documentNumber: invoiceNumber } = await allocateDocumentNumber(db, invoiceDate);
 
       const [createdInvoice] = await db
         .insert(invoices)
@@ -208,6 +200,11 @@ export async function PUT(
   }
 
   await updateContractPaymentStatus(db, updated.contractId);
+
+  return { finalTermin, updated, beforeUpdate, createdInvoiceId, invoiceStatusTransition, prevInvoiceId };
+  });
+  if (result instanceof NextResponse) return result;
+  const { finalTermin, updated, beforeUpdate, createdInvoiceId, invoiceStatusTransition, prevInvoiceId } = result;
 
   const statusChanged =
     body.status !== undefined && body.status !== beforeUpdate?.status;

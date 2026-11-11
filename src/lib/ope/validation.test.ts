@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { calculateOpeTotals, canTransitionOpe, generateOpeNumber, MAX_OPE_AMOUNT, opeInputSchema } from "./validation";
+import { calculateOpeTotals, canTransitionOpe, MAX_OPE_AMOUNT, opeInputSchema } from "./validation";
 
 const meals = {
   type: "MEALS", documentDate: "2026-11-10", subject: "Biaya konsumsi",
@@ -82,10 +82,4 @@ test("only draft issuance/void and issued payment/void transitions are permitted
       assert.equal(canTransitionOpe(from, to), allowed.has(`${from}:${to}`));
     }
   }
-});
-
-test("OPE numbering separates document types and year", () => {
-  assert.equal(generateOpeNumber("BUSINESS_TRIP", 2026, 1), "OPE/BT/2026/0001");
-  assert.equal(generateOpeNumber("MEALS", 2026, 1), "OPE/ML/2026/0001");
-  assert.equal(generateOpeNumber("MEALS", 2027, 10000), "OPE/ML/2027/10000");
 });
