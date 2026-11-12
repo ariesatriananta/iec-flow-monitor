@@ -8,6 +8,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
+    "test:overtime": "tsx --test src/lib/overtime/*.test.ts",
+    "test:overtime:integration": "tsx scripts/test-overtime-integration.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "tsx src/lib/db/seed.ts",

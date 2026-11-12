@@ -103,7 +103,9 @@ Gunakan database uji. Tidak perlu membuat data fixture di production.
 6. Approver L2 tidak bisa mendahului L1; Admin yang bukan approver tidak bisa approve.
    Self-approval L1/L2 harus berhasil hanya pada level yang sedang aktif.
 7. Alasan reject wajib; status final tidak bisa diproses ulang. Batal hanya pemilik pending.
-8. Approve/batal/klik ganda bersamaan hanya menghasilkan satu perubahan dan satu event.
+8. Approval ganda pada level yang sama hanya menghasilkan satu perubahan/event.
+   Approve L1 vs batal dapat sah berurutan (L1 -> menunggu L2 -> batal), karena
+   pengaju masih boleh membatalkan pada kedua status pending. Histori tidak hilang.
 9. Perubahan config setelah submit tidak mengubah penugasan lama.
 10. Staff asing tidak bisa membaca detail/daftar di luar kewenangannya.
 11. Kegagalan transaksi tidak meninggalkan request tanpa event atau status tanpa histori.
@@ -272,3 +274,87 @@ Histori keputusan dan catatan lengkap tetap berada pada workflow events.
 7. Staff tidak melihat export; akses langsung `/api/overtime/export` ditolak 403
    untuk akun Staff aktif. Tanpa sesi harus 401.
 8. Pastikan navigasi notifikasi cuti/perjalanan/reimbursement tetap bekerja.
+
+## M4 - Verifikasi integrasi dan regresi
+
+Status: pengujian otomatis selesai; tidak ditemukan bug penghalang pada skenario
+yang diuji. Ini bukan jaminan bebas semua bug atau pengganti UAT pengguna nyata.
+Tidak ada perubahan aturan bisnis, schema, atau migration tambahan pada M4.
+
+### Lingkungan pengujian aman
+
+- PostgreSQL 18 dijalankan sebagai instance sementara pada port localhost acak,
+  dengan direktori data baru di TEMP. Tidak menggunakan/membaca file `.env`.
+- `DATABASE_URL` diganti hanya di proses pengujian, menunjuk ke instance yang
+  dibuat oleh script. Tidak menerima URL database existing sebagai target.
+- Seluruh 37 migration dijalankan pada cluster kosong tersebut, bukan database
+  aplikasi Owner atau production. Fixture dan simulasi kegagalan hanya di sana.
+- Build production dilakukan pada salinan source di TEMP tanpa `.env`, dengan
+  output `.next` terpisah. Dev server/worktree asli tidak dihentikan atau diubah.
+- API HTTP diuji menggunakan build production terisolasi dan cluster fixture
+  yang sama, lalu server/cluster test dihentikan. Artefak TEMP tetap disimpan.
+
+### Hasil
+
+- 24 unit test: lulus.
+- 22 skenario PostgreSQL/HTTP integration: lulus (18 service/database + 4 HTTP).
+- TypeScript dan lint script: lulus. Build production: exit 0.
+  Ada warning lama `<img>` di halaman Letters dan Browserslist yang usang;
+  bukan error build dan tidak diubah dalam task lembur.
+- Browser mock Admin/Staff: download semua hasil filter, visibilitas tombol,
+  dua klik notifikasi dari halaman sama, mark-read dan filter audit tetap lulus.
+- Tidak mengubah data/struktur database milik Owner.
+
+Cakupan transaksi nyata:
+
+- Submit -> L1 -> L2, histori, penerima notifikasi, dan audit sesuai keputusan.
+- Approval/penolakan hanya pada level aktif, alasan wajib, final tidak bisa
+  diproses ulang, self-approval tidak melewati level.
+- Dua submit bersamaan untuk employee sama/client berbeda pada waktu bertumpuk:
+  hanya satu lolos. Approval ganda juga hanya satu yang lolos pada level tersebut.
+- Approve L1 dan batal bersamaan menghasilkan urutan serial yang sah dan final
+  CANCELLED, tanpa lost update. Tidak membatasi hak batal di WAITING_LEVEL_2.
+- Lintas hari, interval berdampingan, overlap tanggal berikutnya dan 24:00.
+- Perubahan Settings tidak mengganti approver snapshot lama; inactive approver
+  ditolak; inactive employee masih bisa membatalkan pending untuk pemulihan.
+- Notifikasi gagal: submit/status/event rollback. Audit gagal setelah commit:
+  request/event/notifikasi tetap sukses, sesuai kebijakan best-effort.
+- Staff asing tidak dapat membaca detail, menggunakan scope all, export atau
+  audit. Session dengan klaim role/employee lama tetap memakai data akun DB.
+- Tidak bisa menandai notifikasi milik akun lain; hard delete employee berhistori
+  ditolak. Client terhapus tidak menghapus nama snapshot pada histori.
+- Export DB/HTTP meliputi 25 hasil meski list dibatasi 20/parameter pagination
+  diberikan; tipe XLSX/filter/validasi tanggal dan audit export benar.
+- Payload Settings versi lama mempertahankan konfigurasi approver lembur;
+  pasangan approver yang sama ditolak.
+- Fingerprint tabel kontrak, termin, invoice, surat, OPE, absensi, cuti, dinas,
+  reimbursement di fixture tidak berubah oleh rangkaian aksi lembur.
+
+### Menjalankan ulang
+
+```powershell
+pnpm test:overtime
+pnpm test:overtime:integration
+```
+
+Script integration: `scripts/test-overtime-integration.ts`. Memerlukan binary
+`initdb`, `pg_ctl`, `postgres` PostgreSQL lokal. Default Windows:
+`C:/Program Files/PostgreSQL/18/bin`; bila berbeda, isi `PG_TEST_BIN` menunjuk
+folder bin. Linux memakai PATH dan harus dijalankan sebagai user non-root.
+Script membuat cluster baru dan menghentikannya pada akhir pengujian; artefak
+data/log TEMP disimpan agar dapat diperiksa jika test gagal.
+
+Mode default menjalankan 18 skenario database/service. Untuk 4 skenario HTTP
+tambahan, isi `OVERTIME_TEST_BUILD_DIR` dengan path salinan source di TEMP yang
+sudah memiliki build production. Path wajib tepat di bawah TEMP dengan prefix
+`iecnet-overtime-build-` (bukan folder repo atau server yang sedang digunakan).
+Salinan tersebut tidak boleh memuat `.env`; script menyalakan server production
+terpisah dengan koneksi cluster test, bukan server dev Owner.
+
+### Handover / UAT akhir Owner
+
+1. Pastikan migration 0036 sudah diterapkan dan dua approver aktif terisi.
+2. Dengan akun nyata, coba satu pengajuan -> L1 -> L2 dan cek lonceng + timeline.
+3. Coba satu penolakan dan satu pembatalan, lalu cocokkan Audit Logs OVERTIME.
+4. Admin export periode yang sama dan cocokkan jumlah/status/durasi dengan daftar.
+5. Setelah UAT, deploy sesuai prosedur Owner. Agent tidak menjalankan deployment.
