@@ -49,14 +49,14 @@ const payloadSchema = z.object({
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["overtimeApproverLevel2EmployeeId"],
-      message: "Approval lembur harus berisi dua approver atau keduanya dikosongkan",
+      message: "Approval Overtime harus berisi dua approver atau keduanya dikosongkan",
     });
   }
   if (first && first === second) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["overtimeApproverLevel2EmployeeId"],
-      message: "Approver level 1 dan level 2 lembur harus berbeda",
+      message: "Approver level 1 dan level 2 Overtime harus berbeda",
     });
   }
   if (value.leaveApprovalLevels === 2 && !value.leaveApproverLevel2EmployeeId) {
@@ -225,7 +225,7 @@ export async function PUT(request: Request) {
       .where(and(eq(employees.id, employeeId), eq(employees.isActive, true), eq(users.isActive, true)))
       .limit(1);
     if (!activeApprover) {
-      return NextResponse.json({ error: "Approver lembur harus karyawan aktif dengan akun login aktif" }, { status: 400 });
+      return NextResponse.json({ error: "Approver Overtime harus karyawan aktif dengan akun login aktif" }, { status: 400 });
     }
   }
 

@@ -8,11 +8,11 @@ import { OvertimeError } from "./validation";
 
 export async function loadOvertimeExport(user: SessionUser, query: OvertimeQuery) {
   // Defense in depth: route and service both forbid Staff exports.
-  if (user.role !== "ADMIN") throw new OvertimeError("Hanya Admin yang dapat mengekspor pengajuan lembur", 403);
+  if (user.role !== "ADMIN") throw new OvertimeError("Hanya Admin yang dapat mengekspor pengajuan Overtime", 403);
   const where = overtimeWhere(user, query);
   return getDb().transaction(async tx => {
     const [count] = await tx.select({ total: sql<number>`count(*)::int` }).from(overtimeRequests).where(where);
-    if (!count.total) throw new OvertimeError("Tidak ada pengajuan lembur sesuai filter untuk diekspor", 404);
+    if (!count.total) throw new OvertimeError("Tidak ada pengajuan Overtime sesuai filter untuk diekspor", 404);
     // Never silently truncate an export. Bound memory while allowing all filtered pages.
     if (count.total > 50000) throw new OvertimeError("Export maksimal 50.000 pengajuan. Persempit filter tanggal atau status lalu coba lagi", 413);
     const rows = await tx.select().from(overtimeRequests).where(where).orderBy(desc(overtimeRequests.createdAt), desc(overtimeRequests.id));

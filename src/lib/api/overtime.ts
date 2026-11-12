@@ -32,8 +32,9 @@ export async function decideOvertimeRequest(id: string, payload: { action: Overt
 }
 
 export async function fetchOvertimeClientOptions(): Promise<OvertimeClientOption[]> {
-  const rows = await requestJson<(Omit<OvertimeClientOption, "latestContractCreatedAt"> & { latestContractCreatedAt: string })[]>("/api/overtime/client-options", { cache: "no-store" });
-  return rows.map((row) => ({ ...row, latestContractCreatedAt: new Date(row.latestContractCreatedAt) }));
+  const result = await requestJson<{ items: (Omit<OvertimeClientOption, "latestContractCreatedAt"> & { latestContractCreatedAt: string })[] }>("/api/overtime/client-options", { cache: "no-store" });
+  if (!result || !Array.isArray(result.items)) throw new Error("Format data client tidak valid. Silakan coba lagi atau hubungi Admin.");
+  return result.items.map((row) => ({ ...row, latestContractCreatedAt: new Date(row.latestContractCreatedAt) }));
 }
 
 export async function downloadOvertimeExport(params: Omit<OvertimeQuery, "limit" | "offset">) {
@@ -42,10 +43,10 @@ export async function downloadOvertimeExport(params: Omit<OvertimeQuery, "limit"
   const response = await fetch(`/api/overtime/export?${search}`, { cache: "no-store" });
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
-    throw new Error(error.error || "Gagal mengekspor pengajuan lembur");
+    throw new Error(error.error || "Gagal mengekspor pengajuan Overtime");
   }
   const blob = await response.blob();
-  const filename = response.headers.get("Content-Disposition")?.match(/filename="([^"]+)"/)?.[1] ?? "Lembur.xlsx";
+  const filename = response.headers.get("Content-Disposition")?.match(/filename="([^"]+)"/)?.[1] ?? "Overtime.xlsx";
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url; link.download = filename;

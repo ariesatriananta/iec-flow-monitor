@@ -27,7 +27,7 @@ export async function GET(request: Request) {
     const date = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(new Date());
     return new Response(new Uint8Array(data), { headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "Content-Disposition": `attachment; filename="Lembur-${date}.xlsx"`,
+      "Content-Disposition": `attachment; filename="Overtime-${date}.xlsx"`,
       "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff",
     } });
   } catch (error) { return overtimeErrorResponse(error); }

@@ -15,7 +15,7 @@ export const createOvertimeSchema = z.object({
   description: z.string().trim().min(1, "Keterangan wajib diisi").max(5000),
 }).strict().superRefine((input, ctx) => {
   const { durationMinutes } = calculateOvertimePeriod(input);
-  if (durationMinutes < 1 || durationMinutes > 1440) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["endTime"], message: "Durasi lembur harus lebih dari 0 dan maksimal 24 jam" });
+  if (durationMinutes < 1 || durationMinutes > 1440) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["endTime"], message: "Durasi Overtime harus lebih dari 0 dan maksimal 24 jam" });
 });
 export type CreateOvertimeInput = z.infer<typeof createOvertimeSchema>;
 

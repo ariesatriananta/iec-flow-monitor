@@ -107,7 +107,7 @@ membaca `.env` atau menghubungi database Owner. Butuh PostgreSQL bin lokal
   insert gagal, prefix snapshot dan perubahan tanggal/klien diuji.
 - Surat lama tetap nullable pada field opini dan datanya tidak berubah;
   counter invoice/OPE serta tabel bisnis di fixture tidak berubah.
-- 24 unit test lembur existing tetap lulus.
+- 24 unit test Overtime existing tetap lulus.
 - `pnpm exec tsc --noEmit`: lulus setelah seluruh perubahan terintegrasi.
 - Next lint file implementasi lulus dengan warning `<img>` lama pada halaman
   Letters; tidak mengubah renderer/print lama dalam M1.

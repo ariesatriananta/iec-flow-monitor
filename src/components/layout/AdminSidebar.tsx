@@ -108,7 +108,7 @@ const navSections: NavSection[] = [
         roles: ['ADMIN', 'STAFF']
       },
       {
-        title: 'Lembur',
+        title: 'Overtime',
         href: '/overtime',
         icon: Clock3,
         roles: ['ADMIN', 'STAFF']

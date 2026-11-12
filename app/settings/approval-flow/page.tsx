@@ -137,7 +137,7 @@ export default function ApprovalFlowPage() {
     if (Boolean(first) !== Boolean(second) || (first && first === second)) {
       toast({
         title: "Error",
-        description: "Pilih dua approver lembur yang berbeda, atau kosongkan keduanya.",
+        description: "Pilih dua approver Overtime yang berbeda, atau kosongkan keduanya.",
         variant: "destructive",
       });
       return false;
@@ -294,10 +294,10 @@ export default function ApprovalFlowPage() {
 
         <Card className="border border-border/70">
           <CardHeader>
-            <CardTitle>Approval Lembur</CardTitle>
+            <CardTitle>Approval Overtime</CardTitle>
             <CardDescription>
               Dua level persetujuan dengan approver berbeda. Pilih karyawan aktif yang memiliki akun login aktif.
-              Keduanya boleh dikosongkan jika pengajuan lembur belum digunakan.
+              Keduanya boleh dikosongkan jika pengajuan Overtime belum digunakan.
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4 md:grid-cols-3">

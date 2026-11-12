@@ -1,21 +1,21 @@
-# Pengajuan Lembur
+# Pengajuan Overtime
 
 ## Milestone
 
 1. M1: schema/migration, pengaturan approval, API, validasi, dan histori atomik.
-2. M2: menu Lembur, Pengajuan Saya, antrean approver, Semua Pengajuan Admin,
+2. M2: menu Overtime, Pengajuan Saya, antrean approver, Semua Pengajuan Admin,
    form responsif serta detail/timeline.
 3. M3: notifikasi, routing notifikasi, audit log ringkas dan export Excel Admin.
 4. M4: pengujian integrasi seluruh alur, regresi modul HR dan UAT Owner.
 
 M1 menyediakan fondasi/API; M2 menambahkan halaman pengajuan dan approval.
 M3 menambahkan notifikasi, audit log ringkas dan export Excel khusus Admin. Pengaturan
-Approval Lembur tersedia di Settings -> Approval Flow. Fitur ini tidak
-menghitung uang lembur dan tidak mengubah payroll, absensi, atau workflow HR lama.
+Approval Overtime tersedia di Settings -> Approval Flow. Fitur ini tidak
+menghitung uang Overtime dan tidak mengubah payroll, absensi, atau workflow HR lama.
 
 ## Keputusan bisnis
 
-- Satu pengajuan = satu sesi lembur untuk satu client.
+- Satu pengajuan = satu sesi Overtime untuk satu client.
 - Pemohon selalu dari employee akun login; tidak bisa mengajukan untuk orang lain.
 - Tanggal lampau maupun mendatang diperbolehkan; waktu menggunakan WIB.
 - Pilihan client aktif dengan kontrak ACTIVE, deduplikasi dan urut kontrak terbaru.
@@ -37,16 +37,16 @@ menghitung uang lembur dan tidak mengubah payroll, absensi, atau workflow HR lam
 ## Migration M1
 
 `drizzle/0036_crazy_nuke.sql`: menambah tabel `overtime_requests`, indexes,
-serta dua kolom nullable approver lembur pada `settings_approval_flow`.
+serta dua kolom nullable approver Overtime pada `settings_approval_flow`.
 Migration tidak dijalankan oleh agent. Jalankan pada database tujuan sebelum
 deploy M1. Kolom settings lama tetap utuh. Kedua approver boleh kosong untuk
 menjaga form modul lama tetap dapat disimpan; pengajuan baru memerlukan pair lengkap.
 
-Payload Settings lama yang tidak menyertakan field lembur mempertahankan nilai
-lembur yang sudah tersimpan. Payload baru boleh mengosongkan keduanya, tetapi
+Payload Settings lama yang tidak menyertakan field Overtime mempertahankan nilai
+Overtime yang sudah tersimpan. Payload baru boleh mengosongkan keduanya, tetapi
 tidak boleh mengisi hanya satu atau memilih orang yang sama.
 
-Employee yang menjadi pengaju/approver di histori lembur dilindungi dari hard
+Employee yang menjadi pengaju/approver di histori Overtime dilindungi dari hard
 delete; gunakan nonaktif untuk mempertahankan histori. Client boleh dihapus:
 referensi dikosongkan dan nama snapshot tetap tersimpan.
 
@@ -92,7 +92,7 @@ Tanggal sesi tetap string YYYY-MM-DD; timestamp diubah menjadi Date.
 
 Gunakan database uji. Tidak perlu membuat data fixture di production.
 
-1. Simpan Settings HR lama tanpa field lembur; config lembur tidak terhapus.
+1. Simpan Settings HR lama tanpa field Overtime; config Overtime tidak terhapus.
 2. Simpan dua approver berbeda; pair kosong boleh, setengah pair/orang sama/
    karyawan nonaktif/akun nonaktif ditolak.
 3. User terhubung employee mengajukan sesi biasa, lampau, mendatang dan lintas hari.
@@ -109,7 +109,7 @@ Gunakan database uji. Tidak perlu membuat data fixture di production.
 9. Perubahan config setelah submit tidak mengubah penugasan lama.
 10. Staff asing tidak bisa membaca detail/daftar di luar kewenangannya.
 11. Kegagalan transaksi tidak meninggalkan request tanpa event atau status tanpa histori.
-12. Hard delete employee berhistori lembur ditolak dengan pesan jelas; client
+12. Hard delete employee berhistori Overtime ditolak dengan pesan jelas; client
     terhapus tidak menghilangkan nama client dari histori.
 
 Uji integrasi menulis database dilakukan Owner setelah migration. Unit test dan
@@ -129,17 +129,17 @@ smoke tanpa sesi tidak membuktikan transaksi atau approval pada database live.
 
 ## M2 - UI pengajuan dan persetujuan
 
-Halaman `/overtime` tersedia dari menu Human Resources -> Lembur untuk Admin
+Halaman `/overtime` tersedia dari menu Human Resources -> Overtime untuk Admin
 dan Staff. Pengaturan dua approver tetap di Settings -> Approval Flow.
 
-UI tidak menyediakan edit, Draft, nominal uang lembur, atau bypass approval Admin.
+UI tidak menyediakan edit, Draft, nominal uang Overtime, atau bypass approval Admin.
 Identitas pemohon berasal dari akun yang login. Keputusan dan durasi final tetap
 divalidasi oleh API M1, bukan bergantung pada tampilan/tombol frontend.
 
 ### UAT Owner M2
 
-1. Login sebagai Staff yang terhubung employee aktif, buka menu Lembur.
-2. Ajukan lembur: pilih client, tanggal, jam mulai/selesai, keterangan; periksa
+1. Login sebagai Staff yang terhubung employee aktif, buka menu Overtime.
+2. Ajukan Overtime: pilih client, tanggal, jam mulai/selesai, keterangan; periksa
    durasi otomatis sebelum konfirmasi. Contoh 18:00-21:30 = 3 jam 30 menit.
 3. Coba lintas hari 22:00-02:00 dengan pilihan hari berikutnya: 4 jam.
    Coba 23:00-24:00: 1 jam. Pastikan tidak menjadi dua hari.
@@ -164,7 +164,7 @@ Agent tidak menjalankan migration atau menulis pengajuan pada database.
 ### Hasil verifikasi M2
 
 - TypeScript dan focused Next lint file UI/layout yang diubah: lulus.
-- Unit test aturan lembur M1: 13 test tetap lulus.
+- Unit test aturan Overtime M1: 13 test tetap lulus.
 - Browser Chrome dengan seluruh API diintersep/mock: lulus untuk Staff dan Admin.
   Cakupan: pencarian client, preview WIB dari browser zona waktu berbeda,
   lintas hari, 24:00, konfirmasi kirim, konflik submit tanpa kehilangan isi form,
@@ -209,7 +209,7 @@ atau audit; integrasi berlaku pada aksi setelah kode M3 aktif.
 - Insert notifikasi berada dalam transaksi request + workflow event. Kegagalan
   insert membatalkan transaksi, bukan meninggalkan status tanpa notifikasi.
 - Klik lonceng membuka `/overtime?entityId=...&notif=...`, termasuk pergantian
-  detail ketika sudah berada pada halaman Lembur. Otorisasi detail tetap di API.
+  detail ketika sudah berada pada halaman Overtime. Otorisasi detail tetap di API.
 - Tidak menambah polling, email atau push notification; mengikuti lonceng repo.
 
 ### Audit ringkas
@@ -232,7 +232,7 @@ Histori keputusan dan catatan lengkap tetap berada pada workflow events.
   `limit`/`offset` diabaikan. Tidak diam-diam memotong data.
 - Mengambil request dan histori dalam satu snapshot transaksi read-only agar
   keputusan tidak tercampur dengan perubahan status di tengah pembacaan.
-- Sheet Lembur: identitas, tanggal, client snapshot, waktu WIB, lintas hari,
+- Sheet Overtime: identitas, tanggal, client snapshot, waktu WIB, lintas hari,
   durasi menit dan Jam:Menit, status, keterangan, dua approver snapshot,
   keputusan/waktu/catatan masing-masing level, pembatalan dan waktu pengajuan.
 - Sheet Filter: scope, filter, waktu export WIB dan jumlah pengajuan.
@@ -247,7 +247,7 @@ Histori keputusan dan catatan lengkap tetap berada pada workflow events.
 - TypeScript dan focused Next lint lulus.
 - 24 unit test lulus (validasi M1, rencana/penerima notifikasi, scope query,
   pembatasan Staff export sebelum akses DB, workbook 41 baris, tipe cell,
-  snapshot/keputusan/WIB serta routing notifikasi HR lama dan lembur).
+  snapshot/keputusan/WIB serta routing notifikasi HR lama dan Overtime).
 - Chrome dengan API mock: Admin mengunduh 41 baris saat berada di halaman kedua,
   scope/status ikut terkirim tanpa pagination; nama file dan isi XLSX valid,
   error export tampil; Staff tidak melihat tombol export.
@@ -300,7 +300,7 @@ Tidak ada perubahan aturan bisnis, schema, atau migration tambahan pada M4.
 - 22 skenario PostgreSQL/HTTP integration: lulus (18 service/database + 4 HTTP).
 - TypeScript dan lint script: lulus. Build production: exit 0.
   Ada warning lama `<img>` di halaman Letters dan Browserslist yang usang;
-  bukan error build dan tidak diubah dalam task lembur.
+  bukan error build dan tidak diubah dalam task Overtime.
 - Browser mock Admin/Staff: download semua hasil filter, visibilitas tombol,
   dua klik notifikasi dari halaman sama, mark-read dan filter audit tetap lulus.
 - Tidak mengubah data/struktur database milik Owner.
@@ -325,10 +325,10 @@ Cakupan transaksi nyata:
   ditolak. Client terhapus tidak menghapus nama snapshot pada histori.
 - Export DB/HTTP meliputi 25 hasil meski list dibatasi 20/parameter pagination
   diberikan; tipe XLSX/filter/validasi tanggal dan audit export benar.
-- Payload Settings versi lama mempertahankan konfigurasi approver lembur;
+- Payload Settings versi lama mempertahankan konfigurasi approver Overtime;
   pasangan approver yang sama ditolak.
 - Fingerprint tabel kontrak, termin, invoice, surat, OPE, absensi, cuti, dinas,
-  reimbursement di fixture tidak berubah oleh rangkaian aksi lembur.
+  reimbursement di fixture tidak berubah oleh rangkaian aksi Overtime.
 
 ### Menjalankan ulang
 

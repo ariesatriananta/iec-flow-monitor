@@ -1,32 +1,22 @@
 export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
-import { and, desc, eq, sql } from "drizzle-orm";
-import { z } from "zod";
+import { desc, sql } from "drizzle-orm";
 import { requireAdmin } from "@/lib/auth/server";
 import { recordAuditLog } from "@/lib/audit-log";
 import { getDb } from "@/lib/db";
 import { opeDocuments } from "@/lib/db/schema";
 import { opeErrorResponse } from "@/lib/ope/http";
 import { createOpe } from "@/lib/ope/service";
-import { OPE_STATUSES, OPE_TYPES, OpeError, opeInputSchema } from "@/lib/ope/validation";
-
-const querySchema = z.object({
-  type: z.enum(OPE_TYPES).optional(),
-  status: z.enum(OPE_STATUSES).optional(),
-  limit: z.coerce.number().int().min(1).max(100).default(25),
-  offset: z.coerce.number().int().min(0).max(2_147_483_647).default(0),
-});
+import { OpeError, opeInputSchema } from "@/lib/ope/validation";
+import { opeQuerySchema, opeListWhere } from "@/lib/ope/query";
 
 export async function GET(request: Request) {
   const auth = await requireAdmin();
   if ("response" in auth) return auth.response;
   try {
-    const params = querySchema.parse(Object.fromEntries(new URL(request.url).searchParams));
-    const where = and(
-      params.type ? eq(opeDocuments.type, params.type) : undefined,
-      params.status ? eq(opeDocuments.status, params.status) : undefined,
-    );
+    const params = opeQuerySchema.parse(Object.fromEntries(new URL(request.url).searchParams));
+    const where = opeListWhere(params);
     const db = getDb();
     const [items, [count]] = await Promise.all([
       db.select().from(opeDocuments).where(where).orderBy(desc(opeDocuments.createdAt), desc(opeDocuments.id))

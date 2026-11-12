@@ -167,7 +167,7 @@ export async function DELETE(
     eq(overtimeRequests.approverLevel2EmployeeId, params.id),
   )).limit(1);
   if (overtimeReference) {
-    return NextResponse.json({ error: "Employee memiliki riwayat pengajuan/approval lembur. Nonaktifkan employee untuk mempertahankan histori." }, { status: 409 });
+    return NextResponse.json({ error: "Employee memiliki riwayat pengajuan/approval Overtime. Nonaktifkan employee untuk mempertahankan histori." }, { status: 409 });
   }
 
   const linkedUsers = await db

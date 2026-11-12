@@ -22,14 +22,14 @@ import type { OvertimeRequest, OvertimeScope, OvertimeStatus } from "@/types/ove
 
 const PAGE_SIZE = 20;
 const scopeDescriptions: Record<OvertimeScope, string> = {
-  mine: "Daftar sesi lembur yang Anda ajukan sendiri.",
+  mine: "Daftar sesi Overtime yang Anda ajukan sendiri.",
   approval: "Pengajuan yang sedang menunggu persetujuan Anda pada level aktif.",
   related: "Seluruh pengajuan dengan penugasan Anda sebagai approver, termasuk yang sudah selesai.",
   all: "Seluruh pengajuan karyawan. Hak persetujuan tetap mengikuti approver yang ditugaskan.",
 };
 
 export default function OvertimePage() {
-  return <Suspense fallback={<AdminLayout title="Lembur"><OvertimeLoading /></AdminLayout>}><OvertimeContent /></Suspense>;
+  return <Suspense fallback={<AdminLayout title="Overtime"><OvertimeLoading /></AdminLayout>}><OvertimeContent /></Suspense>;
 }
 
 function OvertimeContent() {
@@ -94,7 +94,7 @@ function OvertimeContent() {
   const rowActions = (row: OvertimeRequest) => (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" aria-label={`Aksi lembur ${row.employeeName}, ${dateLabel(row.overtimeDate)}`}>
+        <Button variant="ghost" size="icon" aria-label={`Aksi Overtime ${row.employeeName}, ${dateLabel(row.overtimeDate)}`}>
           <MoreHorizontal className="h-4 w-4" />
         </Button>
       </DropdownMenuTrigger>
@@ -106,12 +106,12 @@ function OvertimeContent() {
     </DropdownMenu>
   );
 
-  return <AdminLayout title="Lembur"><div className="grid gap-6">
+  return <AdminLayout title="Overtime"><div className="grid gap-6">
     <Card>
       <CardHeader className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center md:justify-between">
         <CardTitle>Daftar Pengajuan</CardTitle>
         <div className="flex w-full flex-col gap-2 md:w-auto md:max-w-full md:flex-row md:flex-wrap">
-          <Button className="md:order-2" disabled={!canSubmit || authLoading} onClick={() => setCreateOpen(true)}><Plus className="mr-2 h-4 w-4" />Ajukan Lembur</Button>
+          <Button className="md:order-2" disabled={!canSubmit || authLoading} onClick={() => setCreateOpen(true)}><Plus className="mr-2 h-4 w-4" />Ajukan Overtime</Button>
           {user?.role === "ADMIN" && <Button variant="outline" className="md:order-1" disabled={exporting || loading || invalidDates || !!error || total === 0} onClick={() => void exportExcel()} title="Export seluruh hasil sesuai filter, bukan hanya halaman aktif"><Download className="mr-2 h-4 w-4" />{exporting ? "Mengekspor..." : "Export Excel"}</Button>}
           <Select value={scope} onValueChange={changeScope}>
             <SelectTrigger className="w-full md:w-[220px]" aria-label="Daftar pengajuan"><SelectValue /></SelectTrigger>
@@ -129,19 +129,19 @@ function OvertimeContent() {
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-      {user && !canSubmit && <div role="status" className="rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">{user.employeeId ? "Data karyawan Anda sedang nonaktif. Pengajuan baru tidak tersedia; pengajuan pending milik sendiri tetap dapat dibatalkan." : "Akun Anda belum terhubung dengan data karyawan. Hubungi Admin agar dapat mengajukan dan memproses lembur."}</div>}
+      {user && !canSubmit && <div role="status" className="rounded-md border bg-muted/40 p-3 text-sm text-muted-foreground">{user.employeeId ? "Data karyawan Anda sedang nonaktif. Pengajuan baru tidak tersedia; pengajuan pending milik sendiri tetap dapat dibatalkan." : "Akun Anda belum terhubung dengan data karyawan. Hubungi Admin agar dapat mengajukan dan memproses Overtime."}</div>}
       <p className="text-sm text-muted-foreground">{scopeDescriptions[scope]}</p>
       <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-end">
-        <div className="space-y-2"><Label>Dari tanggal lembur</Label><DateField value={fromDate} onChange={value => { setFromDate(value); setOffset(0); }} label="Filter dari tanggal lembur" clearable /></div>
-        <div className="space-y-2"><Label>Sampai tanggal lembur</Label><DateField value={toDate} onChange={value => { setToDate(value); setOffset(0); }} label="Filter sampai tanggal lembur" clearable /></div>
+        <div className="space-y-2"><Label>Dari tanggal Overtime</Label><DateField value={fromDate} onChange={value => { setFromDate(value); setOffset(0); }} label="Filter dari tanggal Overtime" clearable /></div>
+        <div className="space-y-2"><Label>Sampai tanggal Overtime</Label><DateField value={toDate} onChange={value => { setToDate(value); setOffset(0); }} label="Filter sampai tanggal Overtime" clearable /></div>
         <Button variant="outline" disabled={loading || invalidDates} onClick={refresh}><RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />Muat Ulang</Button>
         <Button variant="outline" disabled={status === "ALL" && !fromDate && !toDate} onClick={() => { setStatus("ALL"); setFromDate(""); setToDate(""); setOffset(0); }}>Reset Filter</Button>
       </div>
       {invalidDates && <p role="alert" className="text-sm text-destructive">Tanggal akhir tidak boleh lebih awal dari tanggal mulai.</p>}
       {error && <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive"><span>{error}</span><Button variant="outline" size="sm" onClick={refresh}>Coba lagi</Button></div>}
       <div className="hidden rounded-md border md:block" aria-busy={loading}>
-        <Table className="min-w-[720px]"><TableHeader><TableRow>{scope !== "mine" && <TableHead>Pengaju</TableHead>}<TableHead>Tanggal</TableHead><TableHead>Client</TableHead><TableHead>Jam Lembur (WIB)</TableHead><TableHead>Durasi</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Aksi</TableHead></TableRow></TableHeader><TableBody>
-          {loading ? Array.from({ length: 5 }, (_, index) => <TableRow key={index}>{Array.from({ length: tableColumns }, (__, column) => <TableCell key={column}><Skeleton className="h-5 w-full min-w-12" /></TableCell>)}</TableRow>) : invalidDates ? <TableRow><TableCell colSpan={tableColumns} className="h-40 text-center text-muted-foreground">Sesuaikan filter tanggal untuk menampilkan pengajuan.</TableCell></TableRow> : !error && !items.length ? <TableRow><TableCell colSpan={tableColumns} className="h-52 text-center"><ClipboardList className="mx-auto mb-3 h-9 w-9 text-muted-foreground/60" /><p className="font-medium">{scope === "approval" ? "Tidak ada pengajuan yang perlu Anda proses" : "Belum ada pengajuan"}</p><p className="mt-1 text-sm text-muted-foreground">{status !== "ALL" || fromDate || toDate ? "Coba ubah atau reset filter pencarian." : scope === "mine" ? "Mulai dengan tombol Ajukan Lembur di atas." : "Pengajuan yang sesuai akan tampil di sini."}</p></TableCell></TableRow> : items.map(row => <TableRow key={row.id}>
+        <Table className="min-w-[720px]"><TableHeader><TableRow>{scope !== "mine" && <TableHead>Pengaju</TableHead>}<TableHead>Tanggal</TableHead><TableHead>Client</TableHead><TableHead>Jam Overtime (WIB)</TableHead><TableHead>Durasi</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Aksi</TableHead></TableRow></TableHeader><TableBody>
+          {loading ? Array.from({ length: 5 }, (_, index) => <TableRow key={index}>{Array.from({ length: tableColumns }, (__, column) => <TableCell key={column}><Skeleton className="h-5 w-full min-w-12" /></TableCell>)}</TableRow>) : invalidDates ? <TableRow><TableCell colSpan={tableColumns} className="h-40 text-center text-muted-foreground">Sesuaikan filter tanggal untuk menampilkan pengajuan.</TableCell></TableRow> : !error && !items.length ? <TableRow><TableCell colSpan={tableColumns} className="h-52 text-center"><ClipboardList className="mx-auto mb-3 h-9 w-9 text-muted-foreground/60" /><p className="font-medium">{scope === "approval" ? "Tidak ada pengajuan yang perlu Anda proses" : "Belum ada pengajuan"}</p><p className="mt-1 text-sm text-muted-foreground">{status !== "ALL" || fromDate || toDate ? "Coba ubah atau reset filter pencarian." : scope === "mine" ? "Mulai dengan tombol Ajukan Overtime di atas." : "Pengajuan yang sesuai akan tampil di sini."}</p></TableCell></TableRow> : items.map(row => <TableRow key={row.id}>
             {scope !== "mine" && <TableCell className="max-w-48"><p className="break-words font-medium">{row.employeeName}</p><p className="text-xs text-muted-foreground">{row.employeeCode}</p></TableCell>}
             <TableCell className="whitespace-nowrap">{dateLabel(row.overtimeDate)}</TableCell><TableCell className="min-w-36 max-w-64 whitespace-normal break-words">{row.clientName}</TableCell><TableCell className="whitespace-nowrap tabular-nums">{row.startTime}–{row.endTime}{row.endsNextDay && <span className="ml-1 text-xs text-muted-foreground">(+1 hari)</span>}</TableCell><TableCell className="whitespace-nowrap">{durationLabel(row.durationMinutes)}</TableCell><TableCell><StatusBadge status={row.status} /></TableCell><TableCell className="text-right">{rowActions(row)}</TableCell>
           </TableRow>)}

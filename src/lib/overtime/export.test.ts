@@ -18,14 +18,14 @@ test("export includes all rows beyond the list page and preserves numeric durati
   const rows = Array.from({ length: 41 }, (_, i) => ({ ...row, id: `request-${i}` }));
   const workbook = buildOvertimeWorkbook(rows, [], { scope: "all" });
   const parsed = XLSX.read(XLSX.write(workbook, { bookType: "xlsx", type: "buffer" }), { type: "buffer" });
-  const data = XLSX.utils.sheet_to_json<Record<string, unknown>>(parsed.Sheets.Lembur);
+  const data = XLSX.utils.sheet_to_json<Record<string, unknown>>(parsed.Sheets.Overtime);
   assert.equal(data.length, 41);
   assert.equal(data[40].No, 41);
   assert.equal(data[0]["Durasi (Menit)"], 240);
   assert.equal(data[0]["Durasi (Jam:Menit)"], "4:00");
   assert.equal(data[0]["Selesai Hari Berikutnya"], "Ya");
-  assert.equal(parsed.Sheets.Lembur.M2.t, "s");
-  assert.equal(parsed.Sheets.Lembur.M2.f, undefined, "untrusted descriptions are text, never spreadsheet formulas");
+  assert.equal(parsed.Sheets.Overtime.M2.t, "s");
+  assert.equal(parsed.Sheets.Overtime.M2.f, undefined, "untrusted descriptions are text, never spreadsheet formulas");
 });
 test("export uses snapshot names, both decisions and WIB times, without mixing other requests", () => {
   const time = new Date("2026-11-12T18:00:00Z");
@@ -34,7 +34,7 @@ test("export uses snapshot names, both decisions and WIB times, without mixing o
     { entityId: row.id, level: 2, action: "APPROVE", note: "L2 note", createdAt: time },
     { entityId: "different", level: 2, action: "REJECT", note: "Private other note", createdAt: time },
   ], { scope: "all", fromDate: "2026-11-01", status: "APPROVED" });
-  const [data] = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets.Lembur);
+  const [data] = XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets.Overtime);
   assert.equal(data.Client, "Snapshot Client");
   assert.equal(data["Approver Level 1"], "Snapshot L1");
   assert.equal(data["Keputusan Level 2"], "Disetujui");

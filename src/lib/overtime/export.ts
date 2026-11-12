@@ -38,7 +38,7 @@ export function buildOvertimeWorkbook(rows: OvertimeExportRow[], events: Overtim
       "Selesai Hari Berikutnya": row.endsNextDay ? "Ya" : "Tidak",
       "Durasi (Menit)": row.durationMinutes,
       "Durasi (Jam:Menit)": `${Math.floor(row.durationMinutes / 60)}:${String(row.durationMinutes % 60).padStart(2, "0")}`,
-      Status: statuses[row.status as OvertimeStatus] ?? row.status, "Keterangan Lembur": row.description,
+      Status: statuses[row.status as OvertimeStatus] ?? row.status, "Keterangan Overtime": row.description,
       "Approver Level 1": row.approverLevel1Name, "Keputusan Level 1": decisionLabel(first),
       "Waktu Keputusan Level 1": first ? wib(first.createdAt) : "-", "Catatan Level 1": first?.note ?? "-",
       "Approver Level 2": row.approverLevel2Name, "Keputusan Level 2": decisionLabel(second),
@@ -57,11 +57,11 @@ export function buildOvertimeWorkbook(rows: OvertimeExportRow[], events: Overtim
     ["Dari Tanggal", query.fromDate ?? "Semua"], ["Sampai Tanggal", query.toDate ?? "Semua"],
     ["Filter ID Client", query.clientId ?? "Semua"], ["Filter ID Karyawan", query.employeeId ?? "Semua"],
     ["Jumlah Pengajuan", rows.length], ["Zona Waktu", "Asia/Jakarta (WIB)"],
-    ["Catatan", "Seluruh hasil filter, bukan hanya halaman aktif. Durasi bukan nilai upah lembur."],
+    ["Catatan", "Seluruh hasil filter, bukan hanya halaman aktif. Durasi bukan nilai upah Overtime."],
   ]);
   filters["!cols"] = [{ wch: 24 }, { wch: 95 }];
   const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, "Lembur");
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Overtime");
   XLSX.utils.book_append_sheet(workbook, filters, "Filter");
   return workbook;
 }

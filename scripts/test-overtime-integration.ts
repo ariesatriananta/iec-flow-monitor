@@ -187,7 +187,7 @@ async function main() {
       const filters = { scope: "all" as const, fromDate: "2027-01-01", toDate: "2027-01-31" };
       assert.equal((await svc.listOvertime(actor("admin"), query("all", { ...filters, limit: 20 }))).items.length, 20);
       const result = await loadOvertimeExport(actor("admin"), filters); assert.equal(result.rows.length, 25);
-      const workbook = buildOvertimeWorkbook(result.rows, result.events, filters); assert.equal(XLSX.utils.sheet_to_json(workbook.Sheets.Lembur).length, 25);
+      const workbook = buildOvertimeWorkbook(result.rows, result.events, filters); assert.equal(XLSX.utils.sheet_to_json(workbook.Sheets.Overtime).length, 25);
       assert.equal((await loadOvertimeExport(actor("admin"), { scope: "all", status: "APPROVED" })).rows.every(row => row.status === "APPROVED"), true);
     });
     await check("FK protects employee history; deleting client retains name snapshot", async () => {
@@ -203,7 +203,7 @@ async function main() {
       const { buildEmployeeHardDeleteEligibilityMap } = await import("../src/lib/employee-hard-delete");
       const eligibility = await buildEmployeeHardDeleteEligibilityMap(getDb(), [{ id: "owner", isActive: false, hasLinkedUser: false }]);
       assert.equal(eligibility.get("owner")?.canHardDelete, false);
-      assert.ok(eligibility.get("owner")?.reasons.some(reason => reason.includes("lembur")));
+      assert.ok(eligibility.get("owner")?.reasons.some(reason => reason.includes("Overtime")));
       assert.deepEqual(await fingerprint(), originalBusinessData);
     });
     // Optional true HTTP integration against a separate production build. Never
@@ -269,7 +269,7 @@ async function main() {
       await check("HTTP Excel exports all filtered pages, validates dates, audits export", async () => {
         const response = await http("admin", "/api/overtime/export?scope=all&fromDate=2027-01-01&toDate=2027-01-31&limit=1&offset=20"); assert.equal(response.status, 200);
         assert.ok(response.headers.get("content-type")?.includes("spreadsheetml"));
-        const book = XLSX.read(Buffer.from(await response.arrayBuffer()), { type: "buffer" }); assert.equal(XLSX.utils.sheet_to_json(book.Sheets.Lembur).length, 25);
+        const book = XLSX.read(Buffer.from(await response.arrayBuffer()), { type: "buffer" }); assert.equal(XLSX.utils.sheet_to_json(book.Sheets.Overtime).length, 25);
         assert.equal((await http("admin", "/api/overtime/export?scope=all&fromDate=2027-02-01&toDate=2027-01-01")).status, 400);
         const audit = await (await http("admin", "/api/audit-logs?module=OVERTIME&action=EXPORT")).json(); assert.ok(audit.data.some((event: { details: { count: number } }) => event.details.count === 25));
       });

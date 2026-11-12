@@ -174,7 +174,7 @@ export async function buildEmployeeHardDeleteEligibilityMap(
       reasons.push("Sudah tercatat pada riwayat aksi workflow.");
     }
     if (overtimeEmployeeIds.has(employee.id)) {
-      reasons.push("Tercatat sebagai pengaju atau approver pada riwayat lembur.");
+      reasons.push("Tercatat sebagai pengaju atau approver pada riwayat Overtime.");
     }
     if (approverEmployeeIds.has(employee.id)) {
       reasons.push("Masih ditetapkan sebagai approver di Approval Flow.");

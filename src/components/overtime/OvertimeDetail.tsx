@@ -51,21 +51,21 @@ export function OvertimeDetail({ id, canAct, onClose, onChanged }: {
   }
 
   function startAction(next: OvertimeAction) { setAction(next); setNote(""); setActionError(""); }
-  const titles: Record<OvertimeAction, string> = { APPROVE: "Setujui pengajuan lembur?", REJECT: "Tolak pengajuan lembur?", CANCEL: "Batalkan pengajuan lembur?" };
+  const titles: Record<OvertimeAction, string> = { APPROVE: "Setujui pengajuan Overtime?", REJECT: "Tolak pengajuan Overtime?", CANCEL: "Batalkan pengajuan Overtime?" };
   const actionLabels: Record<OvertimeAction, string> = { APPROVE: "Ya, Setujui", REJECT: "Ya, Tolak", CANCEL: "Ya, Batalkan Pengajuan" };
   return <Dialog open onOpenChange={open => { if (!open && !busyRef.current && !action) onClose(); }}>
     <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-[680px] max-h-[85vh] p-0 flex flex-col gap-0 overflow-hidden" onInteractOutside={event => { if (busy || action) event.preventDefault(); }} onEscapeKeyDown={event => { if (busy || action) event.preventDefault(); }}>
-      <DialogHeader className="border-b border-border/60 px-4 py-4 sm:px-6 sm:py-5"><DialogTitle>Detail Pengajuan Lembur</DialogTitle><DialogDescription>Rincian sesi dan riwayat persetujuan dua level.</DialogDescription></DialogHeader>
+      <DialogHeader className="border-b border-border/60 px-4 py-4 sm:px-6 sm:py-5"><DialogTitle>Detail Pengajuan Overtime</DialogTitle><DialogDescription>Rincian sesi dan riwayat persetujuan dua level.</DialogDescription></DialogHeader>
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6">
       {error && <div role="alert" className="rounded-md border border-destructive/30 p-4 text-sm text-destructive">{error}<Button variant="link" className="ml-2 h-auto p-0" onClick={() => setReload(value => value + 1)}>Coba lagi</Button></div>}
-      {loading ? <div className="space-y-4" aria-label="Memuat detail lembur" aria-busy="true"><Skeleton className="h-8 w-44" /><Skeleton className="h-44 w-full" /><Skeleton className="h-28 w-full" /></div> : row && <div className="space-y-5">
+      {loading ? <div className="space-y-4" aria-label="Memuat detail Overtime" aria-busy="true"><Skeleton className="h-8 w-44" /><Skeleton className="h-44 w-full" /><Skeleton className="h-28 w-full" /></div> : row && <div className="space-y-5">
         <div className="flex flex-wrap items-center justify-between gap-3"><StatusBadge status={row.status} /><span className="text-xs text-muted-foreground">Diajukan {wibDateTime(row.createdAt)}</span></div>
         <dl className="grid gap-4 rounded-lg border bg-muted/20 p-4 text-sm sm:grid-cols-2">
           <div><dt className="text-muted-foreground">Pengaju</dt><dd className="mt-1 break-words font-medium">{row.employeeName}</dd><dd className="text-xs text-muted-foreground">{row.employeeCode}</dd></div>
           <div><dt className="text-muted-foreground">Client</dt><dd className="mt-1 break-words font-medium">{row.clientName}</dd></div>
-          <div><dt className="text-muted-foreground">Tanggal & jam lembur</dt><dd className="mt-1">{dateLabel(row.overtimeDate)}<br />{row.startTime}–{row.endTime} WIB{row.endsNextDay ? " (+1 hari)" : ""}</dd></div>
+          <div><dt className="text-muted-foreground">Tanggal & jam Overtime</dt><dd className="mt-1">{dateLabel(row.overtimeDate)}<br />{row.startTime}–{row.endTime} WIB{row.endsNextDay ? " (+1 hari)" : ""}</dd></div>
           <div><dt className="text-muted-foreground">Durasi</dt><dd className="mt-1 flex items-center gap-2 font-medium"><Clock3 className="h-4 w-4" />{durationLabel(row.durationMinutes)}</dd><dd className="mt-1 text-xs text-muted-foreground">Selesai {wibDateTime(row.endsAt)}</dd></div>
-          <div className="sm:col-span-2"><dt className="text-muted-foreground">Keterangan lembur</dt><dd className="mt-1 whitespace-pre-wrap break-words">{row.description}</dd></div>
+          <div className="sm:col-span-2"><dt className="text-muted-foreground">Keterangan Overtime</dt><dd className="mt-1 whitespace-pre-wrap break-words">{row.description}</dd></div>
         </dl>
         <section aria-label="Alur persetujuan"><h3 className="mb-3 text-sm font-semibold">Alur Persetujuan</h3><div className="grid gap-3 sm:grid-cols-2">{[{ level: 1, name: row.approverLevel1Name }, { level: 2, name: row.approverLevel2Name }].map(item => {
           const events = row.workflowEvents ?? [];
