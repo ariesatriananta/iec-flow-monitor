@@ -119,6 +119,8 @@ export const letters = pgTable(
     letterDate: timestamp("letter_date", { mode: "date" }).notNull(),
     clientId: text("client_id").references(() => clients.id),
     letterType: text("letter_type").notNull(),
+    opinionDate: date("opinion_date", { mode: "string" }),
+    opinionNumber: text("opinion_number"),
     hrgaCategory: text("hrga_category"),
     subject: text("subject").notNull(),
     seqNo: integer("seq_no").notNull(),
@@ -135,6 +137,12 @@ export const letters = pgTable(
     clientIdIdx: index("letters_client_id_idx").on(table.clientId),
   })
 );
+
+export const consolidatedLetterCounters = pgTable("consolidated_letter_counters", {
+  year: integer("year").primaryKey(),
+  lastSeq: integer("last_seq").notNull().default(0),
+  updatedAt: timestamp("updated_at", { mode: "date" }).notNull().defaultNow(),
+});
 
 export const letterAssignments = pgTable(
   "letter_assignments",

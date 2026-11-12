@@ -20,6 +20,8 @@ export async function createLetter(payload: {
   clientId?: string | null;
   letterDate: Date;
   letterType: string;
+  opinionDate?: string | null;
+  opinionNumber?: string | null;
   hrgaCategory?: string | null;
   subject: string;
   status: string;
@@ -48,6 +50,8 @@ export async function updateLetter(
   payload: {
     letterDate?: Date;
     letterType?: string;
+    opinionDate?: string | null;
+    opinionNumber?: string | null;
     hrgaCategory?: string | null;
     clientId?: string | null;
     subject?: string;

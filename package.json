@@ -9,6 +9,8 @@
     "start": "next start",
     "lint": "next lint",
     "test:overtime": "tsx --test src/lib/overtime/*.test.ts",
+    "test:letters": "tsx --test src/lib/letters/*.test.ts",
+    "test:letters:integration": "tsx scripts/test-consolidated-letters.ts",
     "test:overtime:integration": "tsx scripts/test-overtime-integration.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",

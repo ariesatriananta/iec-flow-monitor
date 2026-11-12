@@ -64,6 +64,8 @@ export const parseInvoice = (data: Invoice): Invoice => ({
 
 export const parseLetter = (data: Letter): Letter => ({
   ...data,
+  opinionDate: data.opinionDate ?? null,
+  opinionNumber: data.opinionNumber ?? null,
   letterDate: toDate(data.letterDate),
   createdAt: toDate(data.createdAt),
   updatedAt: toDate(data.updatedAt),

@@ -89,6 +89,7 @@ import { fetchSettings, type SettingsPayload } from '@/lib/api/settings';
 import * as XLSX from 'xlsx';
 
 const letterTypeLabels: Record<LetterType, string> = {
+  SURAT_PENGANTAR_KONSOLIDASIAN: 'Surat Pengantar Konsolidasian',
   HRGA: 'HR/GA',
   UMUM: 'Umum',
   SURAT_TUGAS: 'Surat Tugas',

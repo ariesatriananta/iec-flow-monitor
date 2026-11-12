@@ -90,7 +90,7 @@ export interface Invoice {
 }
 
 // Letter Type
-export type LetterType = 'HRGA' | 'UMUM' | 'SURAT_TUGAS';
+export type LetterType = 'HRGA' | 'UMUM' | 'SURAT_TUGAS' | 'SURAT_PENGANTAR_KONSOLIDASIAN';
 
 export type HrgaCategory = 'PERMANEN' | 'NON_PERMANEN' | 'INTERNSHIP';
 
@@ -104,6 +104,9 @@ export interface Letter {
   clientId?: string;
   client?: Client;
   letterType: LetterType;
+  /** Calendar date only; deliberately separate from letterDate. */
+  opinionDate?: string | null;
+  opinionNumber?: string | null;
   hrgaCategory?: HrgaCategory | null;
   subject: string;
   seqNo: number;

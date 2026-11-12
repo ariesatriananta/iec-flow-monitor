@@ -109,7 +109,7 @@ export function generateInvoiceNumber(params: {
 export function generateLetterNumber(params: {
   seqNo: number;
   letterDate: Date;
-  letterType: 'HRGA' | 'UMUM' | 'SURAT_TUGAS';
+  letterType: 'HRGA' | 'UMUM' | 'SURAT_TUGAS' | 'SURAT_PENGANTAR_KONSOLIDASIAN';
   hrgaCategory?: 'PERMANEN' | 'NON_PERMANEN' | 'INTERNSHIP';
   numberingPrefix?: string | null;
 }): string {
@@ -127,7 +127,8 @@ export function generateLetterNumber(params: {
     return `${padSeq(seqNo)}/${prefix}/${categoryLabel}/${romanMonth(month)}/${year}`;
   }
 
-  return `L.${padSeq(seqNo)}/${prefix}/${romanMonth(month)}/${year}`;
+  const category = letterType === 'SURAT_PENGANTAR_KONSOLIDASIAN' ? 'CON/' : '';
+  return `L.${padSeq(seqNo)}/${category}${prefix}/${romanMonth(month)}/${year}`;
 }
 
 /**

@@ -13,6 +13,8 @@ import {
 import { generateLetterNumber, getJakartaMonthYear } from "@/lib/numbering";
 import { requireAdmin } from "@/lib/auth/server";
 import { recordAuditLog } from "@/lib/audit-log";
+import { ConsolidatedLetterError, updateConsolidatedLetter } from "@/lib/letters/consolidated";
+import { sharesLetterSequence } from "@/lib/letters/sequence-group";
 
 export async function GET(
   _request: Request,
@@ -119,6 +121,23 @@ export async function PUT(
   }
 
   const nextLetterType = body.letterType ?? existing.letterType;
+  if (existing.letterType === "SURAT_PENGANTAR_KONSOLIDASIAN") {
+    try {
+      const updated = await updateConsolidatedLetter(params.id, body);
+      const statusChanged = updated.status !== existing.status;
+      await recordAuditLog({ module: "LETTER", entityId: updated.id, action: statusChanged ? "STATUS_CHANGED" : "UPDATE", actor: auth.user,
+        details: { letterNumber: updated.letterNumber, letterType: updated.letterType,
+          ...(statusChanged ? { fromStatus: existing.status, toStatus: updated.status } : {}) } });
+      return NextResponse.json(updated);
+    } catch (error) {
+      if (error instanceof ConsolidatedLetterError) return NextResponse.json({ error: error.message }, { status: error.status });
+      console.error("Consolidated letter update failed:", error);
+      return NextResponse.json({ error: "Gagal mengubah Surat Pengantar Konsolidasian" }, { status: 500 });
+    }
+  }
+  if (nextLetterType === "SURAT_PENGANTAR_KONSOLIDASIAN") {
+    return NextResponse.json({ error: "Tipe surat lama tidak dapat diubah menjadi Surat Pengantar Konsolidasian. Buat surat baru." }, { status: 400 });
+  }
   const nextHrgaCategory = body.hrgaCategory ?? existing.hrgaCategory;
   const nextLetterDate = body.letterDate
     ? new Date(body.letterDate)
@@ -239,10 +258,7 @@ export async function PUT(
       if (letter.id === existing.id) return false;
       const letterYear = getJakartaMonthYear(new Date(letter.letterDate)).year;
       if (letterYear !== year) return false;
-      if (nextLetterType === "HRGA") {
-        return letter.letterType === "HRGA";
-      }
-      return letter.letterType !== "HRGA";
+      return sharesLetterSequence(letter.letterType, nextLetterType);
     });
     const maxSeq = sameYearLetters.reduce(
       (acc, letter) => Math.max(acc, letter.seqNo ?? 0),

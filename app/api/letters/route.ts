@@ -7,6 +7,8 @@ import { clients, letters, letterAssignments, letterAssignmentMembers, settings 
 import { generateLetterNumber, getJakartaMonthYear } from "@/lib/numbering";
 import { requireAdmin } from "@/lib/auth/server";
 import { recordAuditLog } from "@/lib/audit-log";
+import { ConsolidatedLetterError, createConsolidatedLetter } from "@/lib/letters/consolidated";
+import { sharesLetterSequence } from "@/lib/letters/sequence-group";
 
 export async function GET() {
   const auth = await requireAdmin();
@@ -31,6 +33,19 @@ export async function POST(request: Request) {
   if ("response" in auth) return auth.response;
 
   const body = await request.json();
+
+  if (body?.letterType === "SURAT_PENGANTAR_KONSOLIDASIAN") {
+    try {
+      const result = await createConsolidatedLetter(body);
+      await recordAuditLog({ module: "LETTER", entityId: result.id, action: "CREATE", actor: auth.user,
+        details: { letterNumber: result.letterNumber, letterType: result.letterType, subject: result.subject, status: result.status } });
+      return NextResponse.json(result, { status: 201 });
+    } catch (error) {
+      if (error instanceof ConsolidatedLetterError) return NextResponse.json({ error: error.message }, { status: error.status });
+      console.error("Consolidated letter create failed:", error);
+      return NextResponse.json({ error: "Gagal membuat Surat Pengantar Konsolidasian" }, { status: 500 });
+    }
+  }
 
   if (!body?.letterDate || !body?.letterType || !body?.subject || !body?.status) {
     return NextResponse.json(
@@ -108,14 +123,10 @@ export async function POST(request: Request) {
     })
     .from(letters);
 
-  const isHrga = body.letterType === "HRGA";
   const sameYearLetters = existingLetters.filter((letter) => {
     const letterYear = getJakartaMonthYear(new Date(letter.letterDate));
     if (letterYear.year !== year) return false;
-    if (isHrga) {
-      return letter.letterType === "HRGA";
-    }
-    return letter.letterType !== "HRGA";
+    return sharesLetterSequence(letter.letterType, body.letterType);
   });
   const maxSeq = sameYearLetters.reduce(
     (acc, letter) => Math.max(acc, letter.seqNo ?? 0),
