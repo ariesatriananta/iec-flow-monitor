@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { AdminLayout } from '@/components/layout/AdminLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -95,6 +95,24 @@ const letterTypeLabels: Record<LetterType, string> = {
   SURAT_TUGAS: 'Surat Tugas',
 };
 
+const consolidatedLetterType = 'SURAT_PENGANTAR_KONSOLIDASIAN';
+const consolidatedSubject = 'Surat Pengantar Konsolidasian';
+// Calendar-only values must not pass through UTC when displayed or submitted.
+const opinionCalendarDate = (value: string) =>
+  value ? new Date(`${value}T12:00:00`) : undefined;
+const formatOpinionDate = (value?: string | null) =>
+  value ? value.split('-').reverse().join('/') : '-';
+
+const letterSaveError = (error: unknown) => {
+  if (!(error instanceof Error) || !error.message) return 'Gagal menyimpan surat';
+  try {
+    const parsed = JSON.parse(error.message) as { error?: string; message?: string };
+    return parsed.error || parsed.message || 'Gagal menyimpan surat';
+  } catch {
+    return error.message;
+  }
+};
+
 const hrgaCategoryLabels: Record<HrgaCategory, string> = {
   PERMANEN: 'Permanen',
   NON_PERMANEN: 'Non-Permanen',
@@ -139,6 +157,7 @@ export default function Letters() {
   const [confirmDelete, setConfirmDelete] = useState<Letter | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const submitLock = useRef(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [visibleCount, setVisibleCount] = useState(20);
   const [settings, setSettings] = useState<SettingsPayload | null>(null);
@@ -156,13 +175,18 @@ export default function Letters() {
     hrgaCategory: '' as HrgaCategory | '',
     subject: '',
     notes: '',
+    opinionDate: '',
+    opinionNumber: '',
   });
 
   const filteredLetters = letters
     .filter((letter) => {
       const matchesSearch =
         letter.letterNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        letter.subject.toLowerCase().includes(searchQuery.toLowerCase());
+        letter.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (letter.letterType === consolidatedLetterType &&
+          ((letter.opinionNumber ?? '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+            (letter.client?.name ?? '').toLowerCase().includes(searchQuery.toLowerCase())));
       const matchesType = filterType === 'ALL' || letter.letterType === filterType;
       return matchesSearch && matchesType;
     })
@@ -210,6 +234,8 @@ export default function Letters() {
       hrgaCategory: '',
       subject: '',
       notes: '',
+      opinionDate: '',
+      opinionNumber: '',
     });
     setAssignmentForm(createEmptyAssignment());
     setEditingLetter(null);
@@ -225,6 +251,8 @@ export default function Letters() {
         hrgaCategory: letter.hrgaCategory ?? '',
         subject: letter.subject,
         notes: letter.notes ?? '',
+        opinionDate: letter.opinionDate ?? '',
+        opinionNumber: letter.opinionNumber ?? '',
       });
       setAssignmentForm(createEmptyAssignment());
       setIsDialogOpen(true);
@@ -275,10 +303,13 @@ export default function Letters() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitLock.current) return;
+    submitLock.current = true;
     setIsSubmitting(true);
 
     try {
-      const requiresClient = formData.letterType === 'SURAT_TUGAS';
+      const isConsolidated = formData.letterType === consolidatedLetterType;
+      const requiresClient = formData.letterType === 'SURAT_TUGAS' || isConsolidated;
       const client = formData.clientId
         ? clients.find((c) => c.id === formData.clientId)
         : undefined;
@@ -290,6 +321,13 @@ export default function Letters() {
         });
         return;
       }
+      if (isConsolidated && (!formData.opinionDate || !formData.opinionNumber.trim())) {
+        toast({ title: 'Error', description: 'Tanggal Opini dan No Opini wajib diisi', variant: 'destructive' });
+        return;
+      }
+      const opinionFields = isConsolidated
+        ? { opinionDate: formData.opinionDate, opinionNumber: formData.opinionNumber.trim() }
+        : {};
 
       if (formData.letterType === 'HRGA' && !formData.hrgaCategory) {
         toast({
@@ -339,7 +377,8 @@ export default function Letters() {
           letterDate: formData.letterDate,
           letterType: formData.letterType,
           hrgaCategory: formData.hrgaCategory || null,
-          subject: formData.subject,
+          subject: isConsolidated ? consolidatedSubject : formData.subject,
+          ...opinionFields,
           notes: formData.notes,
           clientId: formData.clientId || null,
           assignment:
@@ -371,7 +410,8 @@ export default function Letters() {
           clientId: formData.clientId || undefined,
           letterType: formData.letterType,
           hrgaCategory: formData.hrgaCategory || undefined,
-          subject: formData.subject,
+          subject: isConsolidated ? consolidatedSubject : formData.subject,
+          ...opinionFields,
           status: 'ACTIVE',
           notes: formData.notes,
           assignment:
@@ -402,10 +442,11 @@ export default function Letters() {
     } catch (error) {
       toast({
         title: 'Error',
-        description: 'Gagal membuat surat',
+        description: letterSaveError(error),
         variant: 'destructive',
       });
     } finally {
+      submitLock.current = false;
       setIsSubmitting(false);
     }
   };
@@ -488,6 +529,9 @@ export default function Letters() {
           : '',
       Client: letter.client?.name ?? '',
       Subject: letter.subject,
+      'Tanggal Opini': letter.letterType === consolidatedLetterType && letter.opinionDate
+        ? formatOpinionDate(letter.opinionDate) : '',
+      'No Opini': letter.letterType === consolidatedLetterType ? letter.opinionNumber ?? '' : '',
       Status: letter.status,
       created_at: formatDateTime(letter.createdAt),
       updated_at: formatDateTime(letter.updatedAt),
@@ -741,6 +785,8 @@ export default function Letters() {
         return 'bg-success/10 text-success border-success/20';
       case 'SURAT_TUGAS':
         return 'bg-warning/10 text-warning border-warning/20';
+      case 'SURAT_PENGANTAR_KONSOLIDASIAN':
+        return 'bg-primary/10 text-primary border-primary/20';
       default:
         return '';
     }
@@ -786,8 +832,8 @@ export default function Letters() {
               value={filterType}
               onValueChange={(value) => setFilterType(value as LetterType | 'ALL')}
             >
-              <SelectTrigger className="w-full md:w-[150px]">
-                <Filter className="w-4 h-4 mr-2" />
+              <SelectTrigger className="w-full md:w-[320px]" aria-label="Filter tipe surat">
+                <Filter className="w-4 h-4 mr-2 shrink-0" />
                 <SelectValue placeholder="Type" />
               </SelectTrigger>
               <SelectContent>
@@ -795,6 +841,7 @@ export default function Letters() {
                 <SelectItem value="HRGA">HR/GA</SelectItem>
                 <SelectItem value="UMUM">Umum</SelectItem>
                 <SelectItem value="SURAT_TUGAS">Surat Tugas</SelectItem>
+                <SelectItem value={consolidatedLetterType}>{consolidatedSubject}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -1043,8 +1090,12 @@ export default function Letters() {
                         ...formData,
                         letterType: nextType,
                         clientId:
-                          nextType === 'SURAT_TUGAS' ? formData.clientId : '',
+                          nextType === 'SURAT_TUGAS' || nextType === consolidatedLetterType ? formData.clientId : '',
                         hrgaCategory: nextType === 'HRGA' ? formData.hrgaCategory : '',
+                        subject: nextType === consolidatedLetterType ? consolidatedSubject
+                          : formData.letterType === consolidatedLetterType ? '' : formData.subject,
+                        opinionDate: '',
+                        opinionNumber: '',
                       });
                       if (nextType === 'SURAT_TUGAS') {
                         setAssignmentForm(createEmptyAssignment());
@@ -1053,13 +1104,14 @@ export default function Letters() {
                   }
                   disabled={!!editingLetter}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="letterType">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="HRGA">HR/GA</SelectItem>
                     <SelectItem value="UMUM">Umum</SelectItem>
                     <SelectItem value="SURAT_TUGAS">Surat Tugas</SelectItem>
+                    <SelectItem value={consolidatedLetterType}>{consolidatedSubject}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -1087,7 +1139,7 @@ export default function Letters() {
                 <div className="space-y-2">
                 <Label htmlFor="client">
                   Client{' '}
-                  {formData.letterType === 'SURAT_TUGAS' ? (
+                  {formData.letterType === 'SURAT_TUGAS' || formData.letterType === consolidatedLetterType ? (
                     <span className="text-destructive">*</span>
                   ) : (
                     '(opsional)'
@@ -1098,10 +1150,10 @@ export default function Letters() {
                   onValueChange={(value) => setFormData({ ...formData, clientId: value })}
                   disabled={formData.letterType === 'HRGA'}
                 >
-                    <SelectTrigger>
+                    <SelectTrigger id="client" aria-required={formData.letterType === 'SURAT_TUGAS' || formData.letterType === consolidatedLetterType}>
                       <SelectValue
                         placeholder={
-                          formData.letterType === 'SURAT_TUGAS'
+                          formData.letterType === 'SURAT_TUGAS' || formData.letterType === consolidatedLetterType
                             ? 'Pilih Client'
                             : 'Tidak wajib'
                         }
@@ -1109,10 +1161,11 @@ export default function Letters() {
                     </SelectTrigger>
                     <SelectContent>
                       {clients
-                        .filter((c) => c.isActive)
+                        .filter((c) => c.isActive ||
+                          (formData.letterType === consolidatedLetterType && editingLetter?.clientId === c.id))
                         .map((client) => (
                           <SelectItem key={client.id} value={client.id}>
-                            {client.name}
+                            {client.name}{!client.isActive ? ' (nonaktif)' : ''}
                           </SelectItem>
                         ))}
                     </SelectContent>
@@ -1149,7 +1202,48 @@ export default function Letters() {
                   </Popover>
                 </div>
               </div>
-              <div className="space-y-2">
+              {formData.letterType === consolidatedLetterType && (
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="opinionDate">Tanggal Opini *</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          id="opinionDate"
+                          type="button"
+                          aria-required="true"
+                          variant="outline"
+                          className={cn('w-full justify-start text-left font-normal', !formData.opinionDate && 'text-muted-foreground')}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {formData.opinionDate ? formatOpinionDate(formData.opinionDate) : 'Pilih tanggal opini'}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={opinionCalendarDate(formData.opinionDate)}
+                          defaultMonth={opinionCalendarDate(formData.opinionDate)}
+                          onSelect={(date) => date && setFormData((prev) => ({ ...prev, opinionDate: format(date, 'yyyy-MM-dd') }))}
+                          initialFocus
+                          className="pointer-events-auto"
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="opinionNumber">No Opini *</Label>
+                    <Input
+                      id="opinionNumber"
+                      value={formData.opinionNumber}
+                      onChange={(e) => setFormData({ ...formData, opinionNumber: e.target.value })}
+                      placeholder="Masukkan nomor opini"
+                      required
+                    />
+                  </div>
+                </div>
+              )}
+              {formData.letterType !== consolidatedLetterType && <div className="space-y-2">
                 <Label htmlFor="subject">Subject *</Label>
                 <Input
                   id="subject"
@@ -1158,7 +1252,7 @@ export default function Letters() {
                   placeholder="Perihal surat"
                   required
                 />
-              </div>
+              </div>}
               {formData.letterType === 'SURAT_TUGAS' && (
                 <div className="space-y-4 rounded-lg border border-border/60 bg-muted/20 p-4">
                   <div className="flex items-center justify-between">
@@ -1493,6 +1587,18 @@ export default function Letters() {
                   <p className="text-xs uppercase text-muted-foreground">Subject</p>
                   <p className="mt-2 text-sm">{selectedLetter.subject}</p>
                 </div>
+                {selectedLetter.letterType === consolidatedLetterType && (
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                      <p className="text-xs uppercase text-muted-foreground">Tanggal Opini</p>
+                      <p className="mt-2 text-sm">{formatOpinionDate(selectedLetter.opinionDate)}</p>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs uppercase text-muted-foreground">No Opini</p>
+                      <p className="mt-2 break-words text-sm">{selectedLetter.opinionNumber || '-'}</p>
+                    </div>
+                  </div>
+                )}
                 {selectedLetter.letterType === 'HRGA' && (
                   <div>
                     <p className="text-xs uppercase text-muted-foreground">Kategori HRGA</p>
