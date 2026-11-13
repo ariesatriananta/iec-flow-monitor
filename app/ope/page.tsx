@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Eye, FileText, MoreHorizontal, Pencil, Plus, Printer, RefreshCw } from "lucide-react";
+import { Eye, FileText, MoreHorizontal, Pencil, Plus, Printer, RefreshCw, Search } from "lucide-react";
 import { AdminLayout } from "@/components/layout/AdminLayout";
 import { OpeForm, OpeTotals } from "@/components/ope/OpeForm";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -68,6 +69,8 @@ export default function OpePage() {
   const { toast } = useToast();
   const [type, setType] = useState<OpeType>("BUSINESS_TRIP");
   const [status, setStatus] = useState<OpeStatus | "ALL" | "NON_VOID">("NON_VOID");
+  const [search, setSearch] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [page, setPage] = useState(1);
   const [reload, setReload] = useState(0);
   const [rows, setRows] = useState<OpeDocument[]>([]);
@@ -90,6 +93,14 @@ export default function OpePage() {
     : "", [dialog, selected, signerName]);
 
   useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setSearchQuery(search.trim());
+      setPage(1);
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
     if (user?.role !== "ADMIN") return;
     let active = true;
     setLoading(true);
@@ -97,7 +108,7 @@ export default function OpePage() {
     setRows([]);
     const load = async () => {
       try {
-        const result = await fetchOpeDocuments({ type, status: status === "ALL" ? undefined : status, limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE });
+        const result = await fetchOpeDocuments({ type, status: status === "ALL" ? undefined : status, q: searchQuery || undefined, limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE });
         if (!active) return;
         setRows(result.items);
         setTotal(result.total);
@@ -109,7 +120,7 @@ export default function OpePage() {
     };
     void load();
     return () => { active = false; };
-  }, [user?.role, type, status, page, reload]);
+  }, [user?.role, type, status, searchQuery, page, reload]);
 
   const loadOptions = async (documentType: OpeType) => {
     const loadEmployees = async () => {
@@ -249,7 +260,11 @@ export default function OpePage() {
             <div className="flex gap-2"><Select value={status} onValueChange={(value) => { setStatus(value as OpeStatus | "ALL" | "NON_VOID"); setPage(1); }}><SelectTrigger aria-label="Filter status" className="w-44"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="NON_VOID">Non-Void</SelectItem><SelectItem value="ALL">Semua Status</SelectItem>{Object.entries(STATUS_LABELS).map(([value, label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select><Button variant="outline" size="icon" aria-label="Muat ulang daftar" disabled={loading} onClick={() => setReload((value) => value + 1)}><RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} /></Button></div>
           </CardHeader>
           <CardContent>
-            {loadError ? <div role="alert" className="rounded-md border border-destructive/40 p-4 text-sm text-destructive">{loadError}<Button variant="outline" className="ml-3" onClick={() => setReload((value) => value + 1)}>Coba lagi</Button></div> : loading ? <div className="space-y-3">{Array.from({ length: 5 }).map((_, index) => <Skeleton key={index} className="h-12 w-full" />)}</div> : rows.length === 0 ? <p className="py-12 text-center text-muted-foreground">Belum ada dokumen {TYPE_LABELS[type]}{status === "NON_VOID" ? " non-void" : status !== "ALL" ? ` berstatus ${STATUS_LABELS[status]}` : ""}.</p> : <>
+            <div className="relative mb-4 w-full md:max-w-md">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input aria-label="Cari dokumen OPE" placeholder="Cari nomor dokumen, perihal, atau nama client..." className="pl-9" maxLength={200} value={search} onChange={(event) => setSearch(event.target.value)} />
+            </div>
+            {loadError ? <div role="alert" className="rounded-md border border-destructive/40 p-4 text-sm text-destructive">{loadError}<Button variant="outline" className="ml-3" onClick={() => setReload((value) => value + 1)}>Coba lagi</Button></div> : loading ? <div className="space-y-3">{Array.from({ length: 5 }).map((_, index) => <Skeleton key={index} className="h-12 w-full" />)}</div> : rows.length === 0 ? <p className="py-12 text-center text-muted-foreground">{searchQuery ? "Tidak ada dokumen yang cocok. Coba kata kunci atau filter status lain." : <>Belum ada dokumen {TYPE_LABELS[type]}{status === "NON_VOID" ? " non-void" : status !== "ALL" ? ` berstatus ${STATUS_LABELS[status]}` : ""}.</>}</p> : <>
               <div className="hidden overflow-x-auto md:block"><Table><TableHeader><TableRow><TableHead>Nomor / Tanggal</TableHead><TableHead>Perihal</TableHead>{type === "BUSINESS_TRIP" && <TableHead>Client</TableHead>}<TableHead className="text-right">Total</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Aksi</TableHead></TableRow></TableHeader><TableBody>{rows.map((row) => <TableRow key={row.id}><TableCell className="whitespace-nowrap"><p className="font-medium">{row.documentNumber}</p><p className="text-xs text-muted-foreground">{formatDate(row.documentDate)}</p></TableCell><TableCell className="min-w-48 max-w-sm whitespace-normal break-words">{row.subject}</TableCell>{type === "BUSINESS_TRIP" && <TableCell>{row.clientSnapshot?.name ?? "-"}</TableCell>}<TableCell className="whitespace-nowrap text-right font-medium">{formatCurrency(row.total)}</TableCell><TableCell><StatusBadge status={row.status} /></TableCell><TableCell className="text-right">{actions(row)}</TableCell></TableRow>)}</TableBody></Table></div>
               <div className="space-y-3 md:hidden">{rows.map((row) => <div key={row.id} className="space-y-2 rounded-lg border p-4"><div className="flex items-start justify-between gap-2"><div><p className="break-all font-medium">{row.documentNumber}</p><p className="text-xs text-muted-foreground">{formatDate(row.documentDate)}</p></div>{actions(row)}</div><p className="break-words">{row.subject}</p>{type === "BUSINESS_TRIP" && <p className="text-sm text-muted-foreground">{row.clientSnapshot?.name ?? "-"}</p>}<div className="flex items-center justify-between gap-3"><StatusBadge status={row.status} /><span className="font-semibold">{formatCurrency(row.total)}</span></div></div>)}</div>
             </>}

@@ -40,6 +40,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Calendar } from '@/components/ui/calendar';
 import { Textarea } from '@/components/ui/textarea';
 import {
@@ -53,6 +54,8 @@ import {
   Download,
   FileText,
   CalendarIcon,
+  Check,
+  ChevronsUpDown,
   Filter,
 } from 'lucide-react';
 import { fetchClients } from '@/lib/api/clients';
@@ -72,6 +75,7 @@ export default function Contracts() {
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [clientPickerOpen, setClientPickerOpen] = useState(false);
   const [editingContract, setEditingContract] = useState<Contract | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -739,26 +743,35 @@ export default function Contracts() {
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="client">Client *</Label>
-                  <Select
-                    value={formData.clientId}
-                    onValueChange={(value) =>
-                      setFormData({ ...formData, clientId: value })
-                    }
-                    disabled={!!editingContract && editingContract.status !== 'VOID'}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Pilih Client" />
-                    </SelectTrigger>
-                    <SelectContent>
+                  <Popover open={clientPickerOpen} onOpenChange={setClientPickerOpen} modal>
+                    <PopoverTrigger asChild>
+                      <Button type="button" id="client" variant="outline" role="combobox" aria-expanded={clientPickerOpen} aria-required="true"
+                        disabled={!!editingContract && editingContract.status !== 'VOID'}
+                        className="h-auto min-h-10 w-full justify-between whitespace-normal text-left font-normal">
+                        <span className="min-w-0 break-words">{clients.find((client) => client.id === formData.clientId)?.name || 'Pilih Client'}</span>
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                      <Command>
+                        <CommandInput placeholder="Cari nama atau kode client..." />
+                        <CommandList>
+                          <CommandEmpty>Client tidak ditemukan.</CommandEmpty>
+                          <CommandGroup>
                         {clients
                           .filter((c) => c.isActive || c.id === formData.clientId)
                           .map((client) => (
-                            <SelectItem key={client.id} value={client.id}>
+                            <CommandItem key={client.id} value={`${client.name} ${client.code} ${client.id}`}
+                              onSelect={() => { setFormData({ ...formData, clientId: client.id }); setClientPickerOpen(false); }}>
+                              <Check className={cn('mr-2 h-4 w-4 shrink-0', formData.clientId === client.id ? 'opacity-100' : 'opacity-0')} />
                               {client.name}
-                            </SelectItem>
+                            </CommandItem>
                           ))}
-                    </SelectContent>
-                  </Select>
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                   {editingContract?.status === 'VOID' && (
                     <p className="text-xs text-muted-foreground">
                       Client dapat diganti karena kontrak berstatus VOID.

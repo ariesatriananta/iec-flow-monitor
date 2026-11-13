@@ -86,7 +86,8 @@ export default function Invoices() {
       const matchesSearch =
         searchLower.length === 0 ||
         invoice.invoiceNumber.toLowerCase().includes(searchLower) ||
-        (contract?.proposalNumber ?? '').toLowerCase().includes(searchLower);
+        (contract?.proposalNumber ?? '').toLowerCase().includes(searchLower) ||
+        (contract?.client?.name ?? '').toLowerCase().includes(searchLower);
       const matchesStatus = filterStatus === 'ALL' || invoice.status === filterStatus;
       const matchesClient =
         filterClientId === 'ALL' || contract?.clientId === filterClientId;
@@ -639,7 +640,7 @@ export default function Invoices() {
             <div className="relative w-full md:flex-1 md:max-w-sm">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
-                placeholder="Cari nomor invoice/contract..."
+                placeholder="Cari nomor invoice/kontrak atau nama client..."
                 value={searchQuery}
                 onChange={(e) => setQueryParam('q', e.target.value.trim())}
                 className="pl-9"
