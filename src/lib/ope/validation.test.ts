@@ -50,6 +50,33 @@ test("meals supports multiple clients and rejects missing detail identity", () =
   assert.equal(opeInputSchema.safeParse({ ...meals, usePpn: "false" }).success, false);
 });
 
+test("Transport shares Meals multi-client expense shape and tax calculations", () => {
+  const items = [...meals.items, { ...meals.items[0], clientId: "client-2", amount: 50_000 }];
+  const input = opeInputSchema.parse({ ...meals, type: "TRANSPORT", items, usePpn: true, usePph23: true });
+  assert.equal(input.type, "TRANSPORT");
+  assert.equal(input.items.length, 2);
+  assert.equal(input.documentDate.toISOString(), "2026-11-10T00:00:00.000Z");
+  assert.equal(calculateOpeTotals(input.items.map((item) => "amount" in item ? item.amount : 0), input.usePpn, input.usePph23).total, "163500");
+  const defaults = opeInputSchema.parse({ ...meals, type: "TRANSPORT" });
+  assert.equal(defaults.usePpn, false);
+  assert.equal(defaults.usePph23, false);
+});
+
+test("Transport rejects malformed expense details using the same limits as Meals", () => {
+  for (const type of ["MEALS", "TRANSPORT"]) {
+    for (const items of [
+      [], Array.from({ length: 501 }, () => meals.items[0]),
+      [{ ...meals.items[0], clientId: "" }],
+      [{ ...meals.items[0], description: " " }],
+      [{ ...meals.items[0], expenseDate: "2026-02-30" }],
+      ...[0, -1, 1.5, MAX_OPE_AMOUNT + 1].map((amount) => [{ ...meals.items[0], amount }]),
+      [{ employeeId: "employee-1", days: 1, rate: 100_000 }],
+    ]) {
+      assert.equal(opeInputSchema.safeParse({ ...meals, type, items }).success, false);
+    }
+  }
+});
+
 test("business trip requires header client, employee and positive integer days", () => {
   const trip = { ...meals, type: "BUSINESS_TRIP", clientId: "client-1", items: [{ employeeId: "employee-1", days: 2, rate: 150_000 }] };
   assert.equal(opeInputSchema.safeParse(trip).success, true);

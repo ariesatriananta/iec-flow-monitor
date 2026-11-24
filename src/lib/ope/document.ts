@@ -16,7 +16,8 @@ export function buildOpeDocumentHtml(
   options: { headerUrl: string; signerName: string },
 ): string {
   const businessTrip = document.type === "BUSINESS_TRIP";
-  const title = businessTrip ? "OPE - BUSINESS TRIP" : "OPE - MEALS";
+  const kind = { BUSINESS_TRIP: "Business Trip", MEALS: "Meals", TRANSPORT: "Transport" }[document.type];
+  const title = `OPE - ${kind.toUpperCase()}`;
   const client = document.clientSnapshot;
   const npwpDigits = client?.npwp2?.replace(/\D/g, "") ?? "";
   const npwp = npwpDigits.length === 16
@@ -103,7 +104,7 @@ ${businessTrip ? `<div class="client"><strong class="text">${escapeHtml(client?.
 ${businessTrip ? `<tr><td>NPWP</td><td>:</td><td class="text">${escapeHtml(npwp)}</td></tr>` : ""}
 <tr><td>Perihal</td><td>:</td><td class="text">${escapeHtml(document.subject)}</td></tr>
 </tbody></table>
-<table class="items" aria-label="Rincian ${businessTrip ? "Business Trip" : "Meals"}">
+<table class="items" aria-label="Rincian ${kind}">
 ${businessTrip
     ? '<colgroup><col style="width:6%"><col style="width:31%"><col style="width:9%"><col style="width:25%"><col style="width:29%"></colgroup><thead><tr><th scope="col">No</th><th scope="col">Nama</th><th scope="col" class="number">Hari</th><th scope="col" class="number">Nilai (Rp)</th><th scope="col" class="number">Jumlah</th></tr></thead>'
     : '<colgroup><col style="width:6%"><col style="width:17%"><col style="width:23%"><col style="width:27%"><col style="width:27%"></colgroup><thead><tr><th scope="col">No</th><th scope="col">Tanggal</th><th scope="col">Client</th><th scope="col">Deskripsi</th><th scope="col" class="number">Nominal</th></tr></thead>'}

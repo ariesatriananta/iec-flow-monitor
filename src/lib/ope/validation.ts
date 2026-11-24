@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const OPE_TYPES = ["BUSINESS_TRIP", "MEALS"] as const;
+export const OPE_TYPES = ["BUSINESS_TRIP", "MEALS", "TRANSPORT"] as const;
 export const OPE_STATUSES = ["DRAFT", "ISSUED", "PAID", "VOID"] as const;
 export const MAX_OPE_AMOUNT = 999_999_999_999_999;
 
@@ -30,6 +30,13 @@ const common = {
   usePpn: z.boolean().default(false),
   usePph23: z.boolean().default(false),
 };
+const expenseItems = z.array(z.object({
+  expenseDate: dateInput,
+  clientId: z.string().min(1),
+  description: z.string().trim().min(1).max(1000),
+  amount: integerInput(1),
+})).min(1).max(500);
+
 export const opeInputSchema = z.discriminatedUnion("type", [
   z.object({
     ...common,
@@ -45,12 +52,12 @@ export const opeInputSchema = z.discriminatedUnion("type", [
   z.object({
     ...common,
     type: z.literal("MEALS"),
-    items: z.array(z.object({
-      expenseDate: dateInput,
-      clientId: z.string().min(1),
-      description: z.string().trim().min(1).max(1000),
-      amount: integerInput(1),
-    })).min(1).max(500),
+    items: expenseItems,
+  }),
+  z.object({
+    ...common,
+    type: z.literal("TRANSPORT"),
+    items: expenseItems,
   }),
 ]);
 

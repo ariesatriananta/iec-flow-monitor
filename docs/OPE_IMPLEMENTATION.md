@@ -310,3 +310,171 @@ Driver/printer Epson fisik tidak tersedia pada pengujian otomatis. Saat UAT,
 samakan pengaturan cetak: kertas A4, portrait, satu halaman per lembar,
 margin default, dan scale100% agar ukuran teks sesuai hasil PDF. Periksa
 preview Epson sebelum mencetak. Tidak mengubah nilai, status, atau database.
+
+## Transport: perluasan Meals (M1)
+
+Rencana perluasan memakai tab gabungan **Meals & Transport**. Jenis tersimpan
+tetap berbeda: `MEALS` dan `TRANSPORT`; Business Trip tetap `BUSINESS_TRIP`.
+Kolom `ope_documents.type` sudah bertipe text, sehingga tidak perlu migration,
+kolom tambahan, atau backfill. Data Meals lama tetap `MEALS`.
+
+### Cakupan M1: fondasi API
+
+- Tipe aplikasi dan validasi menerima Transport dengan detail yang sama seperti
+  Meals: tanggal, client per baris, deskripsi, nominal; satu dokumen dapat
+  berisi beberapa client. Default PPN/PPh23 dan batas nominal tetap sama.
+- Service penyimpanan memakai cabang detail non-Business Trip yang sudah ada.
+  Snapshot client, transaksi, kalkulasi, dan allocator nomor tidak diganti.
+- `GET /api/ope?group=MEALS_TRANSPORT` mengambil kedua jenis dalam satu daftar.
+  `type=MEALS` tetap hanya Meals; `type=TRANSPORT` hanya Transport. `type` dan
+  `group` tidak boleh dikirim bersama (400), agar filter tidak ambigu.
+- Search client per baris mencakup Meals dan Transport menggunakan EXISTS,
+  tanpa menggandakan dokumen ketika beberapa item cocok. Filter status,
+  Non-Void, jumlah hasil, dan pagination memakai kondisi yang sama.
+- Hak akses tetap Admin, edit isi hanya Draft, jenis tidak dapat diganti setelah
+  tersimpan. Status tetap Draft -> Issued -> Paid atau Void; tidak ada approval.
+- Nomor tetap dari counter bersama Invoice/OPE per tahun. Tidak ada counter
+  baru khusus Transport. Audit create/update otomatis merekam type Transport.
+
+M1 hanya menambahkan mapping label Transport pada halaman agar type-check tetap
+lulus. Tab gabungan, pilihan jenis di form, badge, dan judul print Transport
+belum tersedia pada M1; semua itu adalah M2. Jangan buat dokumen Transport di
+production atau deploy M1 terpisah: renderer lama masih menamai non-Business
+Trip sebagai Meals. Deploy utuh setelah M2 dan regresi M3 selesai.
+
+### Cara verifikasi M1 tanpa menulis database
+
+1. Jalankan `pnpm exec tsx --test src/lib/ope/*.test.ts` untuk validasi,
+   kalkulasi, filter/search SQL, helper API, dan regresi renderer existing.
+2. Jalankan `pnpm exec tsc --noEmit --incremental false`.
+3. Opsional, pada aplikasi development dengan sesi Admin, buka:
+   `/api/ope?group=MEALS_TRANSPORT&status=NON_VOID&limit=25&offset=0`.
+   Hasil berupa `{ items, total, limit, offset }`; sebelum ada Transport hasil
+   kelompok ini berisi Meals existing saja. Endpoint ini hanya membaca data.
+4. Bandingkan `/api/ope?type=MEALS` (tetap hanya Meals) dan
+   `/api/ope?type=TRANSPORT` (kosong jika belum ada Transport).
+5. `/api/ope?type=MEALS&group=MEALS_TRANSPORT` harus ditolak dengan HTTP 400.
+
+Pengujian roundtrip penyimpanan Transport, nomor bersamaan, UI, dan print
+nyata dijadwalkan pada M3; unit test tidak menggantikan pengujian tersebut.
+Tidak menjalankan migration, seed, atau mutasi database untuk M1.
+
+Hasil verifikasi M1: 28/28 tes OPE lulus, type-check tanpa emit lulus,
+lint seluruh file TypeScript yang berubah tanpa warning/error, dan
+`git diff --check` lulus. Build produksi dan UAT UI/print masuk M3.
+
+Berikutnya M2 (Frontend Developer): tab Meals & Transport, pilihan jenis saat
+create (default Meals), jenis readonly saat edit, badge daftar desktop/mobile,
+detail dan preview/print dengan judul `OPE - TRANSPORT`. Setelah itu M3
+(Backend Architect) untuk regresi lintas API, penomoran, UI dan dokumen.
+
+## Transport M2: UI dan dokumen
+
+- Halaman OPE tetap dua tab: Business Trip dan **Meals & Transport**.
+  Tab gabungan memanggil `group=MEALS_TRANSPORT`, tanpa mengirim `type`.
+  Search, Non-Void, total hasil, dan pagination tetap melalui API.
+- Tombol Buat pada tab gabungan membuka form dengan default Meals. Field
+  **Jenis dokumen** menawarkan Meals / Transport dan memperbarui judul modal
+  tanpa menghapus isian header/detail. Setiap membuka form baru kembali Meals.
+- Saat edit, jenis memakai nilai tersimpan dan readonly. Draft Transport
+  memakai field tanggal, client per baris, deskripsi, nominal, dan pajak yang
+  sama seperti Meals; tidak ada form atau rumus duplikat.
+- Daftar desktop mempunyai kolom Jenis; kartu mobile menampilkan badge
+  Meals/Transport. Detail dan modal preview memakai jenis dokumen tersimpan.
+- Preview/print Transport memakai renderer Meals yang sama dengan judul
+  `OPE - TRANSPORT`, termasuk judul HTML dan label aksesibilitas rincian.
+  Kop, footer, tabel, angka pajak, tanda tangan, dan sumber snapshot tetap.
+- Tidak ada perubahan schema/database maupun allocator nomor.
+
+### Uji manual M2 di development
+
+1. Buka OPE -> Meals & Transport. Meals existing tetap tampil dengan badge
+   Meals; default status masih Non-Void.
+2. Klik Buat Meals & Transport. Default jenis Meals. Isi beberapa detail lalu
+   ganti ke Transport; judul menjadi Buat OPE Transport dan isian tetap ada.
+3. Buat satu Draft Transport di database uji milik Owner dengan beberapa client.
+   Pastikan badge Transport, detail benar, dan hasil search client per baris
+   menampilkan dokumen tersebut. Jangan membuat fixture di production.
+4. Buka Edit Draft Transport: jenis readonly Transport; isi lain tetap dapat
+   diedit. Tutup lalu buat dokumen baru: jenis kembali Meals.
+5. Preview dan Print/Save as PDF: judul OPE - TRANSPORT, detail client per baris,
+   pajak, total, kop/footer sama seperti Meals. Meals lama tetap OPE - MEALS.
+6. Periksa tampilan daftar mobile, status Void melalui filter, dan Business Trip
+   untuk memastikan tidak berubah.
+
+M2 tidak menjalankan simpan/update dokumen ke database. Uji roundtrip DB,
+konkurensi nomor, browser interaktif, PDF, dan build produksi menjadi cakupan
+M3 (Backend Architect); setelah M3 barulah rilis backend/UI/renderer bersama.
+
+Verifikasi M2: 30/30 tes OPE lulus, type-check tanpa emit lulus, lint file
+UI/renderer yang berubah tanpa warning/error, dan diff-check lulus. Smoke
+render statis form baru Meals, edit Transport readonly, dan Business Trip
+lulus; ini bukan pengujian browser interaktif. Tes renderer membandingkan
+HTML Meals/Transport identik kecuali judul/label jenis, serta memeriksa
+multi-client, pajak, kop/footer, dan escaping teks Transport.
+
+## Transport M3: regresi dan kesiapan rilis
+
+M3 selesai pada lingkungan uji terisolasi, tanpa membaca `.env` dan tanpa
+menulis database development/production milik Owner. Tidak ditemukan defect
+logic produksi pada skenario yang dijalankan; perubahan M3 berupa script tes,
+perintah package, dan dokumentasi.
+
+### Hasil verifikasi
+
+- `pnpm test:ope`: 36 tes unit OPE/penomoran lulus.
+- `pnpm test:ope:integration`: 17 skenario PostgreSQL nyata lulus. Script
+  membuat cluster sementara baru, mengganti inherited DATABASE_URL sebelum
+  import service, menjalankan 38 migration hanya pada cluster itu, lalu
+  menghentikannya setelah selesai. Tidak memerlukan migration database Owner.
+- Dengan `OPE_TEST_APP_DIR` menunjuk salinan build terisolasi, suite integrasi
+  juga menjalankan 4 kelompok HTTP: total 21 skenario lulus. Mencakup auth
+  anonymous/Staff, create/read/edit Transport dan audit, bentuk respons daftar,
+  validasi payload, filter, dan larangan edit dokumen non-Draft.
+- Database nyata menguji multi-client, snapshot setelah master berubah,
+  empat kombinasi pajak, jenis immutable, terminal status, group/type,
+  Non-Void, literal wildcard, dedup search client item, total/pagination,
+  urutan Invoice/Meals/Business Trip/Transport, enam request paralel,
+  rollback header/detail/counter, pergantian tahun WIB, dan nomor Meals lama.
+- `pnpm test:ope:browser`: 11 skenario browser lulus memakai API simulasi
+  (bukan bukti roundtrip DB). Tab gabungan/default Non-Void, selector/retained
+  fields, payload multi-client, search, Void, edit readonly, reset default,
+  preview, Meals lama, Business Trip, dan mobile tanpa horizontal overflow.
+- PDF Transport berhasil dibuat dengan Edge Chromium. Pemeriksaan teks dan
+  koordinat: satu halaman A4, judul Transport, kedua client, total netto
+  Rp163.500, serta footer berjarak sekitar 10,5mm dari tepi bawah. Angka ini
+  adalah fixture uji (subtotal Rp150.000 + PPN Rp16.500 - PPh Rp3.000).
+- Type-check, lint script baru, dan diff-check lulus. Build produksi lulus
+  di salinan TEMP tanpa `.env` dengan URL database dummy. Warning existing
+  `<img>` halaman Surat dan Browserslist lama bukan error build.
+
+### Menjalankan ulang
+
+```powershell
+pnpm test:ope
+pnpm test:ope:integration
+```
+
+Integration membutuhkan PostgreSQL binaries (default Windows PG18 di
+`C:/Program Files/PostgreSQL/18/bin`; override `PG_TEST_BIN` jika berbeda).
+Script selalu membuat cluster baru; jangan mengubahnya untuk memakai DB Owner.
+Opsional HTTP: set `OPE_TEST_APP_DIR` ke salinan TEMP build dengan prefix
+`iecnet-transport-build-`, bukan workspace development aktif, sebelum menjalankan
+integration. Script memulai/menghentikan server sendiri dengan DB sementara.
+
+Browser membutuhkan Playwright yang sudah tersedia dan browser Chromium:
+set `OPE_TEST_PLAYWRIGHT` ke file entry Playwright (jika tidak terpasang lokal),
+`OPE_TEST_CHROME` ke executable Chrome/Edge, dan `OPE_TEST_BASE_URL` ke server
+localhost terisolasi yang memakai DATABASE_URL dummy. Server harus memakai
+`SESSION_SECRET=transport-isolated-test-only` atau nilai test yang sama dengan
+script. Lalu jalankan `pnpm test:ope:browser`. Semua API diintersep; request
+tak dikenal membuat tes gagal. PDF/screenshot disimpan ke direktori TEMP
+yang dicetak script. Playwright tidak ditambahkan ke dependency produksi.
+
+### Handoff Owner
+
+Siap untuk UAT Owner dan deploy backend/UI/renderer sekaligus, tanpa migration.
+Belum deploy/commit otomatis. Uji singkat setelah deploy: buat Transport,
+cek nomor bersama, reload dan edit Draft, cek search client item, preview/print,
+serta buka Meals lama dan Business Trip. Printer Epson fisik dan data nyata
+production belum diuji; verifikasi A4/scale/margin printer saat UAT Owner.

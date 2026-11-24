@@ -36,6 +36,7 @@ const parseOpe = (row: WireDocument): OpeDocument => ({
 
 export async function fetchOpeDocuments(params: {
   type?: OpeType;
+  group?: "MEALS_TRANSPORT";
   status?: OpeStatus | "NON_VOID";
   q?: string;
   limit?: number;

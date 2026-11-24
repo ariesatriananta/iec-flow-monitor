@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
@@ -106,7 +107,7 @@ export function OpeTotals({ subtotal, ppnAmount, pph23Amount, total, ppnRate, pp
   );
 }
 
-export function OpeForm({ type, document, clients, employees, saving, onSave, onCancel }: {
+export function OpeForm({ type: initialType, document, clients, employees, saving, onSave, onCancel, onTypeChange }: {
   type: OpeType;
   document: OpeDocument | null;
   clients: OpeClientOption[];
@@ -114,7 +115,9 @@ export function OpeForm({ type, document, clients, employees, saving, onSave, on
   saving: boolean;
   onSave: (payload: OpeInput) => Promise<void>;
   onCancel: () => void;
+  onTypeChange?: (type: OpeType) => void;
 }) {
+  const [type, setType] = useState<OpeType>(document?.type ?? initialType);
   const [documentDate, setDocumentDate] = useState(document ? dateKey(document.documentDate) : dateKey(new Date()));
   const [clientId, setClientId] = useState(document?.clientId ?? "");
   const [subject, setSubject] = useState(document?.subject ?? "");
@@ -180,12 +183,19 @@ export function OpeForm({ type, document, clients, employees, saving, onSave, on
     <form onSubmit={submit} className="space-y-5">
       <fieldset disabled={saving} className="min-w-0 space-y-5">
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-2"><Label>Nomor dokumen</Label><Input value={document?.documentNumber ?? "Otomatis saat disimpan"} readOnly />{!document && <p className="text-xs text-muted-foreground">Format I.042/ARM/XI/2026, satu urutan bersama Invoice, Business Trip, dan Meals.</p>}</div>
+          {type !== "BUSINESS_TRIP" && <div className="space-y-2 sm:col-span-2">
+            <Label htmlFor="ope-document-type">Jenis dokumen *</Label>
+            {document ? <><Input id="ope-document-type" value={type === "TRANSPORT" ? "Transport" : "Meals"} readOnly /><p className="text-xs text-muted-foreground">Jenis dokumen tidak dapat diubah setelah disimpan.</p></> : <Select value={type} disabled={saving} onValueChange={(value) => { const nextType = value as "MEALS" | "TRANSPORT"; setType(nextType); setError(""); onTypeChange?.(nextType); }}>
+              <SelectTrigger id="ope-document-type"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="MEALS">Meals</SelectItem><SelectItem value="TRANSPORT">Transport</SelectItem></SelectContent>
+            </Select>}
+          </div>}
+          <div className="space-y-2"><Label>Nomor dokumen</Label><Input value={document?.documentNumber ?? "Otomatis saat disimpan"} readOnly />{!document && <p className="text-xs text-muted-foreground">Format I.042/ARM/XI/2026, satu urutan bersama Invoice, Business Trip, Meals, dan Transport.</p>}</div>
           <div className="space-y-2"><Label>Tanggal dokumen *</Label><DatePicker label="Tanggal dokumen" value={documentDate} onChange={setDocumentDate} /></div>
           {type === "BUSINESS_TRIP" && <div className="space-y-2 sm:col-span-2"><Label>Client *</Label><SearchSelect label="Client" value={clientId} options={clientOptions} onChange={setClientId} /></div>}
           <div className="space-y-2 sm:col-span-2"><Label htmlFor="ope-subject">Perihal *</Label><Input id="ope-subject" value={subject} onChange={(event) => setSubject(event.target.value)} maxLength={1000} required /></div>
         </div>
-        <p className="text-xs text-muted-foreground">Pilihan client berdasarkan kontrak aktif terbaru. {type === "MEALS" && "Satu dokumen dapat memuat beberapa client."}</p>
+        <p className="text-xs text-muted-foreground">Pilihan client berdasarkan kontrak aktif terbaru. {type !== "BUSINESS_TRIP" && "Satu dokumen dapat memuat beberapa client."}</p>
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-3"><h3 className="font-semibold">Detail item</h3><Button type="button" size="sm" variant="outline" disabled={rows.length >= 500} onClick={() => setRows((current) => [...current, newRow()])}><Plus className="mr-1 h-4 w-4" />Tambah item</Button></div>
           {rows.map((row, index) => (

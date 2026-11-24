@@ -14,13 +14,39 @@ const document: OpeDocument = {
 };
 const options = { headerUrl: "/invoice-header.png", signerName: "Anita Rahman, CPA" };
 
-test("both OPE formats render one letterhead and a separate readable legal footer", () => {
-  for (const type of ["BUSINESS_TRIP", "MEALS"] as const) {
+test("all OPE formats render one letterhead and a separate readable legal footer", () => {
+  for (const type of ["BUSINESS_TRIP", "MEALS", "TRANSPORT"] as const) {
     const html = buildOpeDocumentHtml({ ...document, type }, options);
     assert.equal((html.match(/<image\b/g) ?? []).length, 1);
     assert.match(html, /<footer[^>]*aria-label="Keterangan keanggotaan IECnet"><strong>Krisnawan, Nugroho &amp; Fahmy<\/strong> is an independent member of IECnet Network\./);
     assert.match(html, /Each member of IECnet Network is legally separate and independent entity which practices in its own jurisdiction and in its own rights\. IECnet Network is full member of Forum of Firm\./);
   }
+});
+
+test("Transport uses the exact Meals layout with its own visible title and accessibility label", () => {
+  const expense: OpeDocument = { ...document, type: "TRANSPORT", documentNumber: "I.043/ARM/XI/2026", items: [
+    { ...document.items![0], expenseDate: new Date("2026-11-09T00:00:00Z"), clientSnapshot: { ...document.clientSnapshot!, name: "Client A" }, description: "Taksi kantor" },
+    { ...document.items![0], id: "item-2", expenseDate: new Date("2026-11-10T00:00:00Z"), clientSnapshot: { ...document.clientSnapshot!, name: "Client B" }, description: "Transport bandara" },
+  ] };
+  const transport = buildOpeDocumentHtml(expense, options);
+  const meals = buildOpeDocumentHtml({ ...expense, type: "MEALS" }, options);
+  assert.equal(transport, meals.replaceAll("OPE - MEALS", "OPE - TRANSPORT").replace("Rincian Meals", "Rincian Transport"));
+  assert.match(transport, /<title>OPE - TRANSPORT I\.043\/ARM\/XI\/2026<\/title>/);
+  assert.match(transport, /<h1>OPE - TRANSPORT<\/h1>/);
+  assert.match(transport, /Client A/);
+  assert.match(transport, /Client B/);
+  assert.match(transport, /<td>Rp 11\.000<\/td>/);
+  assert.match(transport, /<td>\(Rp 2\.000\)<\/td>/);
+  assert.doesNotMatch(transport, /Client Snapshot|>NPWP<|OPE - MEALS/);
+});
+
+test("Transport retains escaped item text and supports disabled taxes and terminal status", () => {
+  const html = buildOpeDocumentHtml({ ...document, type: "TRANSPORT", status: "PAID", ppnRate: 0, pph23Rate: 0,
+    items: [{ ...document.items![0], description: '<script>alert("x")</script>', clientSnapshot: { ...document.clientSnapshot!, name: "A & B" } }],
+  }, options);
+  assert.match(html, /A &amp; B/);
+  assert.match(html, /&lt;script&gt;/);
+  assert.doesNotMatch(html, /<script>|>PPN \(|>PPh 23 \(|BELUM DITERBITKAN/);
 });
 
 test("OPE renderer uses saved snapshots and amounts, with formatted new NPWP and tax display", () => {

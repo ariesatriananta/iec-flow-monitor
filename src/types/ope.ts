@@ -1,4 +1,4 @@
-export type OpeType = "BUSINESS_TRIP" | "MEALS";
+export type OpeType = "BUSINESS_TRIP" | "MEALS" | "TRANSPORT";
 export type OpeStatus = "DRAFT" | "ISSUED" | "PAID" | "VOID";
 
 export type OpeClientSnapshot = {
@@ -63,7 +63,7 @@ export type OpeInput = OpeHeaderInput & (
       items: { employeeId: string; days: number; rate: number; description?: string }[];
     }
   | {
-      type: "MEALS";
+      type: "MEALS" | "TRANSPORT";
       items: { expenseDate: Date | string; clientId: string; description: string; amount: number }[];
     }
 );
